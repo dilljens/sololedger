@@ -1,0 +1,12 @@
+{
+  "project": "solo-ledger",
+  "description": "Personal bookkeeping and invoicing system",
+  "services": {
+    "api": {
+      "port": 8100,
+      "protocol": "http",
+      "description": "FastAPI backend for ledger/invoice management",
+      "env_var": "API_PORT"
+    }
+  }
+}
