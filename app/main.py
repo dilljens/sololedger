@@ -65,7 +65,7 @@ def status(ctx):
 
     # Reload ledger
     errors = ledger.check()
-    click.echo("═══ Wyoming LLC Dashboard ═══")
+    click.echo("═══ SoloLedger Dashboard ═══")
     click.echo()
 
     # Cash
@@ -306,7 +306,7 @@ def retainer_process(ctx, no_preview):
     """Check all retainers and generate invoices for those due.
 
     Designed to be run from cron:
-        0 9 1 * * cd /path/to/llc-tools && python -m app.main retainer process --no-preview
+        0 9 1 * * cd /path/to/solo-ledger && python -m app.main retainer process --no-preview
     """
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
@@ -693,7 +693,7 @@ def notify_check(ctx):
     """Check everything and send alerts (desktop + email if configured).
 
     Run this from cron for daily reminders:
-        0 9 * * * cd /path/to/llc-tools && python -m app.main notify check
+        0 9 * * * cd /path/to/solo-ledger && python -m app.main notify check
     """
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]

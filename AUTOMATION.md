@@ -14,7 +14,7 @@ Paste the schedule below (adjust paths to your setup):
 # ── LLC Tools Automation ──────────────────────────────────────────
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
-LLC_DIR=/home/dillon/_code/llc-tools
+LLC_DIR=/home/dillon/_code/solo-ledger
 LLC="$LLC_DIR/.venv/bin/python -m app.main"
 NOTIFY_SMTP_PASSWORD=your-app-password    # if using email alerts
 

@@ -1,4 +1,4 @@
-"""REST API layer for LLC Tools — wraps all CLI modules as JSON endpoints.
+"""SoloLedger REST API — wraps all CLI modules as JSON endpoints.
 
 Run with:
     uvicorn app.api:app --reload --port 8100
@@ -60,7 +60,7 @@ from .invoice import Invoicer, RetainerConfig
 # ── App setup ──────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="LLC Tools API",
+    title="SoloLedger API",
     description="Self-hosted accounting, invoicing, and tax API for your Wyoming consulting LLC.",
     version="0.2.0",
 )

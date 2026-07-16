@@ -274,7 +274,7 @@ class PlaidFeed:
         client_id = os.environ.get("PLAID_CLIENT_ID", "")
         secret = os.environ.get("PLAID_SECRET", "")
         plaid_env = os.environ.get("PLAID_ENV", "sandbox")
-        user_id = os.environ.get("PLAID_USER_ID", "llc-tools-user")
+        user_id = os.environ.get("PLAID_USER_ID", "solo-ledger-user")
 
         if not client_id or not secret:
             return {"error": "PLAID_CLIENT_ID and PLAID_SECRET must be set"}
@@ -299,7 +299,7 @@ class PlaidFeed:
 
             request = LinkTokenCreateRequest(
                 user=LinkTokenCreateRequestUser(client_user_id=user_id),
-                client_name="LLC Tools",
+                client_name="SoloLedger",
                 products=[Products("transactions")],
                 country_codes=[CountryCode("US")],
                 language="en",
