@@ -960,6 +960,116 @@ def time_invoice(ctx, days, source, rate, client, no_preview):
         click.echo("(Preview — run with --no-preview to create the invoice)")
 
 
+# ── doctor / diagnostic ──────────────────────────────────────────────────
+
+
+@cli.command()
+@_pass_config
+def doctor(ctx):
+    """Run diagnostics — check all integrations and configuration.
+
+    Reports what's working and what needs setup for each module.
+    Run this first when setting up SoloLedger.
+    """
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    import os
+    from pathlib import Path
+
+    click.echo("═══ SoloLedger Doctor ═══")
+    click.echo()
+
+    # ── 1. Ledger ──────────────────────────────────────────────────────
+    errors = ledger.check()
+    click.echo(f"  {'✅' if not errors else '❌'}  Ledger:       {'Clean' if not errors else f'{len(errors)} error(s)'}" )
+    if errors:
+        for e in errors[:3]:
+            click.echo(f"       {e}")
+
+    cash = ledger.cash_balance()
+    revenue = ledger.gross_revenue()
+    click.echo(f"  {'✅' if cash > 0 else '⚠️'}  Cash:         ${cash:>8,.2f}")
+    click.echo(f"  {'✅' if revenue > 0 else '⚠️'}  Revenue YTD:  ${revenue:>8,.2f}")
+    click.echo()
+
+    # ── 2. Config ─────────────────────────────────────────────────────
+    biz_name = cfg.business_name
+    has_ein = cfg.ein != "XX-XXXXXXX"
+    has_phone = cfg.phone != "+1 307-555-XXXX"
+    click.echo(f"  {'✅' if biz_name != 'Your LLC Name Here' else '⚠️'}  Business:     {biz_name}")
+    click.echo(f"  {'✅' if has_ein else '⚠️'}  EIN:          {cfg.ein if has_ein else 'Not set'}")
+    click.echo(f"  {'✅' if cfg.state_code else '⚠️'}  State:        {cfg.state_code}")
+    click.echo()
+
+    # ── 3. Stripe ────────────────────────────────────────────────────
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if stripe_key:
+        from .payments import StripePayments
+        sp = StripePayments()
+        click.echo(f"  {'✅' if sp.enabled else '⚠️'}  Stripe:       Configured (key found)")
+    else:
+        click.echo(f"  {'⚠️' if not stripe_key else '✅'}  Stripe:       Not configured — set STRIPE_SECRET_KEY")
+    click.echo()
+
+    # ── 4. Plaid ────────────────────────────────────────────────────
+    plaid_id = os.environ.get("PLAID_CLIENT_ID", "")
+    plaid_secret = os.environ.get("PLAID_SECRET", "")
+    plaid_token = os.environ.get("PLAID_ACCESS_TOKEN", "")
+    if plaid_id and plaid_secret and plaid_token:
+        click.echo(f"  ✅  Plaid:        Configured ({plaid_id[:10]}...)")
+    elif plaid_id and plaid_secret:
+        click.echo(f"  {'⚠️' if not plaid_token else '⚠️'}  Plaid:        Client/Secret set but no access token")
+    else:
+        click.echo(f"  ⚠️   Plaid:        Not configured — set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ACCESS_TOKEN")
+    click.echo()
+
+    # ── 5. Time tracking ────────────────────────────────────────────
+    toggl_token = os.environ.get("TOGGL_API_TOKEN", "")
+    clockify_key = os.environ.get("CLOCKIFY_API_KEY", "")
+    if toggl_token:
+        click.echo(f"  ✅  Toggl:        Configured")
+    elif clockify_key:
+        click.echo(f"  ✅  Clockify:     Configured")
+    else:
+        click.echo(f"  ⚠️   Toggl:        Not configured — set TOGGL_API_TOKEN")
+        click.echo(f"  ⚠️   Clockify:     Not configured — set CLOCKIFY_API_KEY")
+    click.echo()
+
+    # ── 6. Notifications ────────────────────────────────────────────
+    smtp_user = os.environ.get("NOTIFY_SMTP_PASSWORD", "")
+    desktop_ok = Path("/usr/bin/notify-send").exists()
+    click.echo(f"  {'✅' if desktop_ok else '⚠️'}  Desktop:      Notifications via notify-send {'available' if desktop_ok else '(not found)'}")
+    click.echo(f"  {'✅' if smtp_user else '⚠️'}  Email:        {'Configured' if smtp_user else 'Not configured — set NOTIFY_SMTP_PASSWORD'}")
+    click.echo()
+
+    # ── 7. Receipt OCR ─────────────────────────────────────────────
+    tesseract_ok = shutil_which("tesseract")
+    click.echo(f"  {'✅' if tesseract_ok else '⚠️'}  OCR:          Tesseract {'available' if tesseract_ok else 'not found (install tesseract-ocr)'}")
+    click.echo()
+
+    # ── 8. Expirations / Coming soon ───────────────────────────────
+    click.echo(f"  📅  Tax deadlines:")
+    from .taxes import TaxEstimator
+    taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
+    for d in taxer.deadline_info()["deadlines"][:3]:
+        status = {"overdue": "🔴", "upcoming": "🟡", "ahead": "🟢"}.get(d["status"], "⚪")
+        click.echo(f"       {status}  {d['label']:12s} {d['due']} ({d['days_until']:+d} days)")
+    click.echo()
+
+    # ── Summary ──────────────────────────────────────────────────
+    net = ledger.net_income()
+    click.echo(f"  {'💰' if net > 0 else '💸'}  Net profit:   ${net:>8,.2f}")
+    click.echo()
+    click.echo(f"  ▸  Docs:       https://github.com/dillonj/solo-ledger#readme")
+    click.echo(f"  ▸  Cloud:      https://sololedger.app")
+
+
+def shutil_which(cmd):
+    """Check if a command is available."""
+    import shutil
+    return shutil.which(cmd)
+
+
 # ── entry point ───────────────────────────────────────────────────────────
 
 
