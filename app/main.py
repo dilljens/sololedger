@@ -1077,15 +1077,188 @@ def shutil_which(cmd):
 def init():
     """Interactive setup wizard — configure your business and check env vars.
 
-    Run this first when installing SoloLedger. It will:
-      - Walk through business info
-      - Help select your state
-      - Check environment variables
-      - Write config.toml
-      - Validate the ledger
+    Run this first when installing SoloLedger.
     """
     from .setup import run_init
     run_init()
+
+
+# ── demo data ─────────────────────────────────────────────────────────────
+
+
+@cli.command()
+@click.option("--fresh", is_flag=True, help="Remove existing data and reload")
+@_pass_config
+def demo(ctx, fresh):
+    """Load sample data so you can explore SoloLedger right away.
+
+    Adds sample invoices, expenses, and opening balance to the ledger.
+    """
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    from decimal import Decimal
+
+    tx_path = cfg.ledger_dir / "transactions.beancount"
+    content = tx_path.read_text()
+
+    # If fresh, strip existing demo data
+    if fresh and "SoloLedger Demo" in content:
+        # Remove everything from the demo marker to end of file
+        marker = "=== SoloLedger Demo Data ==="
+        idx = content.find(marker)
+        if idx != -1:
+            content = content[:idx].rstrip() + "\n"
+            tx_path.write_text(content)
+            ledger.reload()
+            click.echo("  ✓  Removed existing demo data.")
+
+    # Check if demo data already loaded (unless --fresh was used)
+    content = tx_path.read_text()
+    if "SoloLedger Demo" in content:
+        click.echo("⚠  Demo data already loaded. Use 'llc demo --fresh' to reload.")
+        return
+
+    click.echo("═══ Loading Demo Data ═══")
+    click.echo()
+
+    demo_entries = [
+        # Opening balance
+        {
+            "date": "2026-01-02",
+            "payee": "Dillon",
+            "narration": "Initial contribution",
+            "postings": [
+                ("Assets:Bank:BusinessChecking", "10000.00 USD"),
+                ("Equity:OpeningBalance", "-10000.00 USD"),
+            ],
+        },
+        # Invoices
+        {
+            "date": "2026-01-15",
+            "payee": "Acme Corp",
+            "narration": "Q1 2026 Consulting Retainer",
+            "postings": [
+                ("Income:Consulting", "-8000.00 USD"),
+                ("Assets:AccountsReceivable", "8000.00 USD"),
+            ],
+        },
+        {
+            "date": "2026-02-01",
+            "payee": "Client payment — Acme Corp",
+            "narration": "Invoice paid via wire",
+            "postings": [
+                ("Assets:Bank:BusinessChecking", "8000.00 USD"),
+                ("Assets:AccountsReceivable", "-8000.00 USD"),
+            ],
+        },
+        {
+            "date": "2026-04-15",
+            "payee": "Beta Inc",
+            "narration": "Website consulting — Q2 2026",
+            "postings": [
+                ("Income:Consulting", "-5000.00 USD"),
+                ("Assets:AccountsReceivable", "5000.00 USD"),
+            ],
+        },
+        # Expenses
+        {
+            "date": "2026-01-05",
+            "payee": "GitHub",
+            "narration": "GitHub Team plan — Jan 2026",
+            "postings": [
+                ("Expenses:Software:SaaS", "20.00 USD"),
+                ("Assets:Bank:BusinessChecking", "-20.00 USD"),
+            ],
+        },
+        {
+            "date": "2026-01-10",
+            "payee": "AWS",
+            "narration": "AWS hosting — Jan 2026",
+            "postings": [
+                ("Expenses:Software:Hosting", "47.23 USD"),
+                ("Assets:Bank:BusinessChecking", "-47.23 USD"),
+            ],
+        },
+        {
+            "date": "2026-01-15",
+            "payee": "Office Depot",
+            "narration": "Office supplies",
+            "postings": [
+                ("Expenses:Supplies", "35.00 USD"),
+                ("Assets:Bank:BusinessChecking", "-35.00 USD"),
+            ],
+        },
+        {
+            "date": "2026-02-01",
+            "payee": "Cloudflare",
+            "narration": "Cloudflare Pro plan",
+            "postings": [
+                ("Expenses:Software:Hosting", "20.00 USD"),
+                ("Assets:Bank:BusinessChecking", "-20.00 USD"),
+            ],
+        },
+        {
+            "date": "2026-02-10",
+            "payee": "Stripe",
+            "narration": "Payment processing fees",
+            "postings": [
+                ("Expenses:BankFees", "22.50 USD"),
+                ("Assets:Bank:BusinessChecking", "-22.50 USD"),
+            ],
+        },
+        {
+            "date": "2026-03-01",
+            "payee": "IRS",
+            "narration": "Q1 2026 estimated tax payment",
+            "postings": [
+                ("Expenses:Taxes:Federal", "1500.00 USD"),
+                ("Assets:Bank:BusinessChecking", "-1500.00 USD"),
+            ],
+        },
+        # Owner draw
+        {
+            "date": "2026-03-15",
+            "payee": "Dillon",
+            "narration": "Owner draw — Mar 2026",
+            "postings": [
+                ("Equity:OwnerDraws", "3000.00 USD"),
+                ("Assets:Bank:BusinessChecking", "-3000.00 USD"),
+            ],
+        },
+    ]
+
+    # Append demo data with a clear marker
+    with open(tx_path, "a") as f:
+        f.write("\n")
+        f.write(";; === SoloLedger Demo Data ==========================================\n")
+        f.write(";; Generated by `llc demo` — safe to delete when you start fresh\n")
+        f.write(";; ==================================================================\n")
+        f.write("\n")
+
+        for entry in demo_entries:
+            date = entry["date"]
+            payee = entry["payee"].replace('"', '\\"')
+            narration = entry["narration"].replace('"', '\\"')
+            f.write(f'{date} * "{payee}" "{narration}"\n')
+            for account, amount in entry["postings"]:
+                f.write(f"  {account:45s}  {amount}\n")
+            f.write("\n")
+
+    # Reload ledger
+    ledger.reload()
+    net = ledger.net_income()
+    cash = ledger.cash_balance()
+    ar = ledger.account_balance(cfg.ar_account)
+
+    click.echo(f"  ✓  Loaded {len(demo_entries)} sample transactions")
+    click.echo()
+    click.echo(f"  Cash:            ${cash:>8,.2f}")
+    click.echo(f"  Revenue:         ${ledger.gross_revenue():>8,.2f}")
+    click.echo(f"  Expenses:        ${ledger.total_expenses():>8,.2f}")
+    click.echo(f"  Net Profit YTD:  ${net:>8,.2f}")
+    click.echo(f"  AR Outstanding:  ${ar:>8,.2f}")
+    click.echo()
+    click.echo("  Run 'llc status' to see the full dashboard.")
 
 
 # ── entry point ───────────────────────────────────────────────────────────
