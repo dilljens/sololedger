@@ -1070,6 +1070,24 @@ def shutil_which(cmd):
     return shutil.which(cmd)
 
 
+# ── setup wizard ──────────────────────────────────────────────────────────
+
+
+@cli.command()
+def init():
+    """Interactive setup wizard — configure your business and check env vars.
+
+    Run this first when installing SoloLedger. It will:
+      - Walk through business info
+      - Help select your state
+      - Check environment variables
+      - Write config.toml
+      - Validate the ledger
+    """
+    from .setup import run_init
+    run_init()
+
+
 # ── entry point ───────────────────────────────────────────────────────────
 
 

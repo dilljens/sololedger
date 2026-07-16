@@ -1,63 +1,22 @@
 ;; ============================================================================
-;; Transactions — append from your app or manually
-;; ============================================================================
-;; Your app's `llc invoice create` and `llc expense import` append here.
-;; You can also edit this file directly — it's plain text.
+;; Transactions — your app's `llc invoice create` and `llc expense import`
+;; append entries here. You can also edit this file directly.
 ;; ============================================================================
 
 ;; === Owner Contribution (opening balance) ===================================
-;; Adjust the date and amount to match your initial deposit.
+;; Uncomment and adjust to match your initial bank deposit:
 ; 2026-01-02 * "Dillon" "Initial contribution to open business account"
 ;   Assets:Bank:BusinessChecking          1000.00 USD
 ;   Equity:OpeningBalance                -1000.00 USD
 
-;; === Sample Invoice =========================================================
-; 2026-02-01 * "Acme Corp" "Consulting — Q1 2026 retainer"
+;; === Invoices ================================================================
+;; Created by: llc invoice create
+; 2026-02-01 * "Acme Corp" "Q1 Consulting Retainer"
 ;   Income:Consulting                    -5000.00 USD
-;   Assets:Bank:BusinessChecking          5000.00 USD
+;   Assets:AccountsReceivable             5000.00 USD
 
-;; === Sample Expense =========================================================
-; 2026-02-05 * "GitHub" "GitHub Team plan — Feb 2026"
+;; === Expenses ================================================================
+;; Created by: llc expense import / llc receipt scan
+; 2026-02-05 * "GitHub" "GitHub Team plan"
 ;   Expenses:Software:SaaS                 20.00 USD
 ;   Assets:Bank:BusinessChecking          -20.00 USD
-2026-07-16 * "Acme Corp" "Q2 2026 Consulting Retainer"
-  Income:Consulting                              -5000.00 USD
-  Assets:AccountsReceivable                      5000.00 USD
-
-2026-07-16 * "Beta Inc" "Website Development"
-  Income:Consulting                              -2500.00 USD
-  Assets:AccountsReceivable                      2500.00 USD
-
-2026-07-01 * "GITHUB subscription" "Bank import: GITHUB subscription"
-  Expenses:Software:SaaS                         20.00 USD
-  Assets:Bank:BusinessChecking                   -20.00 USD
-
-2026-07-05 * "AWS hosting" "Bank import: AWS hosting"
-  Expenses:Software:Hosting                      150.50 USD
-  Assets:Bank:BusinessChecking                   -150.50 USD
-
-2026-07-10 * "Stripe payment fees" "Bank import: Stripe payment fees"
-  Expenses:BankFees                              35.00 USD
-  Assets:Bank:BusinessChecking                   -35.00 USD
-
-2026-07-15 * "Office supplies" "Bank import: Office supplies"
-  Expenses:Miscellaneous                         85.00 USD
-  Assets:Bank:BusinessChecking                   -85.00 USD
-
-2026-07-16 * "Client payment ACME" "Bank import: Client payment ACME"
-  Income:Consulting                              -5000.00 USD
-  Assets:Bank:BusinessChecking                   5000.00 USD
-
-2026-07-16 * "Acme Corp" "Q3 2026 Consulting"
-  Income:Consulting                              -5000.00 USD
-  Assets:AccountsReceivable                      5000.00 USD
-
-2026-07-16 * "Acme Corp" "Q3 2026 Consulting"
-  Income:Consulting                              -5000.00 USD
-  Assets:AccountsReceivable                      5000.00 USD
-
-2026-07-16 * "Acme Corp" "Q3 2026 Consulting"
-  Income:Consulting                              -5000.00 USD
-  Assets:AccountsReceivable                      5000.00 USD
-
-

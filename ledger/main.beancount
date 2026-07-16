@@ -1,5 +1,5 @@
 ;; ============================================================================
-;; Wyoming Consulting LLC — Main Ledger
+;; SoloLedger — Main Ledger
 ;; ============================================================================
 ;; Usage: bean-report main.beancount ...
 ;;        fava main.beancount

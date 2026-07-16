@@ -4,12 +4,12 @@
 
 [business]
 name = "Your LLC Name Here"
-owner = "Dillon"
-state = "WY"                        # Wyoming — no state income tax
+owner = "Your Name"
+state = "WY"                        # Two-letter state code (WY, CA, TX, NY, FL)
 ein = "XX-XXXXXXX"                  # Your EIN from IRS
-address = "123 Main St, City, WY 82001"
-phone = "+1 307-555-XXXX"
-email = "dillon@yourllc.com"
+address = "123 Main St, City, ST ZIP"
+phone = "+1 555-555-5555"
+email = "you@yourllc.com"
 
 [ledger]
 path = "ledger/main.beancount"      # Path to your main Beancount file
