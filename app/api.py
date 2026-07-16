@@ -1183,6 +1183,104 @@ async def stripe_webhook(request: Request):
         return _err(f"Payment recording failed: {e}", 500)
 
 
+# ── Reports ────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/v1/reports/expenses", dependencies=[Depends(check_auth)])
+async def get_expenses_report(year: Optional[int] = Query(None), format: str = Query("json")):
+    """Get expense report as JSON or CSV."""
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+    except Exception as e:
+        return _err(f"Ledger error: {e}", 500)
+
+    from .reports import ReportGenerator
+    rg = ReportGenerator(cfg, ledger)
+
+    if format == "csv":
+        csv_data = rg.expenses_csv(year=year)
+        from fastapi.responses import PlainTextResponse
+        filename = f"expenses-{year or 'all'}.csv"
+        return PlainTextResponse(csv_data, media_type="text/csv",
+                                 headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+    summary = rg.expenses_summary(year=year)
+    return _ok({"year": year or "all", "total": sum(s["amount"] for s in summary), "categories": summary})
+
+
+@app.get("/api/v1/reports/profit-loss", dependencies=[Depends(check_auth)])
+async def get_profit_loss(year: Optional[int] = Query(None)):
+    """Get profit and loss summary."""
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+    except Exception as e:
+        return _err(f"Ledger error: {e}", 500)
+
+    from .reports import ReportGenerator
+    rg = ReportGenerator(cfg, ledger)
+    pl = rg.profit_loss(year=year)
+    return _ok(pl)
+
+
+# ── Import ─────────────────────────────────────────────────────────────────
+
+
+@app.post("/api/v1/import/csv", dependencies=[Depends(check_auth)])
+async def import_csv(
+    file: UploadFile = File(...),
+    preview: bool = Form(False),
+):
+    """Import transactions from a generic CSV file."""
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+    except Exception as e:
+        return _err(f"Config/ledger error: {e}", 500)
+
+    from .importer import Importer
+
+    suffix = Path(file.filename or "import.csv").suffix
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        imp = Importer(cfg, ledger)
+        results = imp.import_csv(tmp_path, preview=preview)
+        return _ok({
+            "imported": len(results),
+            "preview": preview,
+            "transactions": [
+                {"date": r["date"], "description": r["description"],
+                 "amount": float(r["amount"]), "type": r["type"], "account": r["account"]}
+                for r in results
+            ],
+        })
+    finally:
+        os.unlink(tmp_path)
+
+
+# ── Backup ─────────────────────────────────────────────────────────────────
+
+
+@app.post("/api/v1/backup", dependencies=[Depends(check_auth)])
+async def api_backup():
+    """Commit and push ledger changes to git."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+
+    from .backup import Backup
+    b = Backup(cfg)
+    result = b.commit(quiet=True)
+    return _ok(result)
+
+
 # ── Run ─────────────────────────────────────────────────────────────────────
 
 

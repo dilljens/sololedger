@@ -1261,6 +1261,272 @@ def demo(ctx, fresh):
     click.echo("  Run 'llc status' to see the full dashboard.")
 
 
+# ── backup ────────────────────────────────────────────────────────────────
+
+
+@cli.command()
+@click.option("--quiet", is_flag=True, help="Suppress output (for cron)")
+@click.option("--status", "show_status", is_flag=True, help="Show changes without committing")
+@_pass_config
+def backup(ctx, quiet, show_status):
+    """Auto-backup ledger changes to git.
+
+    Designed for cron: commits ledger/ and config.toml changes,
+    then pushes to the remote if configured.
+
+    Examples:
+        llc backup                           # Commit + push
+        llc backup --quiet                   # Silent (for cron)
+        llc backup --status                  # Show pending changes
+    """
+    cfg = ctx["cfg"]
+    from .backup import Backup
+    b = Backup(cfg)
+
+    if show_status:
+        changes = b.status()
+        if changes:
+            click.echo(f"Uncommitted changes ({len(changes)}):")
+            for c in changes:
+                click.echo(f"  {c['status']}  {c['path']}")
+        else:
+            click.echo("✓ No uncommitted changes.")
+        return
+
+    result = b.commit(quiet=quiet)
+    if not result["committed"] and not quiet:
+        click.echo("✓ Nothing to back up.")
+
+
+# ── reports ───────────────────────────────────────────────────────────────
+
+
+@cli.group()
+def report():
+    """Generate financial reports and exports."""
+
+
+@report.command("expenses")
+@click.option("--year", "-y", type=int, default=None, help="Filter by year")
+@click.option("--format", "output_format", type=click.Choice(["table", "csv"]), default="table",
+              help="Output format: table (CLI) or csv (export)")
+@_pass_config
+def report_expenses(ctx, year, output_format):
+    """Show expense summary or export as CSV."""
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    from .reports import ReportGenerator
+    rg = ReportGenerator(cfg, ledger)
+
+    if output_format == "csv":
+        csv_data = rg.expenses_csv(year=year)
+        click.echo(csv_data)
+        return
+
+    summary = rg.expenses_summary(year=year)
+    if not summary:
+        click.echo("No expenses found.")
+        return
+
+    year_label = year or "All time"
+    total = sum(s["amount"] for s in summary)
+
+    click.echo(f"═══ Expenses ({year_label}) ═══")
+    click.echo()
+    for s in summary:
+        short = s["category"].replace("Expenses:", "")
+        click.echo(f"  {short:<40s}  ${s['amount']:>8,.2f}  ({s['count']} txns)")
+    click.echo(f"  {'─' * 40}")
+    click.echo(f"  {'Total':<40s}  ${total:>8,.2f}")
+
+
+@report.command("profit-loss")
+@click.option("--year", "-y", type=int, default=None, help="Filter by year")
+@_pass_config
+def report_pl(ctx, year):
+    """Show profit and loss summary."""
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    from .reports import ReportGenerator
+    rg = ReportGenerator(cfg, ledger)
+
+    pl = rg.profit_loss(year=year)
+    click.echo(f"═══ Profit & Loss ({pl['year']}) ═══")
+    click.echo()
+    click.echo(f"  Income:             ${pl['income']:>10,.2f}")
+    click.echo(f"  Total Expenses:     ${pl['expenses']:>10,.2f}")
+    for e in pl.get("expense_breakdown", []):
+        short = e["category"].replace("Expenses:", "")
+        click.echo(f"    {short:<35s}  ${e['amount']:>8,.2f}")
+    click.echo(f"  {'─' * 45}")
+    click.echo(f"  Net Profit:         ${pl['net_profit']:>10,.2f}")
+
+
+# ── import ────────────────────────────────────────────────────────────────
+
+
+@cli.group()
+def import_cmd():
+    """Import transactions from other tools (Wave, QuickBooks, CSV)."""
+
+
+@import_cmd.command("wave")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("--preview", is_flag=True, help="Preview only")
+@_pass_config
+def import_wave(ctx, filepath, preview):
+    """Import transactions from a Wave Accounting CSV export."""
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    from .importer import Importer
+    imp = Importer(cfg, ledger)
+    results = imp.import_wave_csv(filepath, preview=preview)
+
+    if results and "error" in results[0]:
+        click.echo(f"⚠ {results[0]['error']}")
+        return
+
+    click.echo(f"Imported {len(results)} transactions from Wave CSV.")
+    for r in results:
+        click.echo(f"  {r['date']}  {r['description'][:40]:40s}  ${abs(r['amount']):>8,.2f}  → {r['account']}")
+
+
+@import_cmd.command("qbo")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("--preview", is_flag=True, help="Preview only")
+@_pass_config
+def import_qbo(ctx, filepath, preview):
+    """Import transactions from a QuickBooks Online CSV export."""
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    from .importer import Importer
+    imp = Importer(cfg, ledger)
+    results = imp.import_qbo_csv(filepath, preview=preview)
+
+    if results and "error" in results[0]:
+        click.echo(f"⚠ {results[0]['error']}")
+        return
+
+    click.echo(f"Imported {len(results)} transactions from QBO CSV.")
+
+
+@import_cmd.command("csv")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("--preview", is_flag=True, help="Preview only")
+@_pass_config
+def import_csv_generic(ctx, filepath, preview):
+    """Import transactions from a generic CSV (Date, Description, Amount)."""
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    from .importer import Importer
+    imp = Importer(cfg, ledger)
+    results = imp.import_csv(filepath, preview=preview)
+
+    if results and "error" in results[0]:
+        click.echo(f"⚠ {results[0]['error']}")
+        return
+
+    click.echo(f"Imported {len(results)} transactions from CSV.")
+
+
+# ── stripe sync ───────────────────────────────────────────────────────────
+
+
+@cli.group()
+def stripe():
+    """Manage Stripe payments and sync payment status."""
+
+
+@stripe.command("sync")
+@click.option("--since", default=None, help="Start date (YYYY-MM-DD)")
+@click.option("--preview", is_flag=True, help="Preview only")
+@_pass_config
+def stripe_sync(ctx, since, preview):
+    """Sync completed Stripe payments and reconcile with invoices.
+
+    Fetches completed checkout sessions from Stripe and records
+    payments that haven't been recorded yet.
+    """
+    import os
+    api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not api_key:
+        click.echo("⚠  STRIPE_SECRET_KEY not set.")
+        return
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+
+    try:
+        import stripe as stripe_lib
+        stripe_lib.api_key = api_key
+    except ImportError:
+        click.echo("⚠  stripe Python package not installed.")
+        return
+
+    # Fetch completed checkout sessions
+    params = {"limit": 100}
+    if since:
+        params["created"] = {"gte": int(datetime.date.fromisoformat(since).timestamp())}
+
+    try:
+        sessions = stripe_lib.checkout.Session.list(**params)
+    except Exception as e:
+        click.echo(f"⚠  Stripe API error: {e}")
+        return
+
+    completed = [s for s in sessions if s.payment_status == "paid"]
+    click.echo(f"Found {len(completed)} completed payment(s)")
+
+    if preview:
+        for s in completed[:10]:
+            meta = s.get("metadata", {}) or {}
+            inv = meta.get("invoice_number", "unknown")
+            amt = (s.amount_total or 0) / 100
+            click.echo(f"  {s.id[:15]:15s}  ${amt:>8,.2f}  invoice={inv}")
+        if len(completed) > 10:
+            click.echo(f"  ... and {len(completed) - 10} more")
+        click.echo()
+        click.echo("Run without --preview to record these payments.")
+        return
+
+    # Record payments
+    from decimal import Decimal
+    recorded = 0
+    skipped = 0
+
+    # Get existing payment IDs from ledger to avoid duplicates
+    existing_ids = set()
+    for entry in ledger.entries:
+        if hasattr(entry, "narration") and "Stripe payment" in entry.narration:
+            existing_ids.add(entry.narration)
+
+    for session in completed:
+        payment_id = session.id or ""
+        meta = session.get("metadata", {}) or {}
+        inv_num = meta.get("invoice_number", "")
+        client = meta.get("client", "Stripe Payment")
+        amt = Decimal(str(session.amount_total or 0)) / Decimal("100")
+
+        # Check if already recorded
+        if any(payment_id in eid for eid in existing_ids):
+            skipped += 1
+            continue
+
+        postings = [
+            (cfg.checking_account, f"{amt:.2f} USD"),
+            (cfg.ar_account, f"-{amt:.2f} USD"),
+        ]
+        ledger.append(
+            date=datetime.date.today(),
+            payee=f"Stripe — {client}",
+            narration=f"Stripe payment {payment_id} for invoice {inv_num}",
+            postings=postings,
+        )
+        recorded += 1
+
+    click.echo(f"Recorded: {recorded}, Skipped (already in ledger): {skipped}")
+
+
 # ── entry point ───────────────────────────────────────────────────────────
 
 

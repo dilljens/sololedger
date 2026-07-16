@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'deadlines': await renderDeadlines(); break;
         case 'capture': await renderCapture(); break;
         case 'recon': await renderRecon(); break;
+        case 'reports': await renderReports(); break;
         case 'settings': await renderSettings(); break;
       }
     } catch (err) {
@@ -145,7 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${i.client}</td>
                 <td>${i.description}</td>
                 <td class="amount">${money(i.amount)}</td>
-                <td><a href="/api/v1/invoices/${invNum}/pdf" target="_blank" class="btn btn-outline btn-sm">📄 PDF</a></td>
+                <td style="display:flex;gap:4px;">
+                  <a href="/api/v1/invoices/${invNum}/pdf" target="_blank" class="btn btn-outline btn-sm">📄 PDF</a>
+                  <a href="mailto:?subject=Invoice ${invNum}&body=Hi,%0D%0A%0D%0AInvoice ${invNum} for ${i.description} is attached.%0D%0A%0D%0AAmount due: ${money(i.amount)}%0D%0A%0D%0AThank you!" class="btn btn-outline btn-sm">✉️ Send</a>
+                </td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -257,6 +261,47 @@ document.addEventListener('DOMContentLoaded', () => {
             </li>
           `).join('')}
         </ul>
+      </div>`;
+  }
+
+  // ── Reports ────────────────────────────────────────────────────
+  async function renderReports() {
+    const [expenses, pl] = await Promise.all([
+      apiGet('/reports/expenses'),
+      apiGet('/reports/profit-loss'),
+    ]);
+    const csvUrl = '/api/v1/reports/expenses?format=csv';
+    content.innerHTML = `
+      <div class="page-header">
+        <h1>📊 Reports</h1>
+        <p>Financial summaries and exports</p>
+      </div>
+      <div class="card">
+        <h2>Profit & Loss — ${pl.year}</h2>
+        <table>
+          <tr><td>Income</td><td class="amount green">${money(pl.income)}</td></tr>
+          <tr><td>Expenses</td><td class="amount red">${money(pl.expenses)}</td></tr>
+          <tr style="font-weight:700;"><td>Net Profit</td><td class="amount ${pl.net_profit >= 0 ? 'green' : 'red'}">${money(pl.net_profit)}</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Expenses by Category — $${fmt(expenses.total)} total</h2>
+        <table>
+          <thead><tr><th>Category</th><th class="amount">Amount</th><th class="amount">Transactions</th></tr></thead>
+          <tbody>
+            ${expenses.categories.map(c => `
+              <tr>
+                <td>${c.category.replace('Expenses:', '')}</td>
+                <td class="amount">${money(c.amount)}</td>
+                <td class="amount">${c.count}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <a href="${csvUrl}" target="_blank" class="btn btn-primary">📥 Download CSV</a>
+        <button class="btn btn-outline" onclick="loadPage('tax')">💰 Tax Estimate</button>
       </div>`;
   }
 
