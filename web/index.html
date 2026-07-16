@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoloLedger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/app/css/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo">Solo<span>Ledger</span></div>
+    <nav>
+      <a href="#" data-page="dashboard" class="active">📊 Dashboard</a>
+      <a href="#" data-page="invoices">📄 Invoices</a>
+      <a href="#" data-page="transactions">📋 Transactions</a>
+      <a href="#" data-page="tax">💰 Tax Estimate</a>
+      <a href="#" data-page="deadlines">📅 Deadlines</a>
+      <a href="#" data-page="settings">⚙️ Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="version">v0.2.0</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="page-content"></div>
+  </main>
+
+  <script src="/app/js/api.js"></script>
+  <script src="/app/js/app.js"></script>
+</body>
+</html>

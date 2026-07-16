@@ -1,0 +1,89 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  color: #1a1a2e; background: #f5f5f8;
+  display: flex; min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px; background: #1a1a2e; color: #fff;
+  padding: 24px 0; display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; height: 100vh;
+}
+.sidebar .logo { font-size: 1.2rem; font-weight: 700; padding: 0 20px 24px; letter-spacing: -0.3px; border-bottom: 1px solid #2d2d4e; margin-bottom: 8px; }
+.sidebar .logo span { color: #6b8cff; }
+.sidebar nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px; color: #a0a0c0; text-decoration: none;
+  font-size: 0.9rem; font-weight: 500; transition: all 0.15s;
+}
+.sidebar nav a:hover { background: #2d2d4e; color: #fff; }
+.sidebar nav a.active { background: #2d2d4e; color: #fff; border-right: 3px solid #6b8cff; }
+.sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid #2d2d4e; }
+.sidebar-footer .version { font-size: 0.75rem; color: #5a5a7a; }
+
+/* Main */
+.main { margin-left: 220px; flex: 1; padding: 32px; max-width: 1100px; }
+.page-header { margin-bottom: 24px; }
+.page-header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.3px; }
+.page-header p { color: #666; font-size: 0.9rem; margin-top: 4px; }
+.page-header .meta { display: flex; gap: 16px; margin-top: 8px; font-size: 0.85rem; color: #888; }
+
+/* Cards */
+.card { background: #fff; border-radius: 10px; border: 1px solid #eee; padding: 24px; margin-bottom: 20px; }
+.card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #444; }
+.card-row { display: flex; gap: 20px; flex-wrap: wrap; }
+.stat {
+  background: #fff; border-radius: 10px; border: 1px solid #eee;
+  padding: 20px 24px; flex: 1; min-width: 160px;
+}
+.stat .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+.stat .value { font-size: 1.6rem; font-weight: 700; }
+.stat .green { color: #28a745; }
+.stat .red { color: #dc3545; }
+.stat .blue { color: #3b82f6; }
+
+/* Loading */
+.loading { text-align: center; padding: 60px; color: #888; }
+.loading .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #eee; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th { text-align: left; padding: 10px 12px; border-bottom: 2px solid #eee; font-weight: 600; color: #666; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+tr:hover td { background: #fafaff; }
+.amount { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Tags */
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+.tag-green { background: #e8f5e9; color: #28a745; }
+.tag-red { background: #fce4ec; color: #dc3545; }
+.tag-blue { background: #e3f2fd; color: #3b82f6; }
+.tag-gray { background: #f5f5f5; color: #666; }
+
+/* Deadlines */
+.deadline-list { list-style: none; }
+.deadline-list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.88rem; }
+.deadline-list li:last-child { border-bottom: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-red { background: #dc3545; }
+.dot-yellow { background: #ffc107; }
+.dot-green { background: #28a745; }
+
+/* Summary card */
+.summary-card { border: 2px solid #1a1a2e; }
+.summary-card .big-number { font-size: 1.8rem; font-weight: 800; }
+.summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #eee; font-size: 0.9rem; color: #555; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+.btn-primary { background: #1a1a2e; color: #fff; }
+.btn-primary:hover { background: #2d2d4e; }
+.btn-outline { background: transparent; border: 1.5px solid #ddd; color: #555; }
+.btn-outline:hover { border-color: #3b82f6; color: #3b82f6; }
+
+/* Error */
+.error { background: #fff3f3; border: 1px solid #fcc; padding: 20px; border-radius: 8px; color: #c33; text-align: center; }

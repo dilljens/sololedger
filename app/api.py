@@ -50,6 +50,7 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
@@ -73,6 +74,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve web UI from web/ directory
+_web_dir = Path(__file__).parent.parent / "web"
+if _web_dir.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/app", StaticFiles(directory=str(_web_dir), html=True), name="web")
 
 # Auth
 security = HTTPBearer(auto_error=False)
