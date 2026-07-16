@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'transactions': await renderTransactions(); break;
         case 'tax': await renderTax(); break;
         case 'deadlines': await renderDeadlines(); break;
+        case 'capture': await renderCapture(); break;
+        case 'recon': await renderRecon(); break;
         case 'settings': await renderSettings(); break;
       }
     } catch (err) {
@@ -301,6 +303,241 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
   }
 });
+
+  // ── Capture (receipt camera + OCR + matching) ───────────────────
+  async function renderCapture() {
+    content.innerHTML = `
+      <div class="page-header">
+        <h1>📸 Capture Receipt</h1>
+        <p>Snap a receipt photo with your camera or upload one from your gallery</p>
+      </div>
+      <div class="card">
+        <h2>1. Choose Receipt</h2>
+        <div style="text-align:center;padding:30px;">
+          <label class="btn btn-primary" style="font-size:1rem;padding:14px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+            📷 Take Photo or Upload
+            <input type="file" id="receipt-file" accept="image/*,application/pdf" capture="environment" style="display:none;" onchange="handleReceiptUpload(this)">
+          </label>
+          <p style="color:#888;font-size:0.85rem;margin-top:12px;">Supports JPG, PNG, PDF receipts</p>
+        </div>
+      </div>
+      <div id="receipt-result" style="display:none;">
+        <div class="card">
+          <h2>2. Review &amp; Confirm</h2>
+          <div id="receipt-preview"></div>
+        </div>
+        <div class="card" id="receipt-match-section" style="display:none;">
+          <h2>🔗 Matching Bank Transaction</h2>
+          <div id="receipt-matches"></div>
+        </div>
+        <div class="card">
+          <h2>3. Category</h2>
+          <div id="receipt-category"></div>
+          <div style="margin-top:12px;display:flex;gap:8px;" id="receipt-actions">
+            <button class="btn btn-primary" onclick="confirmReceipt()">✅ Append to Ledger</button>
+            <button class="btn btn-outline" onclick="resetCapture()">🔄 Reset</button>
+          </div>
+        </div>
+      </div>
+      <div id="receipt-done" style="display:none;">
+        <div class="card" style="text-align:center;padding:30px;">
+          <h2 style="font-size:1.5rem;">✅ Receipt Recorded</h2>
+          <p style="color:#666;margin:8px 0;" id="receipt-done-detail"></p>
+          <button class="btn btn-outline" onclick="resetCapture()">📸 Capture Another</button>
+        </div>
+      </div>`;
+  }
+
+  // ── Reconciliation ────────────────────────────────────────────────
+  async function renderRecon() {
+    const d = await apiGet('/reconciliation');
+    content.innerHTML = `
+      <div class="page-header">
+        <h1>🔄 Bank Reconciliation</h1>
+        <p>Match your ledger against your bank statement</p>
+      </div>
+      <div class="card-row" style="margin-bottom:20px;">
+        <div class="stat"><div class="label">Ledger Balance</div><div class="value blue">${money(d.ledger_balance)}</div></div>
+        <div class="stat"><div class="label">Uncleared</div><div class="value red">${money(d.uncleared_total)} (${d.uncleared_count} txns)</div></div>
+        <div class="stat"><div class="label">Cleared Balance</div><div class="value green">${money(d.cleared_balance)}</div></div>
+      </div>
+      <div class="card">
+        <h2>All Transactions (${d.uncleared_count})</h2>
+        <p style="color:#888;font-size:0.85rem;margin-bottom:12px;">View your recent ledger entries. Reconcile against your bank statement manually.</p>
+        <table>
+          <thead><tr><th>Date</th><th>Payee</th><th>Category</th><th class="amount">Amount</th></tr></thead>
+          <tbody>
+            ${d.uncleared.slice(0,30).map(t => `
+              <tr>
+                <td>${t.date}</td>
+                <td>${t.payee}</td>
+                <td><span class="tag tag-blue">${t.account.split(':').pop()}</span></td>
+                <td class="amount ${t.amount < 0 ? 'green' : 'red'}">${money(t.amount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ${d.uncleared_count > 30 ? `<p style="color:#888;text-align:center;margin-top:8px;">... and ${d.uncleared_count - 30} more</p>` : ''}
+      </div>
+      <div class="card">
+        <h2>Quick Links</h2>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="https://www.irs.gov/payments/direct-pay-with-bank-account" target="_blank" class="btn btn-outline">🇺🇸 IRS Direct Pay</a>
+          <button class="btn btn-outline" onclick="loadPage('dashboard')">📊 Dashboard</button>
+        </div>
+      </div>`;
+  }
+});
+
+// ── Receipt capture (global so HTML onclick works) ──────────────
+window.handleReceiptUpload = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const resultDiv = document.getElementById('receipt-result');
+  const previewDiv = document.getElementById('receipt-preview');
+  const matchSection = document.getElementById('receipt-match-section');
+  const matchesDiv = document.getElementById('receipt-matches');
+  const categoryDiv = document.getElementById('receipt-category');
+  const doneDiv = document.getElementById('receipt-done');
+  const doneDetail = document.getElementById('receipt-done-detail');
+
+  resultDiv.style.display = 'none';
+  matchSection.style.display = 'none';
+  doneDiv.style.display = 'none';
+
+  previewDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Scanning receipt...</div>';
+  resultDiv.style.display = 'block';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('preview', 'true');
+
+    const res = await fetch('/api/v1/receipts/scan', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Scan failed');
+    const data = json.data;
+
+    previewDiv.innerHTML = `
+      <table>
+        <tr><td style="width:120px;"><strong>Merchant</strong></td><td>${data.merchant || 'Unknown'}</td></tr>
+        <tr><td><strong>Date</strong></td><td>${data.date || 'Unknown'}</td></tr>
+        <tr><td><strong>Total</strong></td><td><strong>$${fmt(data.total || 0)}</strong></td></tr>
+        ${data.line_items && data.line_items.length ? `
+        <tr><td><strong>Items</strong></td><td>${data.line_items.slice(0,5).map(i => `<span style="display:block;">· ${i.description}: $${fmt(i.amount)}</span>`).join('')}${data.line_items.length > 5 ? `<span style="color:#888;">...and ${data.line_items.length-5} more</span>` : ''}</td></tr>
+        ` : ''}
+      </table>
+      <p style="color:#888;font-size:0.85rem;margin-top:8px;">${file.name} (${(file.size/1024).toFixed(0)} KB)</p>`;
+
+    // Auto-categorize
+    let suggestedAccount = '';
+    if (data.merchant) {
+      const catRes = await fetch('/api/v1/categories/suggest?merchant=' + encodeURIComponent(data.merchant));
+      const catJson = await catRes.json();
+      if (catJson.success && catJson.data && catJson.data.account) {
+        suggestedAccount = catJson.data.account;
+        const conf = catJson.data.confidence;
+        const confLabel = conf === 'high' ? '✅' : conf === 'medium' ? '⚠️' : '❓';
+        categoryDiv.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span>${confLabel} Suggested: <strong>${suggestedAccount}</strong></span>
+            <input type="text" id="receipt-account" value="${suggestedAccount}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;width:250px;">
+            <button class="btn btn-outline btn-sm" onclick="learnCategory()">✓ Learn</button>
+          </div>`;
+      } else {
+        categoryDiv.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span>Category:</span>
+            <input type="text" id="receipt-account" value="Expenses:Miscellaneous" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;width:250px;">
+          </div>`;
+      }
+    } else {
+      categoryDiv.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span>Category:</span>
+          <input type="text" id="receipt-account" value="Expenses:Miscellaneous" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;width:250px;">
+        </div>`;
+    }
+
+    // Try to match against bank transactions
+    const total = data.total || 0;
+    if (total > 0) {
+      const matchRes = await fetch('/api/v1/receipts/match?amount=' + total + '&merchant=' + encodeURIComponent(data.merchant || ''));
+      const matchJson = await matchRes.json();
+      if (matchJson.success && matchJson.data && matchJson.data.matches && matchJson.data.matches.length > 0) {
+        matchSection.style.display = 'block';
+        matchesDiv.innerHTML = matchJson.data.matches.slice(0,3).map(m => `
+          <label style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #ddd;border-radius:6px;margin:4px 0;cursor:pointer;">
+            <input type="radio" name="receipt-match" value='${JSON.stringify(m).replace(/'/g, "&#39;")}'>
+            <span>${m.date} — <strong>${m.description}</strong> — $${fmt(m.amount)}</span>
+            <span class="tag ${m.match_score > 0.95 ? 'tag-green' : 'tag-blue'}">${(m.match_score * 100).toFixed(0)}% match</span>
+          </label>
+        `).join('');
+        matchesDiv.innerHTML += '<p style="color:#888;font-size:0.85rem;margin-top:4px;">Select a match to link this receipt to a bank transaction.</p>';
+      }
+    }
+
+    window._receiptData = data;
+    window._receiptFile = file;
+
+  } catch (err) {
+    previewDiv.innerHTML = '<div class="error">⚠ ' + err.message + '</div>';
+  }
+};
+
+window.confirmReceipt = async function() {
+  const data = window._receiptData;
+  const file = window._receiptFile;
+  if (!data || !data.total) { alert('No receipt data to save.'); return; }
+
+  const account = document.getElementById('receipt-account')?.value || 'Expenses:Miscellaneous';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('preview', 'false');
+    formData.append('account', account);
+
+    const res = await fetch('/api/v1/receipts/scan', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Failed');
+
+    document.getElementById('receipt-result').style.display = 'none';
+    document.getElementById('receipt-done').style.display = 'block';
+    document.getElementById('receipt-done-detail').textContent = `${data.merchant || 'Receipt'} — $${fmt(data.total)} → ${account}`;
+
+    // Learn the category
+    if (data.merchant) {
+      await fetch('/api/v1/categories/learn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchant: data.merchant, account: account }),
+      });
+    }
+  } catch (err) {
+    alert('❌ Error: ' + err.message);
+  }
+};
+
+window.learnCategory = async function() {
+  const account = document.getElementById('receipt-account')?.value || '';
+  const data = window._receiptData;
+  if (!data || !data.merchant || !account) return;
+  await fetch('/api/v1/categories/learn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ merchant: data.merchant, account: account, correct: true }),
+  });
+  alert('✅ Category learned for ' + data.merchant);
+};
+
+window.resetCapture = function() {
+  window._receiptData = null;
+  window._receiptFile = null;
+  const active = document.querySelector('[data-page].active');
+  if (active) loadPage(active.dataset.page);
+};
 
 // ── Helper: Mark tax as paid ─────────────────────────────────────
 async function markTaxPaid(amount) {

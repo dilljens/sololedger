@@ -87,3 +87,16 @@ tr:hover td { background: #fafaff; }
 
 /* Error */
 .error { background: #fff3f3; border: 1px solid #fcc; padding: 20px; border-radius: 8px; color: #c33; text-align: center; }
+
+/* Mobile responsive capture */
+@media (max-width: 640px) {
+  .sidebar { width: 60px; }
+  .sidebar .logo span, .sidebar nav a span, .sidebar-footer { display: none; }
+  .sidebar nav a { font-size: 1.3rem; padding: 12px 16px; justify-content: center; }
+  .main { margin-left: 60px; padding: 16px; }
+  .card { padding: 16px; }
+  .card-row { flex-direction: column; }
+  .stat { min-width: auto; }
+  table { font-size: 0.78rem; }
+  td, th { padding: 6px 8px; }
+}

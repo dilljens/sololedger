@@ -48,7 +48,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Depends
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -172,6 +172,12 @@ class TaxPayRequest(BaseModel):
     quarter: str = ""  # e.g. "Q1", "Q2", "Q3", "Q4"
     year: int = 0
     note: str = "Estimated tax payment"
+
+
+class CategoryLearnRequest(BaseModel):
+    merchant: str
+    account: str
+    correct: bool = False
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -414,6 +420,57 @@ async def get_invoice_pdf(number: str):
     return _err(f"Invoice '{number}' not found. Generate it with 'llc invoice create'.", 404)
 
 
+@app.get("/api/v1/reconciliation", dependencies=[Depends(check_auth)])
+async def get_reconciliation():
+    """Get reconciliation data: ledger balance vs. uncleared transactions.
+
+    Returns a list of uncleared transactions and current balances.
+    """
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+    except Exception as e:
+        return _err(f"Ledger error: {e}", 500)
+
+    checking_bal = float(ledger.account_balance(cfg.checking_account))
+    uncleared = []
+
+    for entry in ledger.entries:
+        if not hasattr(entry, "date") or not hasattr(entry, "postings"):
+            continue
+        for posting in entry.postings:
+            if posting.account == cfg.checking_account:
+                amt = float(posting.units.number) if posting.units else 0
+                date_str = str(entry.date)
+                payee = getattr(entry, "payee", "") or ""
+                nar = getattr(entry, "narration", "") or ""
+                # Find the other side of this transaction
+                other_account = ""
+                for other in entry.postings:
+                    if other.account != cfg.checking_account:
+                        other_account = other.account
+                uncleared.append({
+                    "date": date_str,
+                    "payee": payee,
+                    "description": nar,
+                    "amount": amt,
+                    "account": other_account,
+                    "id": f"{date_str}-{payee}-{amt}",
+                })
+
+    uncleared.sort(key=lambda x: x["date"], reverse=True)
+    total_uncleared = sum(t["amount"] for t in uncleared)
+
+    return _ok({
+        "ledger_balance": checking_bal,
+        "uncleared_count": len(uncleared),
+        "uncleared_total": round(abs(total_uncleared), 2),
+        "cleared_balance": round(checking_bal - total_uncleared, 2),
+        "uncleared": uncleared[:50],
+        "balance_date": datetime.date.today().isoformat(),
+    })
+
+
 # ── Expenses ────────────────────────────────────────────────────────────────
 
 
@@ -503,6 +560,82 @@ async def scan_receipt(
         })
     finally:
         os.unlink(tmp_path)
+
+
+@app.get("/api/v1/categories/suggest", dependencies=[Depends(check_auth)])
+async def category_suggest(merchant: str = Query("")):
+    """Suggest a category for a merchant based on learned patterns."""
+    try:
+        cfg = get_config()
+        from .categorizer import Categorizer
+        cat = Categorizer(cfg)
+        result = cat.suggest_with_confidence(merchant.upper())
+        return _ok(result)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@app.post("/api/v1/categories/learn", dependencies=[Depends(check_auth)])
+async def category_learn(req: CategoryLearnRequest):
+    """Teach the categorizer that a merchant maps to an account.
+
+    Send JSON: {"merchant": "AMAZON", "account": "Expenses:Supplies", "correct": false}
+    Set correct=true to override all previous suggestions for this merchant.
+    """
+    merchant = req.merchant
+    account = req.account
+    correct = req.correct
+    """Teach the categorizer that a merchant maps to an account.
+
+    Set correct=true to override all previous suggestions for this merchant.
+    """
+    try:
+        cfg = get_config()
+        from .categorizer import Categorizer
+        cat = Categorizer(cfg)
+        if correct:
+            cat.correct(merchant.upper(), account)
+        else:
+            cat.learn(merchant.upper(), account)
+        return _ok({"merchant": merchant.upper(), "account": account, "learned": True})
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@app.get("/api/v1/receipts/match", dependencies=[Depends(check_auth)])
+async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
+    """Match a scanned receipt against recent uncleared bank transactions.
+
+    Finds bank transactions within a small threshold of the receipt amount.
+    """
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+    except Exception as e:
+        return _err(f"Ledger error: {e}", 500)
+
+    threshold = Decimal("0.50")
+    txns = []
+    for entry in ledger.entries:
+        if not hasattr(entry, "date") or not hasattr(entry, "postings"):
+            continue
+        for posting in entry.postings:
+            if posting.account.startswith("Assets:Bank"):
+                amt = Decimal(str(posting.units.number)) if posting.units else Decimal("0")
+                if amt < 0:
+                    pos_amt = abs(amt)
+                    if abs(pos_amt - Decimal(str(amount))) <= threshold:
+                        desc = getattr(entry, "payee", "") or getattr(entry, "narration", "") or ""
+                        txns.append({
+                            "date": str(entry.date),
+                            "description": desc,
+                            "amount": float(pos_amt),
+                            "account": posting.account,
+                            "match_score": round(float(1.0 - abs(pos_amt - Decimal(str(amount))) / max(pos_amt, Decimal("0.01"))), 3),
+                        })
+
+    txns.sort(key=lambda x: -x["match_score"])
+    return _ok({"matches": txns[:5], "receipt_amount": amount})
 
 
 # ── Tax ─────────────────────────────────────────────────────────────────────
@@ -971,6 +1104,83 @@ async def notify_check():
         },
         "total_alerts": sum(len(v) for v in results.values()),
     })
+
+
+# ── Stripe Webhook (for auto-reconciliation) ────────────────────────────────
+
+
+@app.post("/api/v1/webhooks/stripe", include_in_schema=False)
+async def stripe_webhook(request: Request):
+    """Receive Stripe webhook events for payment auto-reconciliation.
+
+    When a checkout.session.completed event arrives, this records the
+    payment in the ledger and marks the invoice as paid.
+
+    Set STRIPE_WEBHOOK_SECRET env var to enable signature verification.
+    Configure the webhook URL in Stripe Dashboard → Webhooks.
+    """
+    import hashlib
+    import hmac
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+    # Verify signature if webhook secret is configured
+    if webhook_secret:
+        try:
+            from stripe import Webhook
+            event = Webhook.construct_event(payload, sig_header, webhook_secret)
+        except Exception as e:
+            return {"success": False, "error": f"Signature verification failed: {e}"}
+    else:
+        # No signature verification — for development only
+        import json
+        event = json.loads(payload)
+
+    event_type = event.get("type", "")
+    if event_type != "checkout.session.completed":
+        return _ok({"received": True, "event": event_type, "action": "ignored"})
+
+    session = event.get("data", {}).get("object", {})
+    invoice_number = (session.get("metadata") or {}).get("invoice_number", "")
+    client = (session.get("metadata") or {}).get("client", "Stripe Payment")
+    amount_total = Decimal(str(session.get("amount_total", 0))) / Decimal("100")
+
+    if not invoice_number:
+        return _ok({"received": True, "action": "no_invoice_metadata"})
+
+    # Record the payment in the ledger
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+
+        # Check if this payment was already recorded (idempotency)
+        payment_id = session.get("id", "")
+        for entry in ledger.entries:
+            if hasattr(entry, "narration") and payment_id in entry.narration:
+                return _ok({"received": True, "action": "already_recorded", "payment_id": payment_id})
+
+        postings = [
+            (cfg.checking_account, f"{amount_total:.2f} USD"),
+            (cfg.ar_account, f"-{amount_total:.2f} USD"),
+        ]
+        ledger.append(
+            date=datetime.date.today(),
+            payee=f"Stripe payment — {client}",
+            narration=f"Stripe payment {payment_id} for invoice {invoice_number}",
+            postings=postings,
+        )
+
+        return _ok({
+            "received": True,
+            "action": "recorded",
+            "invoice_number": invoice_number,
+            "amount": float(amount_total),
+            "payment_id": payment_id,
+        })
+    except Exception as e:
+        return _err(f"Payment recording failed: {e}", 500)
 
 
 # ── Run ─────────────────────────────────────────────────────────────────────
