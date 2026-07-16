@@ -123,6 +123,13 @@ Hosted version coming soon at [sololedger.app](https://sololedger.app). Includes
 - [Tesseract](https://github.com/tesseract-ocr/tesseract) — receipt OCR
 - [Toggl](https://toggl.com/) / [Clockify](https://clockify.me/) — time tracking
 
+## Screenshots
+
+<!-- Add a dashboard screenshot here before posting to HN -->
+<!-- ![SoloLedger Dashboard](docs/dashboard.png) -->
+
 ## License
 
-MIT
+MIT — the code is free to use, modify, and distribute.
+
+**SoloLedger™** is a trademark. You may use the code under MIT, but you may not distribute services using the SoloLedger name without permission.

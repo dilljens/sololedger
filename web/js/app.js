@@ -227,6 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
           </span>
         </div>
       </div>
+      <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.8rem;color:#8d6e00;">
+        ⚠️ ${tax.disclaimer || 'This is an estimate for planning purposes only. Consult a qualified CPA.'}
+      </div>
       <div style="display:flex;gap:12px;margin-top:8px;">
         <button class="btn btn-primary" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">
           💳 Pay $${fmt(tax.suggested_next_payment)} via IRS Direct Pay

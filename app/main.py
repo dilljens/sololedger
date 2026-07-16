@@ -473,6 +473,8 @@ def tax_estimate(ctx, projected_income, state_override):
     click.echo(f"  ╰→ Suggested next payment:     ${quarterly['suggested_payment']:>10,.2f}")
     click.echo()
     click.echo(f"  Schedule:                      {quarterly['note']}")
+    from .disclaimer import CLI_DISCLAIMER
+    click.echo(CLI_DISCLAIMER)
 
 
 @tax.command("schedule-c")
@@ -504,6 +506,8 @@ def tax_schedule_c(ctx):
     click.echo(f"  Taxes Paid (for reference)")
     click.echo(f"    Federal estimated payments:  ${summary['taxes_paid']['federal_estimated']:>10,.2f}")
     click.echo(f"    FICA (employer half):        ${summary['taxes_paid']['fica_employer']:>10,.2f}")
+    from .disclaimer import CLI_DISCLAIMER
+    click.echo(CLI_DISCLAIMER)
 
 
 @tax.command("deadlines")
@@ -1525,6 +1529,84 @@ def stripe_sync(ctx, since, preview):
         recorded += 1
 
     click.echo(f"Recorded: {recorded}, Skipped (already in ledger): {skipped}")
+
+
+# ── marketing automation ──────────────────────────────────────────────────
+
+
+@cli.group()
+def marketing():
+    """Generate marketing content (changelog, blog, social posts) from git history.
+
+    Requires OPENAI_API_KEY or ANTHROPIC_API_KEY env var for AI-powered content.
+    Without it, generates template drafts you can fill in manually.
+    """
+
+
+@marketing.command("generate")
+@click.option("--days", type=int, default=30, help="Days of git history to include")
+@click.option("--output", "-o", default=None, help="Output directory (default: ./marketing/)")
+@_pass_config
+def marketing_generate(ctx, days, output):
+    """Generate all marketing content: changelog, blog post, social media posts."""
+    cfg = ctx["cfg"]
+    from .marketing import MarketingGenerator
+    gen = MarketingGenerator(repo_path=str(cfg.project_root))
+
+    if gen.api_key:
+        click.echo(f"Using {gen.provider.title()} for content generation...")
+    else:
+        click.echo("⚠  No LLM API key found. Generating template drafts.")
+        click.echo("   Set OPENAI_API_KEY or ANTHROPIC_API_KEY for AI-powered content.")
+        click.echo()
+
+    result = gen.save_to_files(days=days, output_dir=output)
+    click.echo(f"✓ Generated marketing content to: {result['output_dir']}")
+    for f in result["files"]:
+        click.echo(f"  · {f}")
+    click.echo()
+    click.echo("Review and edit before posting. LLMs can make mistakes.")
+
+
+@marketing.command("changelog")
+@click.option("--days", type=int, default=30)
+@_pass_config
+def marketing_changelog(ctx, days):
+    """Generate just the changelog."""
+    cfg = ctx["cfg"]
+    from .marketing import MarketingGenerator
+    gen = MarketingGenerator(repo_path=str(cfg.project_root))
+    result = gen.generate_changelog(days=days)
+    click.echo(result)
+
+
+@marketing.command("blog")
+@click.option("--days", type=int, default=30)
+@_pass_config
+def marketing_blog(ctx, days):
+    """Generate just the blog post draft."""
+    cfg = ctx["cfg"]
+    from .marketing import MarketingGenerator
+    gen = MarketingGenerator(repo_path=str(cfg.project_root))
+    result = gen.generate_blog_post(days=days)
+    click.echo(result)
+
+
+@marketing.command("social")
+@click.option("--days", type=int, default=30)
+@_pass_config
+def marketing_social(ctx, days):
+    """Generate just the social media posts."""
+    cfg = ctx["cfg"]
+    from .marketing import MarketingGenerator
+    gen = MarketingGenerator(repo_path=str(cfg.project_root))
+    result = gen.generate_social_posts(days=days)
+    if isinstance(result, dict):
+        for platform, content in result.items():
+            click.echo(f"\n═══ {platform.upper()} ═══\n")
+            click.echo(content)
+    else:
+        click.echo(result)
 
 
 # ── entry point ───────────────────────────────────────────────────────────

@@ -666,6 +666,7 @@ async def tax_estimate(projected_income: Optional[float] = Query(None)):
     annual = taxer.total_projected_tax(projection)
     quarterly = taxer.quarterly_estimate(ytd_net, projection)
 
+    from .disclaimer import TAX_DISCLAIMER
     return _ok({
         "ytd_net_profit": float(ytd_net),
         "projected_annual_net": float(projection),
@@ -684,6 +685,7 @@ async def tax_estimate(projected_income: Optional[float] = Query(None)):
         "suggested_next_payment": float(quarterly["suggested_payment"]),
         "remaining_quarters": quarterly["remaining_quarters"],
         "note": quarterly["note"],
+        "disclaimer": TAX_DISCLAIMER,
     })
 
 
