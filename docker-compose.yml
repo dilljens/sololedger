@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  # ── Fava — Beancount web UI (dashboards, charts, P&L, budgets) ─────────
+  fava:
+    image: ghcr.io/beancount/fava:latest
+    container_name: llc-fava
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./ledger:/ledger        # Mount your ledger files
+      - ./config.toml:/config/config.toml:ro
+    environment:
+      - BEANCOUNT_FILE=/ledger/main.beancount
+    restart: unless-stopped
+    command: fava /ledger/main.beancount --host 0.0.0.0 --port 5000

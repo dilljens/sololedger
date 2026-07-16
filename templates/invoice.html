@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice {{ inv.number }} — {{ business.business_name }}</title>
+<style>
+  @page {
+    size: letter;
+    margin: 1in;
+  }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    color: #333;
+    line-height: 1.5;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2em;
+  }
+  .business-name {
+    font-size: 18pt;
+    font-weight: bold;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+  .invoice-title {
+    font-size: 24pt;
+    font-weight: bold;
+    color: #666;
+    text-align: right;
+  }
+  .address {
+    font-size: 9pt;
+    color: #666;
+    margin-top: 4px;
+  }
+  .details {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2em;
+  }
+  .detail-box {
+    background: #f5f5f5;
+    padding: 12px 16px;
+    border-radius: 4px;
+    font-size: 10pt;
+  }
+  .detail-box strong {
+    display: block;
+    font-size: 8pt;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 4px;
+  }
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2em;
+  }
+  table.items th {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid #333;
+    font-size: 9pt;
+    text-transform: uppercase;
+    color: #666;
+  }
+  table.items td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #ddd;
+  }
+  table.items td.amount {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .total-row td {
+    font-weight: bold;
+    border-bottom: none;
+  }
+  .total-row td.amount {
+    font-size: 14pt;
+    border-top: 2px solid #333;
+  }
+  .footer {
+    margin-top: 3em;
+    font-size: 9pt;
+    color: #999;
+    text-align: center;
+    border-top: 1px solid #ddd;
+    padding-top: 1em;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="business-name">{{ business.business_name }}</div>
+    <div class="address">
+      {{ business.address }}<br>
+      {{ business.phone }}<br>
+      {{ business.email }}
+    </div>
+  </div>
+  <div class="invoice-title">INVOICE</div>
+</div>
+
+<div class="details">
+  <div class="detail-box">
+    <strong>Bill To</strong>
+    {{ inv.client }}
+  </div>
+  <div class="detail-box">
+    <strong>Invoice #</strong>
+    {{ inv.number }}
+  </div>
+  <div class="detail-box">
+    <strong>Date</strong>
+    {{ inv.date }}
+  </div>
+  <div class="detail-box">
+    <strong>Due Date</strong>
+    {{ inv.due }}
+  </div>
+</div>
+
+<table class="items">
+  <thead>
+    <tr>
+      <th style="width: 60%;">Description</th>
+      <th style="width: 20%;">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{{ inv.description }}</td>
+      <td class="amount">${{ "{:,.2f}".format(inv.amount) }}</td>
+    </tr>
+    <tr class="total-row">
+      <td>Total Due (USD)</td>
+      <td class="amount">${{ "{:,.2f}".format(inv.amount) }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  {{ business.business_name }} · {{ business.ein }} · Thank you for your business
+</div>
+
+</body>
+</html>

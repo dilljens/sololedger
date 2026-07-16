@@ -1,0 +1,9 @@
+;; ============================================================================
+;; Wyoming Consulting LLC — Main Ledger
+;; ============================================================================
+;; Usage: bean-report main.beancount ...
+;;        fava main.beancount
+;; ============================================================================
+
+include "accounts.beancount"
+include "transactions.beancount"

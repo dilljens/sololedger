@@ -1,0 +1,42 @@
+;; ============================================================================
+;; Chart of Accounts — Wyoming Single-Member LLC
+;; ============================================================================
+;; Five account types, standard Beancount:
+;;   Assets      what you own
+;;   Liabilities what you owe
+;;   Equity      owner's stake (opening balance, draws)
+;;   Income      money coming in (consulting revenue)
+;;   Expenses    money going out
+
+2026-01-01 open Assets:Bank:BusinessChecking   USD
+2026-01-01 open Assets:Bank:Personal           USD   ;; owner draws land here
+2026-01-01 open Assets:AccountsReceivable      USD   ;; unpaid invoices
+
+2026-01-01 open Liabilities:CreditCard         USD
+
+2026-01-01 open Equity:OpeningBalance          USD
+2026-01-01 open Equity:OwnerDraws              USD   ;; money taken out
+
+2026-01-01 open Income:Consulting              USD   ;; all client revenue
+2026-01-01 open Income:Interest                USD   ;; bank interest
+
+2026-01-01 open Expenses:Software:SaaS         USD   ;; monthly subscriptions
+2026-01-01 open Expenses:Software:Hosting      USD   ;; VPS, domains
+2026-01-01 open Expenses:Hardware              USD   ;; computers, peripherals
+2026-01-01 open Expenses:Internet              USD   ;; internet service
+2026-01-01 open Expenses:Phone                 USD   ;; cell phone (business %)
+2026-01-01 open Expenses:HomeOffice            USD   ;; IRS simplified method
+2026-01-01 open Expenses:Meals                 USD   ;; 50% deductible
+2026-01-01 open Expenses:Travel                USD   ;; business travel
+2026-01-01 open Expenses:ProfessionalServices  USD   ;; CPA, lawyer
+2026-01-01 open Expenses:Supplies              USD   ;; office supplies
+2026-01-01 open Expenses:BankFees              USD   ;; account fees
+2026-01-01 open Expenses:Insurance             USD   ;; liability insurance
+2026-01-01 open Expenses:Taxes:FICA            USD   ;; employer half of SE tax
+2026-01-01 open Expenses:Taxes:Federal         USD   ;; federal estimated payments
+2026-01-01 open Expenses:Taxes:State           USD   ;; state (WY=$0, but here if needed)
+2026-01-01 open Expenses:Miscellaneous         USD   ;; catch-all
+
+;; Taxes Payable — set aside money as you earn it
+2026-01-01 open Liabilities:TaxesPayable:FederalIncome  USD
+2026-01-01 open Liabilities:TaxesPayable:SelfEmployment USD

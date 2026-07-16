@@ -1,0 +1,125 @@
+# =============================================================================
+# LLC Tools — Business Configuration
+# =============================================================================
+
+[business]
+name = "Your LLC Name Here"
+owner = "Dillon"
+state = "WY"                        # Wyoming — no state income tax
+ein = "XX-XXXXXXX"                  # Your EIN from IRS
+address = "123 Main St, City, WY 82001"
+phone = "+1 307-555-XXXX"
+email = "dillon@yourllc.com"
+
+[ledger]
+path = "ledger/main.beancount"      # Path to your main Beancount file
+
+# Chart of accounts mapping (for auto-categorization rules)
+[accounts]
+checking = "Assets:Bank:BusinessChecking"
+ar = "Assets:AccountsReceivable"
+income = "Income:Consulting"
+owner_draws = "Equity:OwnerDraws"
+
+[banking]
+# Default categories for CSV import rules
+[[expense_rules]]
+pattern = "GITHUB"
+account = "Expenses:Software:SaaS"
+
+[[expense_rules]]
+pattern = "AWS"
+account = "Expenses:Software:Hosting"
+
+[[expense_rules]]
+pattern = "DIGITALOCEAN"
+account = "Expenses:Software:Hosting"
+
+[[expense_rules]]
+pattern = "IRS"
+account = "Expenses:Taxes:Federal"
+
+[[expense_rules]]
+pattern = "STRIPE"
+account = "Expenses:BankFees"
+
+[[expense_rules]]
+pattern = "ZAPIER"
+account = "Expenses:Software:SaaS"
+
+[[expense_rules]]
+pattern = "CLOUDFLARE"
+account = "Expenses:Software:Hosting"
+
+[[income_rules]]
+pattern = "CLIENT"
+account = "Income:Consulting"
+
+[tax]
+# 2026 federal tax parameters (single filer)
+# Standard deduction
+standard_deduction = 14600
+
+# Marginal tax brackets (taxable income after deductions)
+# Rate     Single Filers
+# 10%      $0 to $11,925 (est for 2026)
+# 12%      $11,926 to $48,475
+# 22%      $48,476 to $103,350
+# 24%      $103,351 to $197,300
+# 32%      $197,301 to $250,525
+# 35%      $250,526 to $626,350
+# 37%      $626,351+
+
+[[tax.brackets]]
+rate = 0.10
+floor = 0
+ceiling = 11925
+
+[[tax.brackets]]
+rate = 0.12
+floor = 11926
+ceiling = 48475
+
+[[tax.brackets]]
+rate = 0.22
+floor = 48476
+ceiling = 103350
+
+[[tax.brackets]]
+rate = 0.24
+floor = 103351
+ceiling = 197300
+
+[[tax.brackets]]
+rate = 0.32
+floor = 197301
+ceiling = 250525
+
+[[tax.brackets]]
+rate = 0.35
+floor = 250526
+ceiling = 626350
+
+[[tax.brackets]]
+rate = 0.37
+floor = 626351
+ceiling = 999999999  # effectively unlimited
+
+# Self-employment tax
+[tax.self_employment]
+rate_social_security = 0.124
+rate_medicare = 0.029
+ss_wage_base = 184800      # 2026 Social Security wage cap
+deduction_ratio = 0.9235   # 92.35% of net income is SE-taxable
+
+# Safe harbor: pay 100% of prior year tax (110% if AGI > $150k)
+safe_harbor_percent = 1.00
+safe_harbor_percent_high_income = 1.10
+safe_harbor_threshold = 150000
+
+# Quarterly due dates (month, day)
+[tax.quarter_dates]
+q1 = [4, 15]
+q2 = [6, 15]
+q3 = [9, 15]
+q4 = [1, 15]  # of next year
