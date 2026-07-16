@@ -1,28 +1,44 @@
-"""Tax estimation for a single-member LLC in Wyoming.
+"""Tax estimation for a single-member LLC with multi-state support.
 
 Calculates:
   - Self-employment tax (Schedule SE)
   - Federal income tax (projected)
-  - Quarterly estimated payments (Form 1040-ES)
+  - State income tax + franchise/gross receipts taxes (multi-state)
+  - Quarterly estimated payments (Form 1040-ES + state equivalents)
   - Safe harbor amounts
 
-Wyoming has NO state income tax, so state is $0.
+Default state: Wyoming ($0 state tax).
+Other states: California, Texas, New York, Florida. Extensible via state_rates.json.
 """
 
 import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
-from .config import Config
-from .ledger import Ledger
+from app.config import Config
+from app.ledger import Ledger
 
 
 class TaxEstimator:
-    """Estimate taxes for a single-member Wyoming LLC."""
+    """Estimate taxes for a single-member LLC with multi-state support."""
 
-    def __init__(self, cfg: Config, ledger: Ledger):
+    def __init__(self, cfg: Config, ledger: Ledger, state_code: Optional[str] = None):
         self.cfg = cfg
         self.ledger = ledger
+        self.state_code = state_code or getattr(cfg, 'state_code', 'WY')
+        self._state_calculator = None
+
+    @property
+    def state_calculator(self):
+        """Lazy-init state calculator."""
+        if self._state_calculator is None:
+            try:
+                from .state_calculator import StateTaxCalculator
+                self._state_calculator = StateTaxCalculator(self.state_code)
+            except (ImportError, FileNotFoundError, ValueError) as e:
+                # Fall back to zero state tax
+                self._state_calculator = None
+        return self._state_calculator
 
     def self_employment_tax(self, net_profit: Decimal) -> dict:
         """Calculate Schedule SE tax.
@@ -105,20 +121,57 @@ class TaxEstimator:
             "effective_rate": float(tax / net_profit * 100) if net_profit > 0 else 0,
         }
 
-    def total_projected_tax(self, net_profit: Decimal) -> dict:
-        """Combined SE tax + income tax estimate for the year."""
+    def state_tax(self, net_profit: Decimal, adjusted_net: Decimal, total_revenue: Optional[Decimal] = None) -> dict:
+        """Compute state-level taxes (income, franchise, local, fees).
+
+        Args:
+            net_profit: Net profit before deductions
+            adjusted_net: Net profit after SE deductible half (federal AGI equivalent)
+            total_revenue: Gross revenue (for franchise/gross receipts tax calculations).
+                           Defaults to net_profit * 1.1 as an estimate if not provided.
+
+        Returns:
+            dict with state tax breakdown (all zeros if state has no tax)
+        """
+        if total_revenue is None:
+            # Estimate revenue as ~110% of net profit (assumes ~10% expenses)
+            total_revenue = net_profit * Decimal("1.1")
+
+        try:
+            calc = self.state_calculator
+            if calc is None:
+                return {
+                    "state_code": self.state_code,
+                    "total_state_tax": Decimal("0"),
+                    "income_tax": {"tax": Decimal("0"), "type": "none"},
+                    "franchise_tax": {"tax": Decimal("0"), "type": "none"},
+                    "local_income_tax": {"tax": Decimal("0"), "type": "none"},
+                    "annual_llc_fee": 0,
+                }
+            return calc.calculate_all(net_profit, total_revenue, adjusted_net)
+        except Exception:
+            return {
+                "state_code": self.state_code,
+                "total_state_tax": Decimal("0"),
+                "note": "State calculator unavailable",
+            }
+
+    def total_projected_tax(self, net_profit: Decimal, total_revenue: Optional[Decimal] = None) -> dict:
+        """Combined SE tax + federal income tax + state tax estimate for the year."""
         se = self.self_employment_tax(net_profit)
         # Deduct the employer half of SE tax from AGI (above-the-line)
         adjusted_net = net_profit - se["deductible_half"]
         fed = self.federal_income_tax(adjusted_net)
+        state = self.state_tax(net_profit, adjusted_net, total_revenue)
 
-        total = se["total_se_tax"] + fed["income_tax"]
+        total = se["total_se_tax"] + fed["income_tax"] + state["total_state_tax"]
 
         return {
             "net_profit": net_profit,
             "adjusted_net": adjusted_net,
             "self_employment_tax": se,
             "federal_income_tax": fed,
+            "state_tax": state,
             "total_tax": total,
             "effective_tax_rate": float(total / net_profit * 100) if net_profit > 0 else 0,
         }

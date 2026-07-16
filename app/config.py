@@ -64,6 +64,13 @@ class Config:
         self.ss_wage_base = se["ss_wage_base"]
         self.se_deduction_ratio = se["deduction_ratio"]
 
+        # Tax state (default: WY)
+        self.state_code = raw.get("tax", {}).get("state", "WY").upper()
+
+        # Payments
+        pmts = raw.get("payments", {})
+        self.stripe_enabled = pmts.get("stripe_enabled", False)
+
         self._project_root = Path(path).parent
 
     def _find_config(self) -> Path:

@@ -1,142 +1,128 @@
-# Wyoming LLC Tools
+# SoloLedger
 
-A self-hosted accounting, invoicing, and tax estimation system for your single-member Wyoming consulting LLC.
+**Open-source accounting, invoicing, and tax tools for your single-member consulting LLC.**
 
-**Stack**: [Beancount](https://beancount.github.io/) (double-entry accounting) + custom Python CLI + [Fava](https://beancount.github.io/fava/) (web dashboard).
+CLI on your laptop, API in the cloud, mobile app in your pocket. Built on [Beancount](https://beancount.github.io/) (double-entry accounting from plain text files).
+
+```bash
+# Quick start
+pip install -r requirements.txt
+python -m app.main status
+```
 
 ## What It Does
 
 | Command | What |
 |---|---|
-| `llc invoice create` | Creates an invoice (PDF + ledger entry) |
-| `llc expense import bank.csv` | Imports bank CSV → auto-categorizes → records |
-| `llc tax estimate` | Calculates quarterly estimated tax (1040-ES + Schedule SE) |
-| `llc tax schedule-c` | Spits out Schedule C data at year-end |
-| `llc tax deadlines` | Shows upcoming quarterly tax deadlines |
-| `llc status` | Dashboard: cash, P&L, tax summary, deadlines |
-| Fava (port 5000) | Web UI: balance sheets, P&L charts, budgets |
+| `llc status` | Dashboard: cash, P&L, tax deadlines |
+| `llc invoice create` | Invoice + PDF + Stripe payment link |
+| `llc invoice ar` | Accounts Receivable check |
+| `llc expense import` | Bank CSV → auto-categorize → ledger |
+| `llc receipt scan` | Receipt PDF/image → OCR → categorize |
+| `llc tax estimate` | Federal + state tax estimate (WY, CA, TX, NY, FL) |
+| `llc bank sync` | Plaid bank feed → auto-import |
+| `llc time fetch` | Toggl/Clockify hours → invoice |
+| `llc retainer process` | Auto-generate recurring invoices |
+| `llc notify check` | Desktop + email deadline alerts |
+
+## Architecture
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   CLI (llc)  │     │  REST API    │     │  Mobile/Web  │
+│  Terminal    │     │  FastAPI     │     │  Expo (soon) │
+└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
+       │                    │                    │
+       └────────────────────┼────────────────────┘
+                            ▼
+              ┌─────────────────────────┐
+              │  Ledger (Beancount)     │
+              │  Plain text, git-       │
+              │  versioned accounting   │
+              └─────────────────────────┘
+                            │
+         ┌──────────────────┼──────────────────┐
+         ▼                  ▼                  ▼
+    ┌────────┐       ┌──────────┐       ┌──────────┐
+    │ Stripe │       │  Plaid   │       │  Toggl   │
+    │Payments│       │Bank Feeds│       │Time Track│
+    └────────┘       └──────────┘       └──────────┘
+```
 
 ## Quick Start
 
-### 1. Prerequisites
-
+### Prerequisites
 - Python 3.11+
-- Docker + Docker Compose (for Fava web UI — optional)
+- Docker + Docker Compose (optional, for Fava web UI)
 
-### 2. Install
-
+### Install
 ```bash
-cd llc-tools
+git clone https://github.com/dillonj/solo-ledger
+cd solo-ledger
 pip install -r requirements.txt
 ```
 
-### 3. Configure
+### Configure
+Edit `config.toml` with your business info and state.
 
-Edit `config.toml` with your business info, EIN, and tax parameters.
-
-### 4. Initialize the ledger
-
-```bash
-# Verify the ledger is valid
-python -m app.main check
-```
-
-### 5. Add your first transaction
-
-```bash
-# Record your initial bank deposit
-# (edit ledger/transactions.beancount manually for the first entry)
-```
-
-### 6. Start Fava (web dashboard)
-
-```bash
-docker compose up -d
-# Open http://localhost:5000
-```
-
-## Usage Examples
-
+### Run
 ```bash
 # Dashboard
 python -m app.main status
 
-# Create an invoice
+# Create an invoice with Stripe payment link
 python -m app.main invoice create \
     --client "Acme Corp" \
-    --description "Q3 2026 Consulting" \
-    --amount 5000
+    --description "Q3 Consulting" \
+    --amount 5000 \
+    --payment-link
 
-# Import bank statement
-python -m app.main expense import ./imports/bank-statement-march.csv
+# Tax estimate (California)
+python -m app.main tax estimate --state CA
 
-# Preview an import (no writes)
-python -m app.main expense import --preview ./imports/bank-statement-march.csv
-
-# Tax estimate
-python -m app.main tax estimate
-
-# Tax estimate with custom projection
-python -m app.main tax estimate --projected-income 120000
-
-# Schedule C summary (at year-end)
-python -m app.main tax schedule-c
-
-# Tax deadlines
-python -m app.main tax deadlines
-
-# Shorter: use Makefile
-make status
-make tax-estimate
+# Start the API server (for mobile/web app)
+uvicorn app.api:app --port 8100
 ```
 
-## Project Structure
+## State Tax Support
 
-```
-llc-tools/
-├── config.toml                  # Your business settings
-├── ledger/
-│   ├── main.beancount           # Entry point (includes all)
-│   ├── accounts.beancount       # Chart of accounts
-│   └── transactions.beancount   # Your transactions (appended)
-├── app/
-│   ├── main.py                  # CLI entry point
-│   ├── config.py                # Config loader
-│   ├── ledger.py                # Beancount wrapper
-│   ├── invoice.py               # Invoice creation + PDF
-│   ├── taxes.py                 # Tax estimation engine
-│   └── expenses.py              # Bank CSV import
-├── templates/
-│   └── invoice.html             # Invoice PDF template
-├── output/invoices/             # Generated PDFs
-├── imports/                     # Drop bank CSVs here
-├── docker-compose.yml           # Fava web UI
-└── requirements.txt
-```
+| State | Income Tax | Franchise Tax | Annual Fee |
+|---|---|---|---|
+| Wyoming (WY) | $0 | $0 | $60 |
+| California (CA) | 1-13.3% | $800 + graduated | $20 |
+| Texas (TX) | $0 | 0.75% margin >$2.47M | $0 |
+| New York (NY) | 4-10.9% (NYC +3.9%) | $0 | $25 |
+| Florida (FL) | $0 | $0 | $138.75 |
 
-## Tax Logic (Wyoming Single-Member LLC)
+## Automation
 
-```
-Net Profit = Revenue − Expenses
+Set up daily/weekly/monthly cron jobs:
 
-Self-Employment Tax = Net Profit × 92.35% × 15.3%
-    (12.4% SS on first $184,800 + 2.9% Medicare, uncapped)
-    Half of this is deductible above-the-line on Form 1040
+```bash
+# Daily 9AM — check deadlines, unpaid invoices
+0 9 * * * cd /path/to/solo-ledger && python -m app.main notify check
 
-Federal Income Tax = (Adjusted Net − Standard Deduction) × Brackets
-    Standard deduction (2026): $14,600 (single)
-    Brackets: 10% → 37%
+# Monthly 1st — process retainers
+0 10 1 * * cd /path/to/solo-ledger && python -m app.main retainer process --no-preview
 
-Wyoming State Tax = $0  (no state income tax!)
-
-Quarterly Payment = Total Estimated Tax ÷ 4
-    Safe harbor: pay 100% of prior year's tax to avoid penalty
+# Weekly Monday — sync bank feed
+0 8 * * 1 cd /path/to/solo-ledger && python -m app.main bank sync --days 14
 ```
 
-## Annual Workflow
+## Cloud
 
-1. **Weekly/monthly**: Drop bank CSVs in `imports/`, run `llc expense import`
-2. **As needed**: `llc invoice create` when you send an invoice
-3. **Quarterly**: `llc tax estimate` → pay suggested amount via IRS Direct Pay
-4. **Year-end**: `llc tax schedule-c` → copy numbers into Form 1040 Schedule C
-5. **File**: Submit Form 1040 (with Schedule C and Schedule SE) by April 15
+Hosted version coming soon at [sololedger.app](https://sololedger.app). Includes API hosting, mobile web app, and automated daily syncs.
+
+## Built With
+
+- [Beancount](https://beancount.github.io/) — double-entry accounting engine
+- [Fava](https://beancount.github.io/fava/) — web dashboard
+- [FastAPI](https://fastapi.tiangolo.com/) — REST API
+- [Stripe](https://stripe.com/) — payment processing
+- [Plaid](https://plaid.com/) — bank feeds
+- [Tesseract](https://github.com/tesseract-ocr/tesseract) — receipt OCR
+- [Toggl](https://toggl.com/) / [Clockify](https://clockify.me/) — time tracking
+
+## License
+
+MIT

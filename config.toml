@@ -21,7 +21,37 @@ ar = "Assets:AccountsReceivable"
 income = "Income:Consulting"
 owner_draws = "Equity:OwnerDraws"
 
+# ── Payment processing (Stripe) ───────────────────────────────────────────
+# Set STRIPE_SECRET_KEY env var to enable. Get it from https://dashboard.stripe.com/apikeys
+[payments]
+stripe_enabled = false              # Set to true when STRIPE_SECRET_KEY is set
+
+# ── Automated bank feeds (Plaid) ──────────────────────────────────────────
+# ── Time tracking ─────────────────────────────────────────────────────────
+[time_tracking]
+# Default hourly rate for time-based invoicing
+hourly_rate = 150.0
+# source = "toggl"    # or "clockify"
+
+# ── Notifications ─────────────────────────────────────────────────────────
+[notifications]
+desktop_enabled = true              # Use notify-send for desktop alerts
+email_enabled = false               # Set to true and configure SMTP below
+remind_days_before = 7              # Alert N days before tax deadlines
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+smtp_user = ""                      # Your email (e.g. you@gmail.com)
+smtp_password = ""                  # Set via NOTIFY_SMTP_PASSWORD env var for security
+alert_email = ""                    # Where to send alerts (default: smtp_user)
+
+# ── Bank CSV import rules + Plaid automated bank feed ────────────────────
 [banking]
+# Plaid automated bank feed (requires env vars):
+# PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ACCESS_TOKEN, PLAID_ENV
+plaid_enabled = false
+# plaid_env = "sandbox"
+
+# Default categories for CSV import rules
 # Default categories for CSV import rules
 [[expense_rules]]
 pattern = "GITHUB"
@@ -56,6 +86,9 @@ pattern = "CLIENT"
 account = "Income:Consulting"
 
 [tax]
+# State for tax calculations (default: WY = Wyoming, $0 state tax)
+state = "WY"                        # Options: WY, CA, TX, NY, FL (more coming)
+
 # 2026 federal tax parameters (single filer)
 # Standard deduction
 standard_deduction = 14600

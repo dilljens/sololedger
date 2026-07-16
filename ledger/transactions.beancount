@@ -48,3 +48,16 @@
   Income:Consulting                              -5000.00 USD
   Assets:Bank:BusinessChecking                   5000.00 USD
 
+2026-07-16 * "Acme Corp" "Q3 2026 Consulting"
+  Income:Consulting                              -5000.00 USD
+  Assets:AccountsReceivable                      5000.00 USD
+
+2026-07-16 * "Acme Corp" "Q3 2026 Consulting"
+  Income:Consulting                              -5000.00 USD
+  Assets:AccountsReceivable                      5000.00 USD
+
+2026-07-16 * "Acme Corp" "Q3 2026 Consulting"
+  Income:Consulting                              -5000.00 USD
+  Assets:AccountsReceivable                      5000.00 USD
+
+

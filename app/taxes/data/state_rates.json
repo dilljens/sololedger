@@ -1,0 +1,136 @@
+{
+  "WY": {
+    "name": "Wyoming",
+    "income_tax": null,
+    "franchise_tax": null,
+    "gross_receipts_tax": null,
+    "annual_llc_fee": 60,
+    "estimated_tax": null,
+    "sales_tax_on_services": false,
+    "notes": "No state income tax. No franchise tax. Low annual fee. Best baseline state."
+  },
+  "CA": {
+    "name": "California",
+    "income_tax": {
+      "type": "progressive",
+      "filing_status": "single",
+      "standard_deduction": 5540,
+      "personal_exemption": 0,
+      "brackets": [
+        { "rate": 0.010, "floor": 0, "ceiling": 10099 },
+        { "rate": 0.020, "floor": 10100, "ceiling": 23942 },
+        { "rate": 0.040, "floor": 23943, "ceiling": 37788 },
+        { "rate": 0.060, "floor": 37789, "ceiling": 52455 },
+        { "rate": 0.080, "floor": 52456, "ceiling": 66295 },
+        { "rate": 0.093, "floor": 66296, "ceiling": 338639 },
+        { "rate": 0.103, "floor": 338640, "ceiling": 406364 },
+        { "rate": 0.113, "floor": 406365, "ceiling": 677275 },
+        { "rate": 0.123, "floor": 677276, "ceiling": 1000000 },
+        { "rate": 0.133, "floor": 1000001, "ceiling": 999999999 }
+      ]
+    },
+    "franchise_tax": {
+      "type": "annual_minimum_plus_graduated",
+      "annual_minimum": 800,
+      "graduated_fee": [
+        { "revenue_floor": 0, "fee": 0 },
+        { "revenue_floor": 250000, "fee": 900 },
+        { "revenue_floor": 500000, "fee": 2500 },
+        { "revenue_floor": 1000000, "fee": 6000 },
+        { "revenue_floor": 5000000, "fee": 11790 }
+      ],
+      "notes": "$800 annual minimum + graduated LLC fee based on TOTAL revenue (not profit). Fee caps at $11,790 for revenue > $5M."
+    },
+    "gross_receipts_tax": null,
+    "annual_llc_fee": 20,
+    "estimated_tax": {
+      "threshold": 500,
+      "forms": ["CA Form 540-ES"],
+      "notes": "Required if expected CA tax > $500. Underpayment penalty if owe > $500 and paid < 90% current / 100% prior year."
+    },
+    "sales_tax_on_services": false,
+    "local_income_tax": null,
+    "notes": "Most expensive state for LLCs. $800 minimum franchise tax + LLC fee up to $11,790 + income tax up to 13.3%. SaaS will be taxable starting Jan 2027."
+  },
+  "TX": {
+    "name": "Texas",
+    "income_tax": null,
+    "franchise_tax": {
+      "type": "margin",
+      "rate": 0.0075,
+      "rate_retail_wholesale": 0.00375,
+      "threshold": 2470000,
+      "threshold_note": "No tax due if total revenue ≤ $2.47M. This exempts most solo consultants.",
+      "computation_methods": [
+        "70% of total revenue",
+        "Total revenue minus cost of goods sold",
+        "Total revenue minus compensation (capped at $480K/employee)",
+        "Total revenue minus $1M"
+      ],
+      "ez_rate": 0.00331,
+      "ez_threshold": 20000000,
+      "ez_note": "EZ Computation: 0.331% of total revenue. Available if revenue ≤ $20M."
+    },
+    "gross_receipts_tax": null,
+    "annual_llc_fee": 0,
+    "estimated_tax": null,
+    "sales_tax_on_services": false,
+    "sales_tax_on_saas": true,
+    "local_income_tax": null,
+    "notes": "No income tax. Franchise (margin) tax applies only above $2.47M revenue — most consultants never pay it. No annual LLC fee. SaaS sales tax applies."
+  },
+  "NY": {
+    "name": "New York",
+    "income_tax": {
+      "type": "progressive",
+      "filing_status": "single",
+      "standard_deduction": 8000,
+      "personal_exemption": 0,
+      "brackets": [
+        { "rate": 0.040, "floor": 0, "ceiling": 8500 },
+        { "rate": 0.045, "floor": 8501, "ceiling": 11700 },
+        { "rate": 0.0525, "floor": 11701, "ceiling": 13900 },
+        { "rate": 0.055, "floor": 13901, "ceiling": 80650 },
+        { "rate": 0.060, "floor": 80651, "ceiling": 215400 },
+        { "rate": 0.0685, "floor": 215401, "ceiling": 1077550 },
+        { "rate": 0.0965, "floor": 1077551, "ceiling": 5000000 },
+        { "rate": 0.1030, "floor": 5000001, "ceiling": 25000000 },
+        { "rate": 0.1090, "floor": 25000001, "ceiling": 999999999 }
+      ]
+    },
+    "franchise_tax": null,
+    "gross_receipts_tax": null,
+    "annual_llc_fee": 25,
+    "estimated_tax": {
+      "threshold": 300,
+      "forms": ["IT-2105"],
+      "notes": "Required if expected NY tax > $300. Due same dates as federal."
+    },
+    "sales_tax_on_services": false,
+    "sales_tax_on_saas": true,
+    "local_income_tax": {
+      "NYC": {
+        "name": "New York City",
+        "type": "progressive",
+        "brackets": [
+          { "rate": 0.03078, "floor": 0, "ceiling": 21500 },
+          { "rate": 0.03762, "floor": 21501, "ceiling": 45000 },
+          { "rate": 0.03819, "floor": 45001, "ceiling": 90000 },
+          { "rate": 0.03876, "floor": 90001, "ceiling": 999999999 }
+        ],
+        "notes": "NYC residents pay city income tax on top of NY state tax. Up to ~3.876%."
+      }
+    },
+    "notes": "High state income tax (up to 10.9%). NYC adds up to 3.876% local tax. SaaS sales tax applies."
+  },
+  "FL": {
+    "name": "Florida",
+    "income_tax": null,
+    "franchise_tax": null,
+    "gross_receipts_tax": null,
+    "annual_llc_fee": 138.75,
+    "estimated_tax": null,
+    "sales_tax_on_services": false,
+    "notes": "No income tax. No franchise tax. Annual report fee of $138.75. Simple, consultant-friendly."
+  }
+}

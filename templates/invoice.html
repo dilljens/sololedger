@@ -145,6 +145,16 @@
   </tbody>
 </table>
 
+{% if payment_url %}
+<div style="background: #e8f5e9; border: 1px solid #4caf50; border-radius: 6px; padding: 16px; margin-bottom: 2em; text-align: center;">
+  <strong style="font-size: 12pt;">💳 Pay Online</strong><br>
+  <span style="font-size: 10pt; color: #555;">
+    Click to pay instantly with credit/debit card or ACH:<br>
+    <a href="{{ payment_url }}" style="color: #2e7d32; font-weight: bold;">{{ payment_url }}</a>
+  </span>
+</div>
+{% endif %}
+
 <div class="footer">
   {{ business.business_name }} · {{ business.ein }} · Thank you for your business
 </div>

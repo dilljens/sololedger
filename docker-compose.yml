@@ -8,9 +8,40 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./ledger:/ledger        # Mount your ledger files
+      - ./ledger:/ledger
       - ./config.toml:/config/config.toml:ro
     environment:
       - BEANCOUNT_FILE=/ledger/main.beancount
     restart: unless-stopped
     command: fava /ledger/main.beancount --host 0.0.0.0 --port 5000
+
+  # ── API — REST API for LLC Tools (phone app backend) ──────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: llc-api
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./ledger:/app/ledger
+      - ./config.toml:/app/config.toml:ro
+      - ./output:/app/output
+      - ./imports:/app/imports
+    environment:
+      - API_PORT=8100
+      - API_CONFIG=/app/config.toml
+      # Auth (optional — set to enable API key auth)
+      # - API_KEYS=key1,key2
+      # Stripe (for payment links)
+      # - STRIPE_SECRET_KEY=sk_live_...
+      # Plaid (for bank feeds)
+      # - PLAID_CLIENT_ID=
+      # - PLAID_SECRET=
+      # - PLAID_ACCESS_TOKEN=
+      # - PLAID_ENV=sandbox
+      # Toggl (for time tracking)
+      # - TOGGL_API_TOKEN=
+      # Email (for notifications)
+      # - NOTIFY_SMTP_PASSWORD=
+    restart: unless-stopped
