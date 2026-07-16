@@ -2,8 +2,9 @@
 
 import datetime
 import re
+import time
 from decimal import Decimal
-from typing import Iterator
+from typing import Iterator, Optional
 
 from beancount import loader
 from beancount.core import data
@@ -14,9 +15,12 @@ from beancount.ops.summarize import balance_by_account
 
 from .config import Config
 
+# Cache timeout in seconds — avoids re-parsing the ledger on rapid API calls
+_CACHE_TTL = 5.0
+
 
 class Ledger:
-    """Interface to the Beancount ledger file."""
+    """Interface to the Beancount ledger file (with TTL caching)."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -24,14 +28,25 @@ class Ledger:
         self._errors = None
         self._options_map = None
         self._balances = None
+        self._last_loaded: Optional[float] = None
 
-    def reload(self):
-        """(Re)load the ledger file from disk."""
+    def reload(self, force: bool = False):
+        """(Re)load the ledger file from disk.
+
+        Skips reload if called within _CACHE_TTL seconds of last load,
+        unless force=True.
+        """
+        if not force and self._last_loaded is not None:
+            elapsed = time.time() - self._last_loaded
+            if elapsed < _CACHE_TTL:
+                return
+
         self._entries, self._errors, self._options_map = loader.load_file(
             str(self.cfg.ledger_path)
         )
         bal_result = balance_by_account(self._entries)
         self._balances = bal_result[0]  # dict[account -> Inventory]
+        self._last_loaded = time.time()
 
     @property
     def entries(self):

@@ -69,3 +69,7 @@
   Equity:OwnerDraws                              3000.00 USD
   Assets:Bank:BusinessChecking                   -3000.00 USD
 
+2026-07-16 * "IRS" "Estimated tax payment Q3 2026"
+  Expenses:Taxes:Federal                         1500.00 USD
+  Assets:Bank:BusinessChecking                   -1500.00 USD
+

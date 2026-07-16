@@ -167,6 +167,13 @@ class BankSyncRequest(BaseModel):
     preview: bool = False
 
 
+class TaxPayRequest(BaseModel):
+    amount: float
+    quarter: str = ""  # e.g. "Q1", "Q2", "Q3", "Q4"
+    year: int = 0
+    note: str = "Estimated tax payment"
+
+
 # ── helpers ─────────────────────────────────────────────────────────────────
 
 
@@ -242,6 +249,69 @@ async def get_status():
         "tax": tax_info,
         "deadlines": deadlines["deadlines"],
         "ledger_errors": len(errors),
+    })
+
+
+@app.get("/api/v1/dashboard", dependencies=[Depends(check_auth)])
+async def get_dashboard():
+    """Combined dashboard — all data in one call (faster than /status + /invoices/ar + ...).
+
+    Returns everything needed for the web app dashboard page:
+    cash, P&L, AR, tax estimate, deadlines, and recent transactions.
+    """
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+    except Exception as e:
+        return _err(f"Ledger error: {e}", 500)
+
+    cash = _decimal_to_float(ledger.cash_balance())
+    revenue = _decimal_to_float(ledger.gross_revenue())
+    expenses = _decimal_to_float(ledger.total_expenses())
+    net = _decimal_to_float(ledger.net_income())
+    ar_bal = _decimal_to_float(ledger.account_balance(cfg.ar_account))
+
+    from .taxes import TaxEstimator
+    taxer = TaxEstimator(cfg, ledger)
+    if net > 0:
+        est = taxer.quarterly_estimate(ledger.net_income())
+        tax_info = {
+            "annual_total_tax": _decimal_to_float(est["annual_total_tax"]),
+            "already_paid": _decimal_to_float(est["already_paid"]),
+            "suggested_payment": _decimal_to_float(est["suggested_payment"]),
+            "note": est["note"],
+        }
+    else:
+        tax_info = {"annual_total_tax": 0, "already_paid": 0, "suggested_payment": 0, "note": "No tax due"}
+
+    deadlines = taxer.deadline_info()
+    errors = ledger.check()
+
+    # Recent transactions
+    txns = []
+    for entry in ledger.entries:
+        if not hasattr(entry, "date") or not hasattr(entry, "postings"):
+            continue
+        for posting in entry.postings:
+            txns.append({
+                "date": str(entry.date),
+                "payee": getattr(entry, "payee", "") or "",
+                "description": getattr(entry, "narration", "") or "",
+                "account": posting.account,
+                "amount": float(posting.units.number) if posting.units else 0,
+            })
+    txns.sort(key=lambda x: (x["date"], x["account"]), reverse=True)
+
+    return _ok({
+        "cash": cash,
+        "gross_revenue": revenue,
+        "total_expenses": expenses,
+        "net_profit": net,
+        "ar": ar_bal,
+        "tax": tax_info,
+        "deadlines": deadlines["deadlines"],
+        "ledger_errors": len(errors),
+        "recent_transactions": txns[:15],
     })
 
 
@@ -328,6 +398,20 @@ async def accounts_receivable():
         "overdue_count": info["overdue_count"],
         "estimated_overdue_amount": float(info["estimated_overdue_amount"]),
     })
+
+
+@app.get("/api/v1/invoices/{number}/pdf", dependencies=[Depends(check_auth)])
+async def get_invoice_pdf(number: str):
+    """Download an invoice PDF by invoice number."""
+    from fastapi.responses import FileResponse
+    cfg = get_config()
+    pdf_path = cfg.invoices_dir / f"{number}.pdf"
+    html_path = cfg.invoices_dir / f"{number}.html"
+    if pdf_path.exists():
+        return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"{number}.pdf")
+    if html_path.exists():
+        return FileResponse(str(html_path), media_type="text/html", filename=f"{number}.html")
+    return _err(f"Invoice '{number}' not found. Generate it with 'llc invoice create'.", 404)
 
 
 # ── Expenses ────────────────────────────────────────────────────────────────
@@ -509,6 +593,107 @@ async def tax_schedule_c():
             "federal_estimated": float(summary["taxes_paid"]["federal_estimated"]),
             "fica_employer": float(summary["taxes_paid"]["fica_employer"]),
         },
+    })
+
+
+@app.get("/api/v1/tax/voucher", dependencies=[Depends(check_auth)])
+async def tax_voucher(quarter: str = Query("Q3"), amount: Optional[float] = Query(None)):
+    """Generate a printable 1040-ES payment voucher PDF.
+
+    The IRS still accepts estimated tax payments via mail with Form 1040-ES.
+    This generates a printable voucher with your business info and the amount.
+    """
+    cfg = get_config()
+    ledger = Ledger(cfg)
+
+    if amount is None:
+        from .taxes import TaxEstimator
+        taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
+        net = ledger.net_income()
+        if net > 0:
+            est = taxer.quarterly_estimate(net)
+            amount = float(est["suggested_payment"])
+        else:
+            amount = 0.0
+
+    from pathlib import Path
+    from jinja2 import Environment, FileSystemLoader
+
+    env = Environment(loader=FileSystemLoader(str(cfg.project_root / "templates")))
+    template = env.get_template("voucher.html")
+
+    html = template.render(
+        business=cfg,
+        quarter=quarter,
+        year=str(datetime.date.today().year),
+        amount=amount,
+        today=datetime.date.today().isoformat(),
+    )
+
+    pdf_dir = cfg.output_dir / "vouchers"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = pdf_dir / f"1040-ES-{quarter}-{datetime.date.today().year}.pdf"
+
+    try:
+        from weasyprint import HTML
+        HTML(string=html).write_pdf(str(pdf_path))
+    except ImportError:
+        # Fall back to HTML
+        pdf_path = pdf_path.with_suffix(".html")
+        pdf_path.write_text(html)
+
+    from fastapi.responses import FileResponse
+    return FileResponse(str(pdf_path), media_type="application/pdf" if pdf_path.suffix == ".pdf" else "text/html",
+                        filename=pdf_path.name)
+
+
+@app.post("/api/v1/tax/pay", dependencies=[Depends(check_auth)])
+async def tax_pay(req: TaxPayRequest):
+    """Record an estimated tax payment in the ledger.
+
+    After paying the IRS (via Direct Pay, EFTPS, or mail), call this to
+    record the payment and update your dashboard.
+    """
+    from decimal import Decimal
+    import datetime
+
+    cfg = get_config()
+    ledger = Ledger(cfg)
+
+    amt = Decimal(str(req.amount)).quantize(Decimal("0.01"))
+    quarter_str = f" {req.quarter}" if req.quarter else ""
+    year_str = f" {req.year}" if req.year else f" {datetime.date.today().year}"
+
+    narration = f"Estimated tax payment{quarter_str}{year_str}"
+    if req.note and req.note != "Estimated tax payment":
+        narration = req.note
+
+    postings = [
+        ("Expenses:Taxes:Federal", f"{amt:.2f} USD"),
+        (cfg.checking_account, f"-{amt:.2f} USD"),
+    ]
+
+    ledger.append(
+        date=datetime.date.today(),
+        payee="IRS",
+        narration=narration,
+        postings=postings,
+    )
+
+    # Recalculate remaining
+    ledger.reload(force=True)
+    net = ledger.net_income()
+    from .taxes import TaxEstimator
+    taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
+    est = taxer.quarterly_estimate(net) if net > 0 else {}
+
+    return _ok({
+        "recorded": True,
+        "amount": float(amt),
+        "narration": narration,
+        "already_paid": float(est.get("already_paid", 0)) if est else 0,
+        "remaining": float(est.get("remaining", 0)) if est else 0,
+        "suggested_next": float(est.get("suggested_payment", 0)) if est else 0,
     })
 
 
