@@ -16,7 +16,7 @@ SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 LLC_DIR=/home/dillon/_code/sololedger
 LLC="$LLC_DIR/.venv/bin/python -m app.main"
-# NOTIFY_SMTP_PASSWORD=your-app-password   # uncomment and set if using email alerts
+# NOTIFY_SMTP_PASSWORD   # optional: set Gmail app password for email alerts
 
 # Daily: Check deadlines, unpaid invoices, ledger health (9 AM)
 0 9 * * * cd $LLC_DIR && $LLC notify check
