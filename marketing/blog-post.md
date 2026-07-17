@@ -9,4 +9,4 @@ Here's what's new:
 - Web app + demo data: full browser experience for customers
 - Add llc demo — populate sample data to explore the tool
 
-Try it out: https://github.com/dillonj/solo-ledger
+Try it out: https://github.com/dilljens/sololedger

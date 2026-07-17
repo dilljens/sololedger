@@ -1,0 +1,11 @@
+{
+    "schema_version": 1,
+    "commit": "ee2765ec633adbfd50783b2ad3590216893d8dca",
+    "indexed_at": "2026-07-17T03:46:42Z",
+    "project": "home-dillon-_code-sololedger",
+    "nodes": 699,
+    "edges": 2480,
+    "original_size": 2818048,
+    "compressed_size": 546132,
+    "compression_level": 9
+}

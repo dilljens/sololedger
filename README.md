@@ -57,8 +57,8 @@ python -m app.main status
 
 ### Install
 ```bash
-git clone https://github.com/dillonj/solo-ledger
-cd solo-ledger
+git clone https://github.com/dilljens/sololedger
+cd sololedger
 pip install -r requirements.txt
 ```
 
@@ -100,13 +100,13 @@ Set up daily/weekly/monthly cron jobs:
 
 ```bash
 # Daily 9AM — check deadlines, unpaid invoices
-0 9 * * * cd /path/to/solo-ledger && python -m app.main notify check
+0 9 * * * cd /path/to/sololedger && python -m app.main notify check
 
 # Monthly 1st — process retainers
-0 10 1 * * cd /path/to/solo-ledger && python -m app.main retainer process --no-preview
+0 10 1 * * cd /path/to/sololedger && python -m app.main retainer process --no-preview
 
 # Weekly Monday — sync bank feed
-0 8 * * 1 cd /path/to/solo-ledger && python -m app.main bank sync --days 14
+0 8 * * 1 cd /path/to/sololedger && python -m app.main bank sync --days 14
 ```
 
 ## Cloud

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "solo-ledger"
+name = "sololedger"
 version = "0.2.0"
 description = "Open-source accounting, invoicing, and tax tools for your consulting LLC"
 readme = "README.md"
@@ -56,4 +56,4 @@ include = ["app*"]
 
 [project.urls]
 Homepage = "https://sololedger.app"
-Source = "https://github.com/dillonj/solo-ledger"
+Source = "https://github.com/dilljens/sololedger"

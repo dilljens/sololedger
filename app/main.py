@@ -306,7 +306,7 @@ def retainer_process(ctx, no_preview):
     """Check all retainers and generate invoices for those due.
 
     Designed to be run from cron:
-        0 9 1 * * cd /path/to/solo-ledger && python -m app.main retainer process --no-preview
+        0 9 1 * * cd /path/to/sololedger && python -m app.main retainer process --no-preview
     """
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
@@ -697,7 +697,7 @@ def notify_check(ctx):
     """Check everything and send alerts (desktop + email if configured).
 
     Run this from cron for daily reminders:
-        0 9 * * * cd /path/to/solo-ledger && python -m app.main notify check
+        0 9 * * * cd /path/to/sololedger && python -m app.main notify check
     """
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
@@ -1064,7 +1064,7 @@ def doctor(ctx):
     net = ledger.net_income()
     click.echo(f"  {'💰' if net > 0 else '💸'}  Net profit:   ${net:>8,.2f}")
     click.echo()
-    click.echo(f"  ▸  Docs:       https://github.com/dillonj/solo-ledger#readme")
+    click.echo(f"  ▸  Docs:       https://github.com/dilljens/sololedger#readme")
     click.echo(f"  ▸  Cloud:      https://sololedger.app")
 
 

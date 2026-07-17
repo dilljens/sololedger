@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "lsp-mcp": {
+      "type": "local",
+      "command": ["python", "$HOME/oh-my-agent/mcp/lsp-mcp/server.py"],
+      "enabled": true
+    }
+  }
+}

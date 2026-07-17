@@ -1,5 +1,5 @@
 {
-  "project": "solo-ledger",
+  "project": "sololedger",
   "description": "Personal bookkeeping and invoicing system",
   "services": {
     "api": {

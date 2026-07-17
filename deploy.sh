@@ -9,8 +9,8 @@ set -euo pipefail
 #   curl -fsSL https://sololedger.app/deploy.sh | bash -s -- --port 8100
 # ──────────────────────────────────────────────────────────────────────────
 
-REPO="https://github.com/dillonj/solo-ledger.git"
-INSTALL_DIR="${HOME}/solo-ledger"
+REPO="https://github.com/dilljens/sololedger.git"
+INSTALL_DIR="${HOME}/sololedger"
 API_PORT="${1:-8100}"
 UBUNTU=$(grep -c ubuntu /etc/os-release 2>/dev/null || echo "0")
 

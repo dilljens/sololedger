@@ -210,7 +210,7 @@ The blog post should:
 2. Describe the newest features naturally
 3. End with a call to action (try it on GitHub, star the repo)
 4. Be authentic and technical — developer audience
-5. Include a link to https://github.com/dillonj/solo-ledger
+5. Include a link to https://github.com/dilljens/sololedger
 
 Write in first person as the founder."""
 
@@ -224,7 +224,7 @@ Here's what's new:
 
 {chr(10).join([f'- {c["message"]}' for c in commits[:5]])}
 
-Try it out: https://github.com/dillonj/solo-ledger
+Try it out: https://github.com/dilljens/sololedger
 """
         return result
 
@@ -239,7 +239,7 @@ Generate 3 social media posts based on these recent changes:
 {top_features}
 
 Product: SoloLedger — open-source accounting/invoicing/tax for solo consulting LLCs
-URL: https://github.com/dillonj/solo-ledger
+URL: https://github.com/dilljens/sololedger
 
 Generate:
 1. A Twitter/X thread (5 tweets max)
@@ -254,7 +254,7 @@ Generate:
 1/ SoloLedger just shipped new features:
 {chr(10).join([f'{i+1}. {c["message"]}' for i, c in enumerate(commits[:4])])}
 
-5/ Open source, self-hosted, $0 to start. GitHub: https://github.com/dillonj/solo-ledger
+5/ Open source, self-hosted, $0 to start. GitHub: https://github.com/dilljens/sololedger
 
 ## LinkedIn
 
@@ -262,14 +262,14 @@ Just shipped updates to SoloLedger — my open-source accounting tool for solo c
 
 New: {commits[0]['message'] if commits else 'See changelog'}
 
-Self-host your own accounting. https://github.com/dillonj/solo-ledger
+Self-host your own accounting. https://github.com/dilljens/sololedger
 
 ## Reddit (r/plaintextaccounting)
 
 Just updated SoloLedger, my open-source Beancount-based accounting tool. New features:
 {chr(10).join([f'- {c["message"]}' for c in commits[:5]])}
 
-https://github.com/dillonj/solo-ledger
+https://github.com/dilljens/sololedger
 """
         return result
 

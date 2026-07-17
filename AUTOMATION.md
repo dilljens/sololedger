@@ -14,9 +14,9 @@ Paste the schedule below (adjust paths to your setup):
 # ── LLC Tools Automation ──────────────────────────────────────────
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
-LLC_DIR=/home/dillon/_code/solo-ledger
+LLC_DIR=/home/dillon/_code/sololedger
 LLC="$LLC_DIR/.venv/bin/python -m app.main"
-NOTIFY_SMTP_PASSWORD=your-app-password    # if using email alerts
+# NOTIFY_SMTP_PASSWORD=your-app-password   # uncomment and set if using email alerts
 
 # Daily: Check deadlines, unpaid invoices, ledger health (9 AM)
 0 9 * * * cd $LLC_DIR && $LLC notify check
@@ -94,22 +94,19 @@ These can go in your crontab, Docker env, or `.env` file:
 
 ```bash
 # Stripe (for payment links on invoices)
-STRIPE_SECRET_KEY=sk_live_...
+# Set STRIPE_SECRET_KEY from https://dashboard.stripe.com/apikeys
 
 # Plaid (for automated bank feeds)
-PLAID_CLIENT_ID=...
-PLAID_SECRET=...
-PLAID_ACCESS_TOKEN=...
-PLAID_ENV=production
+# Set PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ACCESS_TOKEN, PLAID_ENV
 
 # Toggl Track (for time tracking)
-TOGGL_API_TOKEN=...
+# Set TOGGL_API_TOKEN from your Toggl profile
 
 # Clockify (alternative to Toggl)
-# CLOCKIFY_API_KEY=...
+# Set CLOCKIFY_API_KEY from your Clockify profile
 
 # Email notifications (optional)
-NOTIFY_SMTP_PASSWORD=your-app-password
+# Set NOTIFY_SMTP_PASSWORD (Gmail app password)
 ```
 
 ## Manual Automation Triggers

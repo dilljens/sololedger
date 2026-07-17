@@ -274,7 +274,7 @@ class PlaidFeed:
         client_id = os.environ.get("PLAID_CLIENT_ID", "")
         secret = os.environ.get("PLAID_SECRET", "")
         plaid_env = os.environ.get("PLAID_ENV", "sandbox")
-        user_id = os.environ.get("PLAID_USER_ID", "solo-ledger-user")
+        user_id = os.environ.get("PLAID_USER_ID", "sololedger-user")
 
         if not client_id or not secret:
             return {"error": "PLAID_CLIENT_ID and PLAID_SECRET must be set"}
