@@ -57,6 +57,8 @@ from pydantic import BaseModel, Field
 from .config import Config
 from .ledger import Ledger
 from .invoice import Invoicer, RetainerConfig
+from .ofx_import import OfxImporter
+from .mileage import MileageTracker
 
 # ── App setup ──────────────────────────────────────────────────────────────
 
@@ -1266,6 +1268,306 @@ async def import_csv(
         os.unlink(tmp_path)
 
 
+# ── OFX Import ──────────────────────────────────────────────────────────────
+
+
+@app.post("/api/v1/ofx/import", dependencies=[Depends(check_auth)])
+async def api_ofx_import(
+    file: UploadFile = File(...),
+    account: Optional[str] = Form(None),
+    preview: bool = Form(False),
+):
+    """Import bank transactions from an OFX/QFX file upload."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+
+    ledger = Ledger(cfg)
+    importer = OfxImporter(cfg, ledger)
+
+    # Save uploaded file temporarily
+    suffix = Path(file.filename).suffix if file.filename else ".ofx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        result = importer.import_file(
+            tmp_path,
+            account=account or cfg.checking_account,
+            preview=preview,
+        )
+        result.pop("transactions", None)  # too large for response
+        return _ok(result)
+    finally:
+        os.unlink(tmp_path)
+
+
+# ── Mileage Tracking ────────────────────────────────────────────────────────
+
+
+@app.get("/api/v1/mileage/trips", dependencies=[Depends(check_auth)])
+async def api_mileage_list(
+    year: Optional[int] = Query(None),
+    limit: int = Query(50),
+):
+    """List logged mileage trips."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    tracker = MileageTracker(cfg, ledger)
+    trips = tracker.list_trips(year=year, limit=limit)
+    return _ok({"trips": trips, "count": len(trips), "total": tracker.trip_count})
+
+
+# Pydantic model for mileage add
+class MileageAddRequest(BaseModel):
+    date: str
+    miles: float
+    purpose: str
+    client: Optional[str] = ""
+    start_odo: Optional[float] = 0.0
+    end_odo: Optional[float] = 0.0
+    route: Optional[str] = ""
+    notes: Optional[str] = ""
+    post_to_ledger: Optional[bool] = True
+
+
+@app.post("/api/v1/mileage/add", dependencies=[Depends(check_auth)])
+async def api_mileage_add(req: MileageAddRequest):
+    """Log a business trip."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    tracker = MileageTracker(cfg, ledger)
+    trip = tracker.add_trip(
+        date=req.date, miles=req.miles, purpose=req.purpose,
+        client=req.client or "", start_odo=req.start_odo or 0.0,
+        end_odo=req.end_odo or 0.0, route=req.route or "",
+        notes=req.notes or "", post_to_ledger=req.post_to_ledger,
+    )
+    return _ok({
+        "id": trip.id,
+        "date": trip.date,
+        "miles": trip.miles,
+        "deduction": float(trip.deduction),
+        "purpose": trip.purpose,
+    })
+
+
+@app.get("/api/v1/mileage/report", dependencies=[Depends(check_auth)])
+async def api_mileage_report(year: Optional[int] = Query(None)):
+    """Yearly mileage summary for tax purposes."""
+    if year is None:
+        year = datetime.date.today().year
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    tracker = MileageTracker(cfg, ledger)
+    report = tracker.yearly_report(year)
+    return _ok(report)
+
+
+# ── Accounts / Transfer / Reimbursement ────────────────────────────────────
+
+
+@app.get("/api/v1/accounts", dependencies=[Depends(check_auth)])
+async def api_accounts():
+    """List all registered accounts with balances."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    data = ledger.registered_accounts()
+
+    # Add configured cards
+    data["cards"] = []
+    for card_cfg in getattr(cfg, 'cards', []):
+        bal = ledger.account_balance(card_cfg.account)
+        data["cards"].append({
+            "account": card_cfg.account,
+            "name": card_cfg.name,
+            "type": card_cfg.type,
+            "balance": float(bal),
+            "last_four": card_cfg.last_four or "",
+        })
+    return _ok(data)
+
+
+class TransferRequest(BaseModel):
+    from_account: str
+    to_account: str
+    amount: float
+    date: Optional[str] = None
+    description: Optional[str] = "Transfer"
+
+
+@app.post("/api/v1/transfer", dependencies=[Depends(check_auth)])
+async def api_transfer(req: TransferRequest):
+    """Transfer money between accounts."""
+    from decimal import Decimal
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    txn_date = datetime.date.fromisoformat(req.date) if req.date else datetime.date.today()
+    ledger.transfer(
+        date=txn_date,
+        from_account=req.from_account,
+        to_account=req.to_account,
+        amount=Decimal(str(req.amount)),
+        description=req.description or "Transfer",
+    )
+    ledger.reload(force=True)
+    return _ok({
+        "from": req.from_account,
+        "to": req.to_account,
+        "amount": req.amount,
+        "date": txn_date.isoformat(),
+    })
+
+
+class ReimbursementRequest(BaseModel):
+    amount: float
+    merchant: str
+    account: Optional[str] = "Expenses:Miscellaneous"
+    date: Optional[str] = None
+
+
+@app.post("/api/v1/reimburse", dependencies=[Depends(check_auth)])
+async def api_reimburse(req: ReimbursementRequest):
+    """Record a business expense paid from personal funds."""
+    from decimal import Decimal
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    txn_date = datetime.date.fromisoformat(req.date) if req.date else datetime.date.today()
+    ledger.reimbursement(
+        date=txn_date,
+        merchant=req.merchant,
+        amount=Decimal(str(req.amount)),
+        expense_account=req.account or "Expenses:Miscellaneous",
+    )
+    ledger.reload(force=True)
+    return _ok({
+        "merchant": req.merchant,
+        "amount": req.amount,
+        "account": req.account or "Expenses:Miscellaneous",
+        "date": txn_date.isoformat(),
+    })
+
+
+class SplitRequest(BaseModel):
+    merchant: str
+    total: float
+    business: float
+    account: Optional[str] = "Expenses:Miscellaneous"
+    date: Optional[str] = None
+    source: Optional[str] = None
+
+
+@app.post("/api/v1/split", dependencies=[Depends(check_auth)])
+async def api_split(req: SplitRequest):
+    """Split a transaction between business and personal."""
+    from decimal import Decimal
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    txn_date = datetime.date.fromisoformat(req.date) if req.date else datetime.date.today()
+    source = req.source or cfg.checking_account
+    personal = req.total - req.business
+
+    if personal > 0:
+        postings = [
+            (req.account or "Expenses:Miscellaneous", f"{req.business:.2f} USD"),
+            ("Equity:OwnerDraws", f"{personal:.2f} USD"),
+            (source, f"-{req.total:.2f} USD"),
+        ]
+    else:
+        postings = [
+            (req.account or "Expenses:Miscellaneous", f"{req.total:.2f} USD"),
+            (source, f"-{req.total:.2f} USD"),
+        ]
+
+    entry = ledger.append(
+        date=txn_date,
+        payee=req.merchant,
+        narration=f"Split: ${req.business:.2f} business, ${personal:.2f} personal",
+        postings=postings,
+    )
+    ledger.reload(force=True)
+    return _ok({
+        "merchant": req.merchant,
+        "total": req.total,
+        "business": req.business,
+        "personal": personal,
+        "account": req.account or "Expenses:Miscellaneous",
+    })
+
+
+# ── Ledger Check ───────────────────────────────────────────────────────────
+
+
+@app.get("/api/v1/check", dependencies=[Depends(check_auth)])
+async def api_check():
+    """Validate the Beancount ledger and return errors."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+    ledger = Ledger(cfg)
+    errors = ledger.check()
+    if not errors:
+        return _ok({"valid": True, "error_count": 0, "errors": []})
+    return _ok({
+        "valid": False,
+        "error_count": len(errors),
+        "errors": [
+            {
+                "file": str(getattr(e, 'source', {}).get('filename', '?')),
+                "line": getattr(e, 'source', {}).get('first_line', 0),
+                "message": getattr(e, 'message', str(e)),
+            }
+            for e in errors[:50]
+        ],
+    })
+
+
+# ── Receipt List (attached documents) ──────────────────────────────────────
+
+
+@app.get("/api/v1/receipts/list", dependencies=[Depends(check_auth)])
+async def api_receipt_list(year: Optional[str] = Query(None)):
+    """List all receipt documents attached to the ledger."""
+    try:
+        cfg = get_config()
+    except Exception as e:
+        return _err(f"Config error: {e}", 500)
+
+    try:
+        from .receipts import ReceiptScanner
+    except ImportError:
+        return _err("Receipt scanner not available", 500)
+
+    scanner = ReceiptScanner(cfg)
+    docs = scanner.list_attached(year=year or "")
+    return _ok({"documents": docs, "count": len(docs)})
+
+
 # ── Backup ─────────────────────────────────────────────────────────────────
 
 
@@ -1281,6 +1583,180 @@ async def api_backup():
     b = Backup(cfg)
     result = b.commit(quiet=True)
     return _ok(result)
+
+
+# ── Setup (first-run wizard) ────────────────────────────────────────────────
+
+
+class SetupRequest(BaseModel):
+    name: str
+    owner: str
+    state: str
+    ein: str = ""
+    email: str = ""
+
+
+@app.post("/api/v1/setup", dependencies=[Depends(check_auth)])
+async def setup_business(req: SetupRequest):
+    """First-run setup — configure the business and create initial accounts.
+
+    Called from the web onboarding wizard after the user enters their
+    business details. Writes config.toml and opens standard accounts.
+    """
+    config_path = os.environ.get("API_CONFIG", "")
+    if not config_path:
+        config_path = str(Path.cwd() / "config.toml")
+
+    try:
+        from .setup import write_business_config, init_ledger
+    except ImportError:
+        # Fallback inline setup
+        import toml
+
+        config_data = {
+            "business": {
+                "name": req.name,
+                "owner": req.owner,
+                "state": req.state,
+                "ein": req.ein or "XX-XXXXXXX",
+                "address": "",
+                "phone": "",
+                "email": req.email,
+            },
+            "ledger": {"path": "ledger/main.beancount"},
+            "accounts": {
+                "checking": "Assets:Bank:BusinessChecking",
+                "ar": "Assets:AccountsReceivable",
+                "income": "Income:Consulting",
+                "owner_draws": "Equity:OwnerDraws",
+            },
+            "notifications": {"desktop_enabled": False, "email_enabled": False},
+            "banking": {"plaid_enabled": False},
+        }
+
+        with open(config_path, "w") as f:
+            toml.dump(config_data, f)
+
+        # Create initial ledger with standard accounts
+        ledger_dir = Path(config_path).parent / "ledger"
+        ledger_dir.mkdir(parents=True, exist_ok=True)
+        today = datetime.date.today().isoformat()[:4]
+
+        (ledger_dir / "main.beancount").write_text(
+            f";; SoloLedger — {req.name}\n"
+            f";; Auto-generated {datetime.date.today().isoformat()}\n"
+            f"\n"
+            f"{today}-01-01 open Assets:Bank:BusinessChecking\n"
+            f"{today}-01-01 open Assets:AccountsReceivable\n"
+            f"{today}-01-01 open Equity:OwnerDraws\n"
+            f"{today}-01-01 open Income:Consulting\n"
+            f"{today}-01-01 open Expenses:Software:SaaS\n"
+            f"{today}-01-01 open Expenses:BankFees\n"
+            f"{today}-01-01 open Liabilities:CreditCard\n"
+        )
+        (ledger_dir / "transactions.beancount").write_text(";; Transactions\n")
+        (ledger_dir / "accounts.beancount").write_text(";; Account tree\n")
+
+    return _ok({"status": "configured", "business": req.name, "state": req.state})
+
+
+# ── Cloud checkout ──────────────────────────────────────────────────────────
+
+
+class CheckoutRequest(BaseModel):
+    plan: str = "cloud-monthly"
+    email: str = ""
+    success_url: str = ""
+    cancel_url: str = ""
+
+
+@app.post("/api/v1/checkout", dependencies=[Depends(check_auth)])
+async def create_checkout(req: CheckoutRequest):
+    """Create a Stripe Checkout Session for SoloLedger Cloud.
+
+    Requires STRIPE_SECRET_KEY env var on the server.
+    Returns a URL to redirect the user to Stripe's hosted checkout page.
+    """
+    from .payments import StripePayments
+    sp = StripePayments()
+    if not sp.enabled:
+        return _err("Stripe not configured. Set STRIPE_SECRET_KEY.", 503)
+
+    plan_config = {
+        "cloud-monthly": {"amount": "10.00", "name": "SoloLedger Cloud Monthly"},
+        "cloud-annual": {"amount": "96.00", "name": "SoloLedger Cloud Annual"},
+    }
+
+    plan = plan_config.get(req.plan)
+    if not plan:
+        return _err(f"Unknown plan: {req.plan}", 400)
+
+    try:
+        import stripe as stripe_lib
+        # Create a checkout session for subscription
+        session = stripe_lib.checkout.Session.create(
+            mode="subscription",
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": plan["name"]},
+                    "unit_amount": int(float(plan["amount"]) * 100),
+                    "recurring": {"interval": "month" if req.plan == "cloud-monthly"
+                                  else "year", "interval_count": 1},
+                },
+                "quantity": 1,
+            }],
+            customer_email=req.email or None,
+            success_url=req.success_url or "https://sololedger.app/cloud/welcome",
+            cancel_url=req.cancel_url or "https://sololedger.app/#pricing",
+            metadata={"plan": req.plan, "source": "landing-page"},
+        )
+        return _ok({"url": session.url, "id": session.id})
+    except stripe_lib.error.StripeError as e:
+        return _err(f"Stripe error: {e}", 500)
+
+
+@app.post("/api/v1/stripe-webhook", include_in_schema=False)
+async def stripe_webhook(request: Request):
+    """Stripe webhook handler — provisions Cloud instances on payment.
+
+    Set STRIPE_WEBHOOK_SECRET in env for signature verification.
+    """
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    import stripe as stripe_lib
+    secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+    if secret:
+        try:
+            event = stripe_lib.Webhook.construct_event(payload, sig_header, secret)
+        except stripe_lib.error.SignatureVerificationError:
+            return _err("Invalid signature", 400)
+    else:
+        # Unsigned mode (dev/test) — parse directly
+        event = json.loads(payload)
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        email = session.get("customer_details", {}).get("email", "") or session.get("customer_email", "")
+        plan = session.get("metadata", {}).get("plan", "cloud-monthly")
+
+        if email:
+            # Trigger provisioning in background
+            import threading
+            threading.Thread(target=_provision_customer, args=(email, plan), daemon=True).start()
+
+    return _ok({"received": True})
+
+
+def _provision_customer(email: str, plan: str):
+    """Provision a new Cloud instance for a paying customer."""
+    try:
+        from .provision import provision_customer
+        provision_customer(email, plan)
+    except Exception as e:
+        print(f"⚠ Provisioning failed for {email}: {e}", file=__import__('sys').stderr)
 
 
 # ── Run ─────────────────────────────────────────────────────────────────────

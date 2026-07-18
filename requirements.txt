@@ -22,6 +22,9 @@ plyer>=2.1
 # ── Time tracking integration ───────────────────────────────────────────────
 requests>=2
 
+# ── ML categorization (optional) ────────────────────────────────────────────
+# sentence-transformers>=2   # for embedding tier (install if using ML features)
+
 # ── API server (for phone app backend) ──────────────────────────────────────
 fastapi>=0.110
 uvicorn>=0.29

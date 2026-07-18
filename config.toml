@@ -21,6 +21,29 @@ ar = "Assets:AccountsReceivable"
 income = "Income:Consulting"
 owner_draws = "Equity:OwnerDraws"
 
+# Multiple payment cards — list all cards you use for business
+# Each gets its own balance tracking in the ledger
+[[accounts.cards]]
+account = "Liabilities:CreditCard:ChaseInk"
+name = "Chase Ink Business"
+type = "credit"
+last_four = ""
+notes = "Primary business card"
+
+[[accounts.cards]]
+account = "Liabilities:CreditCard:Personal"
+name = "Personal Card"
+type = "credit"
+last_four = ""
+notes = "For personal expenses or reimbursement tracking"
+
+[[accounts.cards]]
+account = "Assets:Bank:Personal"
+name = "Personal Checking"
+type = "checking"
+last_four = ""
+notes = "Personal bank account for transfers"
+
 # ── Payment processing (Stripe) ───────────────────────────────────────────
 # Set STRIPE_SECRET_KEY env var to enable. Get it from https://dashboard.stripe.com/apikeys
 [payments]

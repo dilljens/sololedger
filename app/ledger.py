@@ -4,6 +4,7 @@ import datetime
 import re
 import time
 from decimal import Decimal
+from pathlib import Path
 from typing import Iterator, Optional
 
 from beancount import loader
@@ -130,6 +131,25 @@ class Ledger:
 
     # ── append transaction ─────────────────────────────────────────────────
 
+    def document(self, date: datetime.date, account: str,
+                  filepath: str | Path) -> str:
+        """Attach a document (receipt PDF/image) to an account on a date.
+
+        Uses Beancount's document directive:
+            2026-07-15 document Expenses:Software:SaaS "/path/to/receipt.pdf"
+        """
+        date_str = date.isoformat()
+        abs_path = Path(filepath).resolve()
+        entry = f'{date_str} document {account:45s} "{abs_path}"\n\n'
+
+        doc_path = self.cfg.ledger_dir / "transactions.beancount"
+        with open(doc_path, "a") as f:
+            f.write(entry)
+
+        self._entries = None
+        self._balances = None
+        return entry
+
     def append(self, date: datetime.date, payee: str, narration: str,
                postings: list[tuple[str, str]]) -> str:
         """Append a transaction to the transactions file.
@@ -158,3 +178,50 @@ class Ledger:
         self._balances = None
 
         return entry
+
+    def transfer(self, date: datetime.date, from_account: str, to_account: str,
+                 amount: Decimal, description: str = "Transfer") -> str:
+        """Record a transfer between accounts."""
+        return self.append(
+            date=date,
+            payee=description,
+            narration=f"Transfer: {from_account.split(':')[-1]} -> {to_account.split(':')[-1]}",
+            postings=[
+                (from_account, f"-{amount:.2f} USD"),
+                (to_account, f"{amount:.2f} USD"),
+            ],
+        )
+
+    def reimbursement(self, date: datetime.date, merchant: str, amount: Decimal,
+                      expense_account: str = "Expenses:Miscellaneous") -> str:
+        """Record a business expense paid from personal funds.
+
+        Creates: expense_account +amount ; Liability:Reimbursement -amount
+        """
+        return self.append(
+            date=date,
+            payee=merchant,
+            narration=f"Reimbursement: {merchant} (paid personally)",
+            postings=[
+                (expense_account, f"{amount:.2f} USD"),
+                ("Liabilities:Reimbursement", f"-{amount:.2f} USD"),
+            ],
+        )
+
+    def split_transaction(self, date: datetime.date, merchant: str,
+                           business_postings: list[tuple[str, str]],
+                           personal_account: str = "Equity:OwnerDraws",
+                           source_account: str = "Assets:Bank:BusinessChecking") -> str:
+        """Split a transaction between business and personal.
+
+        E.g., {business items} to expense accounts, personal portion to owner draws.
+        """
+        total = sum(float(amt.split()[0]) for _, amt in business_postings)
+        postings = list(business_postings)
+        postings.append((source_account, f"-{total:.2f} USD"))
+        return self.append(
+            date=date,
+            payee=merchant,
+            narration=f"Split: {merchant}",
+            postings=postings,
+        )

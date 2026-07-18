@@ -106,6 +106,36 @@ def status(ctx):
     else:
         click.echo("✓ Ledger is clean.")
 
+    # Data ownership / trust info
+    click.echo()
+    click.echo("── Data Ownership ──")
+    click.echo("  Format:     Plain-text Beancount (no vendor lock-in)")
+    click.echo("  Location:   " + str(cfg.ledger_dir))
+    click.echo("  Backup:     Git auto-backup " + ("✓ configured" if hasattr(cfg, 'backup') and getattr(cfg, 'backup') else "not configured"))
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "log", "--oneline", "-3"],
+            capture_output=True, text=True,
+            cwd=cfg.ledger_dir
+        )
+        commits = result.stdout.strip().split("\n") if result.stdout.strip() else []
+        if commits and commits[0]:
+            click.echo(f"  Recent changes:")
+            for c in commits:
+                click.echo(f"    {c[:60]}")
+        # Count total commits
+        count_result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            capture_output=True, text=True,
+            cwd=cfg.ledger_dir
+        )
+        if count_result.returncode == 0:
+            click.echo(f"  Total git commits: {count_result.stdout.strip()}")
+    except Exception:
+        pass
+    click.echo("  ✓ Data is yours. Always. No subscription required.")
+
 
 # ── check ─────────────────────────────────────────────────────────────────
 
@@ -845,6 +875,150 @@ def receipt_batch(ctx, directory, no_preview):
     if preview and success > 0:
         click.echo()
         click.echo("Run with --no-preview to append all to the ledger.")
+
+
+@receipt.command("attach")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("--date", "-d", required=True, help="Transaction date (YYYY-MM-DD)")
+@click.option("--account", "-a", default="Expenses:Miscellaneous",
+              help="Beancount account (default: Expenses:Miscellaneous)")
+@click.option("--no-txn", is_flag=True, default=False,
+              help="Don't create a transaction entry, just attach the document")
+@_pass_config
+def receipt_attach(ctx, filepath, date, account, no_txn):
+    """Attach a receipt PDF/image to the ledger as a permanent document.
+
+    Copies the file to docs/receipts/YYYY/ and adds a Beancount
+    document directive linking it to the specified account and date.
+    Also scans the receipt and appends a transaction entry.
+    """
+    cfg = ctx["cfg"]
+    try:
+        from .receipts import ReceiptScanner
+    except ImportError:
+        click.echo("⚠  Receipt scanner not available.")
+        return
+
+    scanner = ReceiptScanner(cfg)
+    result = scanner.attach(filepath, date=date, account=account,
+                            link_txn=not no_txn)
+
+    if result.get("success"):
+        click.echo(f"✓ Receipt attached: {result['document_path']}")
+        if result.get("transaction_appended"):
+            click.echo("✓ Transaction entry appended to ledger.")
+        click.echo("\n  Your receipt is now permanently linked to your ledger.")
+        click.echo("  Run 'llc check' to verify.")
+    else:
+        click.echo(f"⚠  Failed: {result.get('error', 'unknown')}")
+
+
+@receipt.command("list")
+@click.option("--year", "-y", default="", help="Filter by year (YYYY)")
+@_pass_config
+def receipt_list(ctx, year):
+    """List all receipt documents attached to the ledger."""
+    cfg = ctx["cfg"]
+    try:
+        from .receipts import ReceiptScanner
+    except ImportError:
+        click.echo("⚠  Receipt scanner not available.")
+        return
+
+    scanner = ReceiptScanner(cfg)
+    docs = scanner.list_attached(year=year)
+
+    if not docs:
+        click.echo("No receipt documents attached yet.")
+        click.echo("Use 'llc receipt attach' to link receipts to your ledger.")
+        return
+
+    click.echo(f"{'Date':12s} {'Account':35s} Document")
+    click.echo("-" * 80)
+    for d in docs:
+        name = Path(d["path"]).name
+        click.echo(f"{d['date']:12s} {d['account']:35s} {name}")
+    click.echo(f"\nTotal: {len(docs)} document(s)")
+
+
+# ── reconciliation ─────────────────────────────────────────────────────────
+
+
+@cli.group()
+def reconcile():
+    """Reconcile ledger against bank statements.
+
+    Helps you match your Beancount transactions to your bank
+    statement each month. Lists uncleared items and flags
+    completed reconciliations.
+    """
+
+
+@reconcile.command("list")
+@click.option("--account", default="Assets:Bank:BusinessChecking",
+              help="Account to check (default: from config)")
+@click.option("--days", type=int, default=365,
+              help="How far back to look (default: 365 days)")
+@_pass_config
+def reconcile_list(ctx, account, days):
+    """Show uncleared/pending transactions for an account."""
+    from .reconciliation import Reconciliation
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    rec = Reconciliation(cfg, ledger)
+    txs = rec.uncleared_transactions(account=account, days_back=days)
+
+    if not txs:
+        click.echo("No transactions found for this account.")
+        return
+
+    cleared = [t for t in txs if t["status"] == "cleared"]
+    uncleared = [t for t in txs if t["status"] == "uncleared"]
+
+    click.echo(f"Account: {account}")
+    click.echo(f"  Cleared:   {len(cleared)} transactions")
+    click.echo(f"  Uncleared: {len(uncleared)} transactions")
+    click.echo()
+
+    if uncleared:
+        click.echo(f"{'Date':12s} {'Type':8s} {'Amount':10s}  Payee")
+        click.echo("-" * 65)
+        for t in uncleared[:30]:
+            click.echo(f"{t['date']:12s} {t['type']:8s} ${t['amount']:<8.2f}  {t['payee'][:40]}")
+        if len(uncleared) > 30:
+            click.echo(f"  ... and {len(uncleared) - 30} more")
+
+
+@reconcile.command("start")
+@click.option("--date", "-d", required=True, help="Statement date (YYYY-MM-DD)")
+@click.option("--balance", "-b", type=float, required=True,
+              help="Ending balance from bank statement")
+@click.option("--account", default="Assets:Bank:BusinessChecking",
+              help="Account being reconciled")
+@_pass_config
+def reconcile_start(ctx, date, balance, account):
+    """Start a reconciliation by asserting a statement balance.
+
+    Compares your ledger to the bank statement balance and
+    records a balance assertion in the Beancount ledger.
+    """
+    from decimal import Decimal
+    from .reconciliation import Reconciliation
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    rec = Reconciliation(cfg, ledger)
+    result = rec.start(date=date, balance=Decimal(str(balance)),
+                       account=account)
+
+    click.echo(f"Reconciliation: {result['date']}")
+    click.echo(f"  Account:       {result['account']}")
+    click.echo(f"  Balance:       ${result['balance']:,.2f}")
+    click.echo(f"  Matched:       {result['cleared_transactions']} txns")
+    click.echo(f"  Still open:    {result['uncleared_transactions']} txns")
+    if result['uncleared_transactions'] > 0:
+        click.echo("\n  Run 'llc reconcile list' to review uncleared items.")
 
 
 # ── time tracking ─────────────────────────────────────────────────────────
@@ -1607,6 +1781,362 @@ def marketing_social(ctx, days):
             click.echo(content)
     else:
         click.echo(result)
+
+
+# ── ofx import ─────────────────────────────────────────────────────────────
+
+
+@import_cmd.command("ofx")
+@click.argument("filepath", type=click.Path(exists=True))
+@click.option("--account", default=None, help="Target bank account (default: from config)")
+@click.option("--preview", is_flag=True, help="Parse but don't import")
+@_pass_config
+def import_ofx(ctx, filepath, account, preview):
+    """Import transactions from an OFX/QFX bank statement."""
+    from .ofx_import import OfxImporter
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    importer = OfxImporter(cfg, ledger)
+    result = importer.import_file(
+        filepath,
+        account=account or cfg.checking_account,
+        preview=preview,
+    )
+    click.echo(f"File: {result['file']}")
+    click.echo(f"  Total transactions:     {result['total']}")
+    click.echo(f"  Imported:               {result['imported']}")
+    click.echo(f"  Skipped (duplicates):   {result['skipped_duplicates']}")
+    if result["errors"]:
+        click.echo(f"  Errors:                 {len(result['errors'])}")
+    if not preview:
+        click.echo(f"\nRun 'llc check' to verify the ledger.")
+
+
+# ── mileage tracking ───────────────────────────────────────────────────────
+
+
+@cli.group()
+def mileage():
+    """Track business mileage for tax deductions."""
+
+
+@mileage.command("add")
+@click.option("--date", "-d", required=True, help="Trip date (YYYY-MM-DD)")
+@click.option("--miles", "-m", type=float, required=True, help="Miles driven")
+@click.option("--purpose", "-p", required=True, help="Business purpose")
+@click.option("--client", "-c", default="", help="Client name")
+@click.option("--start-odo", type=float, default=0.0, help="Starting odometer")
+@click.option("--end-odo", type=float, default=0.0, help="Ending odometer")
+@click.option("--route", default="", help="Start → end description")
+@click.option("--notes", default="", help="Additional notes")
+@click.option("--no-post", is_flag=True, help="Don't post to Beancount ledger")
+@_pass_config
+def mileage_add(ctx, date, miles, purpose, client, start_odo, end_odo, route, notes, no_post):
+    """Log a business trip and calculate the IRS mileage deduction."""
+    from .mileage import MileageTracker
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    tracker = MileageTracker(cfg, ledger)
+    trip = tracker.add_trip(
+        date=date, miles=miles, purpose=purpose,
+        client=client, start_odo=start_odo, end_odo=end_odo,
+        route=route, notes=notes,
+        post_to_ledger=not no_post,
+    )
+    click.echo(f"Trip logged: {trip.date} — {purpose} ({miles} mi)")
+    click.echo(f"  Deduction: ${float(trip.deduction):.2f}")
+    click.echo(f"  Receipt:   {trip.id}")
+    if not no_post:
+        click.echo("  Posted to Beancount ledger.")
+
+
+@mileage.command("list")
+@click.option("--year", "-y", type=int, default=None, help="Filter by year")
+@click.option("--limit", type=int, default=50, help="Max results")
+@_pass_config
+def mileage_list(ctx, year, limit):
+    """List logged trips."""
+    from .mileage import MileageTracker
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    tracker = MileageTracker(cfg, ledger)
+    trips = tracker.list_trips(year=year, limit=limit)
+
+    if not trips:
+        click.echo("No trips logged.")
+        return
+
+    click.echo(f"{'Date':12s} {'Miles':8s} {'Deduction':10s}  Purpose")
+    click.echo("-" * 60)
+    total_miles = 0
+    total_deduction = 0.0
+    for t in trips:
+        click.echo(f"{t['date']:12s} {t['miles']:<8.1f} ${t['deduction']:<8.2f}  {t['purpose'][:35]}")
+        total_miles += t['miles']
+        total_deduction += t['deduction']
+    click.echo("-" * 60)
+    click.echo(f"{'TOTAL':12s} {total_miles:<8.1f} ${total_deduction:<8.2f}")
+
+
+@mileage.command("report")
+@click.option("--year", "-y", type=int, default=None, help="Year (default: current)")
+@_pass_config
+def mileage_report(ctx, year):
+    """Show yearly mileage summary for tax purposes."""
+    from .mileage import MileageTracker, get_irs_rate
+
+    if year is None:
+        year = datetime.date.today().year
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    tracker = MileageTracker(cfg, ledger)
+    report = tracker.yearly_report(year)
+    rate = get_irs_rate(year)
+
+    click.echo(f"Mileage Report — {year}")
+    click.echo(f"  Rate:              ${float(rate):.2f}/mi")
+    click.echo(f"  Total trips:       {report['trip_count']}")
+    click.echo(f"  Total miles:       {report['total_miles']:.1f}")
+    click.echo(f"  Total deduction:   ${report['total_deduction']:.2f}")
+    click.echo()
+
+    if report["monthly_breakdown"]:
+        click.echo("  Monthly breakdown:")
+        for month, miles in sorted(report["monthly_breakdown"].items()):
+            click.echo(f"    {month}: {miles:.1f} mi")
+
+    if report["trips_by_purpose"]:
+        click.echo("\n  By purpose:")
+        for purpose, miles in sorted(report["trips_by_purpose"].items(), key=lambda x: -x[1]):
+            click.echo(f"    {purpose[:40]:40s} {miles:.1f} mi")
+
+
+@mileage.command("export")
+@click.argument("output", type=click.Path())
+@click.option("--year", "-y", type=int, default=None, help="Filter by year")
+@_pass_config
+def mileage_export(ctx, output, year):
+    """Export mileage log to CSV."""
+    from .mileage import MileageTracker
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    tracker = MileageTracker(cfg, ledger)
+    path = tracker.export_csv(output, year=year)
+    click.echo(f"Exported to {path}")
+
+
+# ── llm categorization ─────────────────────────────────────────────────────
+
+
+@cli.command()
+@click.option("--merchant", "-m", required=True, help="Transaction merchant name")
+@click.option("--amount", "-a", type=float, default=None, help="Transaction amount")
+@_pass_config
+def categorize(ctx, merchant, amount):
+    """Categorize a transaction using the LLM assistant.
+
+    Requires SL_LLM_BACKEND to be set (ollama, openai, or anthropic).
+    """
+    from .categorizer_llm import LlmCategorizer
+    from .ledger import Ledger
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+
+    full_merchant = f"{merchant} ${amount:.2f}" if amount else merchant
+
+    # Gather context
+    accounts = []
+    try:
+        # Get all accounts from the ledger
+        for entry in ledger._entries or []:
+            from beancount.core.data import Open
+            if isinstance(entry, Open):
+                accounts.append(entry.account)
+    except Exception:
+        pass
+
+    similar = []
+    try:
+        # Try the categorizer for similar past transactions
+        from .categorizer import Categorizer
+        cat = Categorizer(cfg)
+        for rule in cat.all_rules()[:10]:
+            similar.append({
+                "merchant": rule["merchant"],
+                "account": rule["account"],
+                "count": rule["count"],
+            })
+        cat2 = Categorizer(cfg, use_patterns=True, use_embedding=True)
+        suggestion = cat2.suggest(merchant)
+        if suggestion:
+            click.echo(f"  Local suggestion: {suggestion}")
+    except Exception:
+        pass
+
+    llm = LlmCategorizer(cfg)
+
+    if not llm.available:
+        click.echo("LLM categorization is not configured.")
+        click.echo("Set SL_LLM_BACKEND=ollama|openai|anthropic and SL_LLM_API_KEY if needed")
+        click.echo()
+        click.echo("Quick start with Ollama:")
+        click.echo("  # Install Ollama: https://ollama.com")
+        click.echo("  ollama pull gemma3:1b")
+        click.echo("  export SL_LLM_BACKEND=ollama")
+        click.echo("  export SL_LLM_MODEL=gemma3:1b")
+        return
+
+    result = llm.suggest(full_merchant, similar=similar, accounts=accounts)
+
+    if result.get("account"):
+        click.echo(f"  Merchant:    {merchant}")
+        click.echo(f"  Suggested:   {result['account']}")
+        click.echo(f"  Confidence:  {result.get('confidence', 0):.2f}")
+        click.echo(f"  Reasoning:   {result.get('reasoning', '')[:200]}")
+        click.echo(f"  Model:       {result.get('model', '?')}")
+    else:
+        click.echo("  No suggestion from LLM.")
+        if result.get("reasoning"):
+            click.echo(f"  {result['reasoning']}")
+
+
+# ── transfer / reimburse / split ────────────────────────────────────────────
+
+
+@cli.group()
+def transfer():
+    """Move money between accounts (owner draws, account transfers)."""
+
+
+@transfer.command("to-personal")
+@click.option("--amount", "-a", type=float, required=True, help="Amount to transfer")
+@click.option("--from", "-f", "from_acct", default=None, help="Source account (default: checking)")
+@click.option("--note", "-n", default="", help="Optional note")
+@_pass_config
+def transfer_to_personal(ctx, amount, from_acct, note):
+    """Move money from business to personal (owner draw)."""
+    from decimal import Decimal
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    source = from_acct or cfg.checking_account
+    desc = note or f"Owner draw — ${amount:,.2f}"
+    result = ledger.transfer(
+        date=datetime.date.today(),
+        from_account=source,
+        to_account="Assets:Bank:Personal",
+        amount=Decimal(str(amount)),
+        description=desc,
+    )
+    click.echo(f"✓ Transferred ${amount:,.2f} to personal account")
+    click.echo("  Entry appended to ledger.")
+
+
+@transfer.command("between")
+@click.option("--amount", "-a", type=float, required=True, help="Amount")
+@click.option("--from", "-f", required=True, help="Source account name (e.g. Assets:Bank:BusinessChecking)")
+@click.option("--to", "-t", required=True, help="Destination account")
+@click.option("--note", "-n", default="Transfer", help="Description")
+@_pass_config
+def transfer_between(ctx, amount, from_acct, to, note):
+    """Transfer between any two accounts."""
+    from decimal import Decimal
+
+    ledger = ctx["ledger"]
+    result = ledger.transfer(
+        date=datetime.date.today(),
+        from_account=from_acct,
+        to_account=to,
+        amount=Decimal(str(amount)),
+        description=note,
+    )
+    click.echo(f"✓ Transferred ${amount:,.2f}: {from_acct} → {to}")
+
+
+@cli.command()
+@click.option("--amount", "-a", type=float, required=True, help="Expense amount")
+@click.option("--merchant", "-m", required=True, help="Merchant name")
+@click.option("--account", default="Expenses:Miscellaneous",
+              help="Expense account (default: Expenses:Miscellaneous)")
+@click.option("--date", "-d", default=None, help="Date (YYYY-MM-DD, default: today)")
+@_pass_config
+def reimburse(ctx, amount, merchant, account, date):
+    """Record a business expense that was paid from personal funds.
+
+    Use this when you bought something for the business using your
+    personal credit card or cash. The business owes you.
+    """
+    from decimal import Decimal
+
+    ledger = ctx["ledger"]
+    txn_date = datetime.date.fromisoformat(date) if date else datetime.date.today()
+    result = ledger.reimbursement(
+        date=txn_date,
+        merchant=merchant,
+        amount=Decimal(str(amount)),
+        expense_account=account,
+    )
+    click.echo(f"✓ Reimbursement recorded: {merchant} — ${amount:,.2f}")
+    click.echo(f"  Account: {account}")
+    click.echo(f"  The business now owes you ${amount:,.2f}")
+    click.echo("  Run 'llc transfer to-personal' when you want to repay yourself.")
+
+
+@cli.command()
+@click.option("--merchant", "-m", required=True, help="Merchant name")
+@click.option("--total", "-t", type=float, required=True, help="Total charge amount")
+@click.option("--business", "-b", type=float, required=True,
+              help="Business portion of the total")
+@click.option("--account", default="Expenses:Miscellaneous",
+              help="Account for business portion")
+@click.option("--date", "-d", default=None, help="Date (YYYY-MM-DD, default: today)")
+@click.option("--source", default=None,
+              help="Source account the charge came from (default: checking)")
+@_pass_config
+def split_expense(ctx, merchant, total, business, account, date, source):
+    """Split a transaction between business and personal.
+
+    Use when a single charge (e.g., Amazon order) has both
+    business and personal items on it.
+    """
+    from decimal import Decimal
+
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+    txn_date = datetime.date.fromisoformat(date) if date else datetime.date.today()
+    src = source or cfg.checking_account
+    personal = total - business
+
+    if personal > 0:
+        postings = [
+            (account, f"{business:.2f} USD"),
+            ("Equity:OwnerDraws", f"{personal:.2f} USD"),
+        ]
+    else:
+        postings = [
+            (account, f"{total:.2f} USD"),
+        ]
+
+    result = ledger.append(
+        date=txn_date,
+        payee=merchant,
+        narration=f"Split: {merchant} (${business:.2f} business, ${personal:.2f} personal)",
+        postings=[
+            (account, f"{business:.2f} USD"),
+            ("Equity:OwnerDraws", f"{personal:.2f} USD"),
+            (src, f"-{total:.2f} USD"),
+        ],
+    )
+    click.echo(f"✓ Split recorded: {merchant}")
+    click.echo(f"  Total:    ${total:,.2f}")
+    click.echo(f"  Business: ${business:,.2f} → {account}")
+    click.echo(f"  Personal: ${personal:,.2f} → OwnerDraws")
 
 
 # ── entry point ───────────────────────────────────────────────────────────

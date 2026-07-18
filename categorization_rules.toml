@@ -1,0 +1,909 @@
+# Auto-generated categorization rules for SoloLedger
+# Generated from merchant_map.json — edit the map, not this file.
+# Format:
+#   [rules.<name>]
+#   patterns = ['regex1', 'regex2']
+#   account = 'Expenses:Category'
+#   confidence = 0.85
+#   description = 'Human readable'
+
+[rules]
+
+  # ── Expenses:BankFees (5 merchants) ──
+
+  [rules.paypal]
+    patterns = ["PAYPAL"]
+    account = "Expenses:BankFees"
+    confidence = 0.65
+    description = 'PAYPAL'
+
+  [rules.stripe]
+    patterns = ["STRIPE"]
+    account = "Expenses:BankFees"
+    confidence = 0.65
+    description = 'STRIPE'
+
+  [rules.wire_transfer]
+    patterns = ["WIRE[.\\s-]*TRANSFER"]
+    account = "Expenses:BankFees"
+    confidence = 0.60
+    description = 'WIRE TRANSFER'
+
+  [rules.wiretransfer]
+    patterns = ["WIRETRANSFER"]
+    account = "Expenses:BankFees"
+    confidence = 0.55
+    description = 'WIRETRANSFER'
+
+  [rules.wise]
+    patterns = ["WISE"]
+    account = "Expenses:BankFees"
+    confidence = 0.65
+    description = 'WISE'
+
+
+  # ── Expenses:Hardware (7 merchants) ──
+
+  [rules.apple]
+    patterns = ["APPLE"]
+    account = "Expenses:Hardware"
+    confidence = 0.65
+    description = 'APPLE'
+
+  [rules.b_h_photo]
+    patterns = ["B\\&H[.\\s-]*PHOTO"]
+    account = "Expenses:Hardware"
+    confidence = 0.60
+    description = 'B&H PHOTO'
+
+  [rules.b_hphoto]
+    patterns = ["B\\&HPHOTO"]
+    account = "Expenses:Hardware"
+    confidence = 0.55
+    description = 'B&HPHOTO'
+
+  [rules.best_buy]
+    patterns = ["BEST[.\\s-]*BUY"]
+    account = "Expenses:Hardware"
+    confidence = 0.60
+    description = 'BEST BUY'
+
+  [rules.bestbuy]
+    patterns = ["BESTBUY"]
+    account = "Expenses:Hardware"
+    confidence = 0.55
+    description = 'BESTBUY'
+
+  [rules.micro_center]
+    patterns = ["MICRO[.\\s-]*CENTER"]
+    account = "Expenses:Hardware"
+    confidence = 0.60
+    description = 'MICRO CENTER'
+
+  [rules.microcenter]
+    patterns = ["MICROCENTER"]
+    account = "Expenses:Hardware"
+    confidence = 0.55
+    description = 'MICROCENTER'
+
+
+  # ── Expenses:Insurance (4 merchants) ──
+
+  [rules.geico]
+    patterns = ["GEICO"]
+    account = "Expenses:Insurance"
+    confidence = 0.65
+    description = 'GEICO'
+
+  [rules.progressive]
+    patterns = ["PROGRESSIVE"]
+    account = "Expenses:Insurance"
+    confidence = 0.65
+    description = 'PROGRESSIVE'
+
+  [rules.state_farm]
+    patterns = ["STATE[.\\s-]*FARM"]
+    account = "Expenses:Insurance"
+    confidence = 0.60
+    description = 'STATE FARM'
+
+  [rules.statefarm]
+    patterns = ["STATEFARM"]
+    account = "Expenses:Insurance"
+    confidence = 0.55
+    description = 'STATEFARM'
+
+
+  # ── Expenses:Internet (5 merchants) ──
+
+  [rules.duke_energy]
+    patterns = ["DUKE[.\\s-]*ENERGY"]
+    account = "Expenses:Internet"
+    confidence = 0.60
+    description = 'DUKE ENERGY'
+
+  [rules.dukeenergy]
+    patterns = ["DUKEENERGY"]
+    account = "Expenses:Internet"
+    confidence = 0.55
+    description = 'DUKEENERGY'
+
+  [rules.pg_e]
+    patterns = ["PG\\&E"]
+    account = "Expenses:Internet"
+    confidence = 0.65
+    description = 'PG&E'
+
+  [rules.southern_cal_edison]
+    patterns = ["SOUTHERN[.\\s-]*CAL[.\\s-]*EDISON"]
+    account = "Expenses:Internet"
+    confidence = 0.60
+    description = 'SOUTHERN CAL EDISON'
+
+  [rules.southerncaledison]
+    patterns = ["SOUTHERNCALEDISON"]
+    account = "Expenses:Internet"
+    confidence = 0.55
+    description = 'SOUTHERNCALEDISON'
+
+
+  # ── Expenses:Meals (9 merchants) ──
+
+  [rules.chipotle]
+    patterns = ["CHIPOTLE"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'CHIPOTLE'
+
+  [rules.doordash]
+    patterns = ["DOORDASH"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'DOORDASH'
+
+  [rules.dunkin]
+    patterns = ["DUNKIN"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'DUNKIN'
+
+  [rules.mcdonald_s]
+    patterns = ["MCDONALDS"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'MCDONALDS'
+
+  [rules.panera]
+    patterns = ["PANERA"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'PANERA'
+
+  [rules.starbucks]
+    patterns = ["STARBUCKS"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'STARBUCKS'
+
+  [rules.subway]
+    patterns = ["SUBWAY"]
+    account = "Expenses:Meals"
+    confidence = 0.65
+    description = 'SUBWAY'
+
+  [rules.uber_eats]
+    patterns = ["UBER[.\\s-]*EATS"]
+    account = "Expenses:Meals"
+    confidence = 0.60
+    description = 'UBER EATS'
+
+  [rules.ubereats]
+    patterns = ["UBEREATS"]
+    account = "Expenses:Meals"
+    confidence = 0.55
+    description = 'UBEREATS'
+
+
+  # ── Expenses:Miscellaneous (5 merchants) ──
+
+  [rules.american_express]
+    patterns = ["AMERICAN[.\\s-]*EXPRESS"]
+    account = "Expenses:Miscellaneous"
+    confidence = 0.60
+    description = 'AMERICAN EXPRESS'
+
+  [rules.americanexpress]
+    patterns = ["AMERICANEXPRESS"]
+    account = "Expenses:Miscellaneous"
+    confidence = 0.55
+    description = 'AMERICANEXPRESS'
+
+  [rules.charity]
+    patterns = ["CHARITY"]
+    account = "Expenses:Miscellaneous"
+    confidence = 0.65
+    description = 'CHARITY'
+
+  [rules.regus]
+    patterns = ["REGUS"]
+    account = "Expenses:Miscellaneous"
+    confidence = 0.65
+    description = 'REGUS'
+
+  [rules.wework]
+    patterns = ["WEWORK"]
+    account = "Expenses:Miscellaneous"
+    confidence = 0.65
+    description = 'WEWORK'
+
+
+  # ── Expenses:Phone (9 merchants) ──
+
+  [rules.at_t]
+    patterns = ["AT\\&T"]
+    account = "Expenses:Phone"
+    confidence = 0.65
+    description = 'AT&T'
+
+  [rules.comcast]
+    patterns = ["COMCAST"]
+    account = "Expenses:Phone"
+    confidence = 0.65
+    description = 'COMCAST'
+
+  [rules.google_fi]
+    patterns = ["GOOGLE[.\\s-]*FI"]
+    account = "Expenses:Phone"
+    confidence = 0.60
+    description = 'GOOGLE FI'
+
+  [rules.googlefi]
+    patterns = ["GOOGLEFI"]
+    account = "Expenses:Phone"
+    confidence = 0.55
+    description = 'GOOGLEFI'
+
+  [rules.mint_mobile]
+    patterns = ["MINT[.\\s-]*MOBILE"]
+    account = "Expenses:Phone"
+    confidence = 0.60
+    description = 'MINT MOBILE'
+
+  [rules.mintmobile]
+    patterns = ["MINTMOBILE"]
+    account = "Expenses:Phone"
+    confidence = 0.55
+    description = 'MINTMOBILE'
+
+  [rules.spectrum]
+    patterns = ["SPECTRUM"]
+    account = "Expenses:Phone"
+    confidence = 0.65
+    description = 'SPECTRUM'
+
+  [rules.t_mobile]
+    patterns = ["T\\-MOBILE"]
+    account = "Expenses:Phone"
+    confidence = 0.65
+    description = 'T-MOBILE'
+
+  [rules.verizon]
+    patterns = ["VERIZON"]
+    account = "Expenses:Phone"
+    confidence = 0.65
+    description = 'VERIZON'
+
+
+  # ── Expenses:ProfessionalServices (8 merchants) ──
+
+  [rules.bench]
+    patterns = ["BENCH"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.65
+    description = 'BENCH'
+
+  [rules.coursera]
+    patterns = ["COURSERA"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.65
+    description = 'COURSERA'
+
+  [rules.gusto]
+    patterns = ["GUSTO"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.65
+    description = 'GUSTO'
+
+  [rules.legalzoom]
+    patterns = ["LEGALZOOM"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.65
+    description = 'LEGALZOOM'
+
+  [rules.o_reilly]
+    patterns = ["O[.\\s-]*REILLY"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.60
+    description = 'O REILLY'
+
+  [rules.oreilly]
+    patterns = ["OREILLY"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.55
+    description = 'OREILLY'
+
+  [rules.pluralsight]
+    patterns = ["PLURALSIGHT"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.65
+    description = 'PLURALSIGHT'
+
+  [rules.udemy]
+    patterns = ["UDEMY"]
+    account = "Expenses:ProfessionalServices"
+    confidence = 0.65
+    description = 'UDEMY'
+
+
+  # ── Expenses:Software:Hosting (16 merchants) ──
+
+  [rules.azure]
+    patterns = ["AZURE"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'AZURE'
+
+  [rules.cloudflare]
+    patterns = ["CLOUDFLARE"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'CLOUDFLARE'
+
+  [rules.digitalocean]
+    patterns = ["DIGITALOCEAN"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'DIGITALOCEAN'
+
+  [rules.godaddy]
+    patterns = ["GODADDY"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'GODADDY'
+
+  [rules.google_cloud]
+    patterns = ["GOOGLE[.\\s-]*CLOUD"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.60
+    description = 'GOOGLE CLOUD'
+
+  [rules.googlecloud]
+    patterns = ["GOOGLECLOUD"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.55
+    description = 'GOOGLECLOUD'
+
+  [rules.hetzner]
+    patterns = ["HETZNER"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'HETZNER'
+
+  [rules.hulu]
+    patterns = ["HULU"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'HULU'
+
+  [rules.linode]
+    patterns = ["LINODE"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'LINODE'
+
+  [rules.mongodb_atlas]
+    patterns = ["MONGODB[.\\s-]*ATLAS"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.60
+    description = 'MONGODB ATLAS'
+
+  [rules.mongodbatlas]
+    patterns = ["MONGODBATLAS"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.55
+    description = 'MONGODBATLAS'
+
+  [rules.namecheap]
+    patterns = ["NAMECHEAP"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'NAMECHEAP'
+
+  [rules.netflix]
+    patterns = ["NETFLIX"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'NETFLIX'
+
+  [rules.squarespace]
+    patterns = ["SQUARESPACE"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.65
+    description = 'SQUARESPACE'
+
+  [rules.youtube_premium]
+    patterns = ["YOUTUBE[.\\s-]*PREMIUM"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.60
+    description = 'YOUTUBE PREMIUM'
+
+  [rules.youtubepremium]
+    patterns = ["YOUTUBEPREMIUM"]
+    account = "Expenses:Software:Hosting"
+    confidence = 0.55
+    description = 'YOUTUBEPREMIUM'
+
+
+  # ── Expenses:Software:SaaS (37 merchants) ──
+
+  [rules.adobe]
+    patterns = ["ADOBE"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'ADOBE'
+
+  [rules.amazon_aws]
+    patterns = ["AMAZON[.\\s-]*AWS"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'AMAZON AWS'
+
+  [rules.amazon_mktplace_pmts]
+    patterns = ["AMAZON[.\\s-]*MKTPLACE[.\\s-]*PMTS"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'AMAZON MKTPLACE PMTS'
+
+  [rules.amazon_prime]
+    patterns = ["AMAZON[.\\s-]*PRIME"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'AMAZON PRIME'
+
+  [rules.amazon_web_services]
+    patterns = ["AMAZON[.\\s-]*WEB[.\\s-]*SERVICES"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'AMAZON WEB SERVICES'
+
+  [rules.amazonaws]
+    patterns = ["AMAZONAWS"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'AMAZONAWS'
+
+  [rules.amazonmktplacepmts]
+    patterns = ["AMAZONMKTPLACEPMTS"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'AMAZONMKTPLACEPMTS'
+
+  [rules.amazonprime]
+    patterns = ["AMAZONPRIME"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'AMAZONPRIME'
+
+  [rules.amazonwebservices]
+    patterns = ["AMAZONWEBSERVICES"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'AMAZONWEBSERVICES'
+
+  [rules.atlassian]
+    patterns = ["ATLASSIAN"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'ATLASSIAN'
+
+  [rules.canva]
+    patterns = ["CANVA"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'CANVA'
+
+  [rules.circle_ci]
+    patterns = ["CIRCLE[.\\s-]*CI"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'CIRCLE CI'
+
+  [rules.circleci]
+    patterns = ["CIRCLECI"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'CIRCLECI'
+
+  [rules.customer_io]
+    patterns = ["CUSTOMER\\.IO"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'CUSTOMER.IO'
+
+  [rules.datadog]
+    patterns = ["DATADOG"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'DATADOG'
+
+  [rules.docker]
+    patterns = ["DOCKER"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'DOCKER'
+
+  [rules.figma]
+    patterns = ["FIGMA"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'FIGMA'
+
+  [rules.github]
+    patterns = ["GITHUB"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'GITHUB'
+
+  [rules.gitlab]
+    patterns = ["GITLAB"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'GITLAB'
+
+  [rules.google_workspace]
+    patterns = ["GOOGLE[.\\s-]*WORKSPACE"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'GOOGLE WORKSPACE'
+
+  [rules.googleworkspace]
+    patterns = ["GOOGLEWORKSPACE"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'GOOGLEWORKSPACE'
+
+  [rules.hashicorp]
+    patterns = ["HASHICORP"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'HASHICORP'
+
+  [rules.hubspot]
+    patterns = ["HUBSPOT"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'HUBSPOT'
+
+  [rules.jetbrains]
+    patterns = ["JETBRAINS"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'JETBRAINS'
+
+  [rules.linear]
+    patterns = ["LINEAR"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'LINEAR'
+
+  [rules.mailchimp]
+    patterns = ["MAILCHIMP"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'MAILCHIMP'
+
+  [rules.microsoft_365]
+    patterns = ["MICROSOFT[.\\s-]*365"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.60
+    description = 'MICROSOFT 365'
+
+  [rules.microsoft365]
+    patterns = ["MICROSOFT365"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.55
+    description = 'MICROSOFT365'
+
+  [rules.netlify]
+    patterns = ["NETLIFY"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'NETLIFY'
+
+  [rules.notion]
+    patterns = ["NOTION"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'NOTION'
+
+  [rules.quickbooks]
+    patterns = ["QUICKBOOKS"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'QUICKBOOKS'
+
+  [rules.sentry]
+    patterns = ["SENTRY"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'SENTRY'
+
+  [rules.slack]
+    patterns = ["SLACK"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'SLACK'
+
+  [rules.spotify]
+    patterns = ["SPOTIFY"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'SPOTIFY'
+
+  [rules.vercel]
+    patterns = ["VERCEL"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'VERCEL'
+
+  [rules.zapier]
+    patterns = ["ZAPIER"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'ZAPIER'
+
+  [rules.zoom]
+    patterns = ["ZOOM"]
+    account = "Expenses:Software:SaaS"
+    confidence = 0.65
+    description = 'ZOOM'
+
+
+  # ── Expenses:Supplies (15 merchants) ──
+
+  [rules.amazon_business]
+    patterns = ["AMAZON[.\\s-]*BUSINESS"]
+    account = "Expenses:Supplies"
+    confidence = 0.60
+    description = 'AMAZON BUSINESS'
+
+  [rules.amazonbusiness]
+    patterns = ["AMAZONBUSINESS"]
+    account = "Expenses:Supplies"
+    confidence = 0.55
+    description = 'AMAZONBUSINESS'
+
+  [rules.costco]
+    patterns = ["COSTCO"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'COSTCO'
+
+  [rules.fedex]
+    patterns = ["FEDEX"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'FEDEX'
+
+  [rules.home_depot]
+    patterns = ["HOME[.\\s-]*DEPOT"]
+    account = "Expenses:Supplies"
+    confidence = 0.60
+    description = 'HOME DEPOT'
+
+  [rules.homedepot]
+    patterns = ["HOMEDEPOT"]
+    account = "Expenses:Supplies"
+    confidence = 0.55
+    description = 'HOMEDEPOT'
+
+  [rules.lowes]
+    patterns = ["LOWES"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'LOWES'
+
+  [rules.office_depot]
+    patterns = ["OFFICE[.\\s-]*DEPOT"]
+    account = "Expenses:Supplies"
+    confidence = 0.60
+    description = 'OFFICE DEPOT'
+
+  [rules.officedepot]
+    patterns = ["OFFICEDEPOT"]
+    account = "Expenses:Supplies"
+    confidence = 0.55
+    description = 'OFFICEDEPOT'
+
+  [rules.staples]
+    patterns = ["STAPLES"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'STAPLES'
+
+  [rules.target]
+    patterns = ["TARGET"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'TARGET'
+
+  [rules.uline]
+    patterns = ["ULINE"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'ULINE'
+
+  [rules.ups]
+    patterns = ["UPS"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'UPS'
+
+  [rules.usps]
+    patterns = ["USPS"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'USPS'
+
+  [rules.walmart]
+    patterns = ["WALMART"]
+    account = "Expenses:Supplies"
+    confidence = 0.65
+    description = 'WALMART'
+
+
+  # ── Expenses:Travel (24 merchants) ──
+
+  [rules.7_eleven]
+    patterns = ["7\\-ELEVEN"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = '7-ELEVEN'
+
+  [rules.airbnb]
+    patterns = ["AIRBNB"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'AIRBNB'
+
+  [rules.american_airlines]
+    patterns = ["AMERICAN[.\\s-]*AIRLINES"]
+    account = "Expenses:Travel"
+    confidence = 0.60
+    description = 'AMERICAN AIRLINES'
+
+  [rules.americanairlines]
+    patterns = ["AMERICANAIRLINES"]
+    account = "Expenses:Travel"
+    confidence = 0.55
+    description = 'AMERICANAIRLINES'
+
+  [rules.avis]
+    patterns = ["AVIS"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'AVIS'
+
+  [rules.bp]
+    patterns = ["BP"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'BP'
+
+  [rules.chevron]
+    patterns = ["CHEVRON"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'CHEVRON'
+
+  [rules.delta_air]
+    patterns = ["DELTA[.\\s-]*AIR"]
+    account = "Expenses:Travel"
+    confidence = 0.60
+    description = 'DELTA AIR'
+
+  [rules.deltaair]
+    patterns = ["DELTAAIR"]
+    account = "Expenses:Travel"
+    confidence = 0.55
+    description = 'DELTAAIR'
+
+  [rules.enterprise]
+    patterns = ["ENTERPRISE"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'ENTERPRISE'
+
+  [rules.exxon]
+    patterns = ["EXXON"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'EXXON'
+
+  [rules.hertz]
+    patterns = ["HERTZ"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'HERTZ'
+
+  [rules.hilton]
+    patterns = ["HILTON"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'HILTON'
+
+  [rules.hyatt]
+    patterns = ["HYATT"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'HYATT'
+
+  [rules.jetblue]
+    patterns = ["JETBLUE"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'JETBLUE'
+
+  [rules.lyft]
+    patterns = ["LYFT"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'LYFT'
+
+  [rules.marriott]
+    patterns = ["MARRIOTT"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'MARRIOTT'
+
+  [rules.parking]
+    patterns = ["PARKING"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'PARKING'
+
+  [rules.shell]
+    patterns = ["SHELL"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'SHELL'
+
+  [rules.southwest_airlines]
+    patterns = ["SOUTHWEST[.\\s-]*AIRLINES"]
+    account = "Expenses:Travel"
+    confidence = 0.60
+    description = 'SOUTHWEST AIRLINES'
+
+  [rules.southwestairlines]
+    patterns = ["SOUTHWESTAIRLINES"]
+    account = "Expenses:Travel"
+    confidence = 0.55
+    description = 'SOUTHWESTAIRLINES'
+
+  [rules.uber]
+    patterns = ["UBER"]
+    account = "Expenses:Travel"
+    confidence = 0.65
+    description = 'UBER'
+
+  [rules.united_airlines]
+    patterns = ["UNITED[.\\s-]*AIRLINES"]
+    account = "Expenses:Travel"
+    confidence = 0.60
+    description = 'UNITED AIRLINES'
+
+  [rules.unitedairlines]
+    patterns = ["UNITEDAIRLINES"]
+    account = "Expenses:Travel"
+    confidence = 0.55
+    description = 'UNITEDAIRLINES'

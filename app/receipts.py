@@ -359,7 +359,99 @@ class ReceiptScanner:
         result = self.scan(filepath)
         if not result["success"]:
             print(f"⚠  Scan failed: {result.get('error', 'unknown error')}")
-            return result
+        return result
+
+    def attach(self, filepath: str | Path, date: str, account: str,
+               link_txn: bool = True) -> dict:
+        """Attach a receipt file to the ledger as a document directive.
+
+        Copies the receipt to a structured documents directory and adds a
+        Beancount document directive linking it to the specified account/date.
+
+        Args:
+            filepath: Path to receipt PDF or image
+            date: Date string (YYYY-MM-DD) matching the transaction
+            account: Beancount account the document belongs to
+            link_txn: If True, also scan + append the receipt as a transaction
+
+        Returns:
+            dict with success, document_path, entry fields
+        """
+        src = Path(filepath)
+        if not src.exists():
+            return {"success": False, "error": f"File not found: {src}"}
+
+        # Build documents directory: docs/receipts/YYYY/account/
+        docs_dir = self.cfg.ledger_dir / "documents" / "receipts" / date[:4] / account.replace(":", "_")
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy file with date prefix for sorting
+        dest = docs_dir / f"{date}_{src.name}"
+        import shutil
+        shutil.copy2(src, dest)
+
+        # Add document directive to ledger
+        ledger = Ledger(self.cfg)
+        entry = ledger.document(
+            date=datetime.date.fromisoformat(date),
+            account=account,
+            filepath=dest,
+        )
+
+        result = {
+            "success": True,
+            "document_path": str(dest),
+            "entry": entry.strip(),
+        }
+
+        if link_txn:
+            scan_result = self.scan(filepath)
+            if scan_result.get("success") and scan_result.get("total"):
+                ledger.append(
+                    date=datetime.date.fromisoformat(date),
+                    payee=scan_result.get("merchant") or "Unknown",
+                    narration=f"Receipt: {scan_result.get('merchant', 'Unknown')[:80]}",
+                    postings=[
+                        (account, f"{scan_result['total']:.2f} USD"),
+                        (self.cfg.checking_account, f"-{scan_result['total']:.2f} USD"),
+                    ],
+                )
+                result["transaction_appended"] = True
+
+        ledger.reload(force=True)
+        return result
+
+    def list_attached(self, year: str = "") -> list[dict]:
+        """List all receipt documents attached to the ledger.
+
+        Scans the ledger's document directives.
+
+        Args:
+            year: Optional year filter (YYYY)
+
+        Returns:
+            List of {date, account, path} dicts.
+        """
+        docs = []
+        try:
+            entries = self.cfg.ledger_dir / "transactions.beancount"
+            text = entries.read_text()
+            for line in text.splitlines():
+                line = line.strip()
+                # Match: YYYY-MM-DD document Account "/path/to/file"
+                m = re.match(r'^(\d{4}-\d{2}-\d{2})\s+document\s+([\w:]+)\s+"([^"]+)"', line)
+                if m:
+                    doc_date = m.group(1)
+                    if year and not doc_date.startswith(year):
+                        continue
+                    docs.append({
+                        "date": doc_date,
+                        "account": m.group(2),
+                        "path": m.group(3),
+                    })
+        except Exception:
+            pass
+        return docs
 
         print(f"  Merchant: {result.get('merchant', 'Unknown')}")
         print(f"  Date:     {result.get('date', 'Unknown')}")

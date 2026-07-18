@@ -1,5 +1,434 @@
 {
-  "GITHUB": {
+  "7-ELEVEN": {
+    "Expenses:Travel": 3
+  },
+  "ADOBE": {
+    "Expenses:Software:SaaS": 3
+  },
+  "AIRBNB": {
+    "Expenses:Travel": 3
+  },
+  "AMAZON AWS": {
+    "Expenses:Software:SaaS": 2
+  },
+  "AMAZONAWS": {
     "Expenses:Software:SaaS": 1
+  },
+  "AMAZON BUSINESS": {
+    "Expenses:Supplies": 2
+  },
+  "AMAZONBUSINESS": {
+    "Expenses:Supplies": 1
+  },
+  "AMAZON MKTPLACE PMTS": {
+    "Expenses:Software:SaaS": 2
+  },
+  "AMAZONMKTPLACEPMTS": {
+    "Expenses:Software:SaaS": 1
+  },
+  "AMAZON PRIME": {
+    "Expenses:Software:SaaS": 2
+  },
+  "AMAZONPRIME": {
+    "Expenses:Software:SaaS": 1
+  },
+  "AMAZON WEB SERVICES": {
+    "Expenses:Software:SaaS": 2
+  },
+  "AMAZONWEBSERVICES": {
+    "Expenses:Software:SaaS": 1
+  },
+  "AMERICAN AIRLINES": {
+    "Expenses:Travel": 2
+  },
+  "AMERICANAIRLINES": {
+    "Expenses:Travel": 1
+  },
+  "AMERICAN EXPRESS": {
+    "Expenses:Miscellaneous": 2
+  },
+  "AMERICANEXPRESS": {
+    "Expenses:Miscellaneous": 1
+  },
+  "APPLE": {
+    "Expenses:Hardware": 3
+  },
+  "AT&T": {
+    "Expenses:Phone": 3
+  },
+  "ATLASSIAN": {
+    "Expenses:Software:SaaS": 3
+  },
+  "AVIS": {
+    "Expenses:Travel": 3
+  },
+  "AZURE": {
+    "Expenses:Software:Hosting": 3
+  },
+  "B&H PHOTO": {
+    "Expenses:Hardware": 2
+  },
+  "B&HPHOTO": {
+    "Expenses:Hardware": 1
+  },
+  "BENCH": {
+    "Expenses:ProfessionalServices": 3
+  },
+  "BEST BUY": {
+    "Expenses:Hardware": 2
+  },
+  "BESTBUY": {
+    "Expenses:Hardware": 1
+  },
+  "BP": {
+    "Expenses:Travel": 3
+  },
+  "CANVA": {
+    "Expenses:Software:SaaS": 3
+  },
+  "CHARITY": {
+    "Expenses:Miscellaneous": 3
+  },
+  "CHEVRON": {
+    "Expenses:Travel": 3
+  },
+  "CHIPOTLE": {
+    "Expenses:Meals": 3
+  },
+  "CIRCLE CI": {
+    "Expenses:Software:SaaS": 2
+  },
+  "CIRCLECI": {
+    "Expenses:Software:SaaS": 1
+  },
+  "CLOUDFLARE": {
+    "Expenses:Software:Hosting": 3
+  },
+  "COMCAST": {
+    "Expenses:Phone": 3
+  },
+  "COSTCO": {
+    "Expenses:Supplies": 3
+  },
+  "COURSERA": {
+    "Expenses:ProfessionalServices": 3
+  },
+  "CUSTOMER.IO": {
+    "Expenses:Software:SaaS": 3
+  },
+  "DATADOG": {
+    "Expenses:Software:SaaS": 3
+  },
+  "DELTA AIR": {
+    "Expenses:Travel": 2
+  },
+  "DELTAAIR": {
+    "Expenses:Travel": 1
+  },
+  "DIGITALOCEAN": {
+    "Expenses:Software:Hosting": 3
+  },
+  "DOCKER": {
+    "Expenses:Software:SaaS": 3
+  },
+  "DOORDASH": {
+    "Expenses:Meals": 3
+  },
+  "DUKE ENERGY": {
+    "Expenses:Internet": 2
+  },
+  "DUKEENERGY": {
+    "Expenses:Internet": 1
+  },
+  "DUNKIN": {
+    "Expenses:Meals": 3
+  },
+  "ENTERPRISE": {
+    "Expenses:Travel": 3
+  },
+  "EXXON": {
+    "Expenses:Travel": 3
+  },
+  "FEDEX": {
+    "Expenses:Supplies": 3
+  },
+  "FIGMA": {
+    "Expenses:Software:SaaS": 3
+  },
+  "GEICO": {
+    "Expenses:Insurance": 3
+  },
+  "GITHUB": {
+    "Expenses:Software:SaaS": 3
+  },
+  "GITLAB": {
+    "Expenses:Software:SaaS": 3
+  },
+  "GODADDY": {
+    "Expenses:Software:Hosting": 3
+  },
+  "GOOGLE CLOUD": {
+    "Expenses:Software:Hosting": 2
+  },
+  "GOOGLECLOUD": {
+    "Expenses:Software:Hosting": 1
+  },
+  "GOOGLE FI": {
+    "Expenses:Phone": 2
+  },
+  "GOOGLEFI": {
+    "Expenses:Phone": 1
+  },
+  "GOOGLE WORKSPACE": {
+    "Expenses:Software:SaaS": 2
+  },
+  "GOOGLEWORKSPACE": {
+    "Expenses:Software:SaaS": 1
+  },
+  "GUSTO": {
+    "Expenses:ProfessionalServices": 3
+  },
+  "HASHICORP": {
+    "Expenses:Software:SaaS": 3
+  },
+  "HERTZ": {
+    "Expenses:Travel": 3
+  },
+  "HETZNER": {
+    "Expenses:Software:Hosting": 3
+  },
+  "HILTON": {
+    "Expenses:Travel": 3
+  },
+  "HOME DEPOT": {
+    "Expenses:Supplies": 2
+  },
+  "HOMEDEPOT": {
+    "Expenses:Supplies": 1
+  },
+  "HUBSPOT": {
+    "Expenses:Software:SaaS": 3
+  },
+  "HULU": {
+    "Expenses:Software:Hosting": 3
+  },
+  "HYATT": {
+    "Expenses:Travel": 3
+  },
+  "JETBLUE": {
+    "Expenses:Travel": 3
+  },
+  "JETBRAINS": {
+    "Expenses:Software:SaaS": 3
+  },
+  "LEGALZOOM": {
+    "Expenses:ProfessionalServices": 3
+  },
+  "LINEAR": {
+    "Expenses:Software:SaaS": 3
+  },
+  "LINODE": {
+    "Expenses:Software:Hosting": 3
+  },
+  "LOWES": {
+    "Expenses:Supplies": 3
+  },
+  "LYFT": {
+    "Expenses:Travel": 3
+  },
+  "MAILCHIMP": {
+    "Expenses:Software:SaaS": 3
+  },
+  "MARRIOTT": {
+    "Expenses:Travel": 3
+  },
+  "MCDONALD'S": {
+    "Expenses:Meals": 3
+  },
+  "MICRO CENTER": {
+    "Expenses:Hardware": 2
+  },
+  "MICROCENTER": {
+    "Expenses:Hardware": 1
+  },
+  "MICROSOFT 365": {
+    "Expenses:Software:SaaS": 2
+  },
+  "MICROSOFT365": {
+    "Expenses:Software:SaaS": 1
+  },
+  "MINT MOBILE": {
+    "Expenses:Phone": 2
+  },
+  "MINTMOBILE": {
+    "Expenses:Phone": 1
+  },
+  "MONGODB ATLAS": {
+    "Expenses:Software:Hosting": 2
+  },
+  "MONGODBATLAS": {
+    "Expenses:Software:Hosting": 1
+  },
+  "NAMECHEAP": {
+    "Expenses:Software:Hosting": 3
+  },
+  "NETFLIX": {
+    "Expenses:Software:Hosting": 3
+  },
+  "NETLIFY": {
+    "Expenses:Software:SaaS": 3
+  },
+  "NOTION": {
+    "Expenses:Software:SaaS": 3
+  },
+  "O REILLY": {
+    "Expenses:ProfessionalServices": 2
+  },
+  "OREILLY": {
+    "Expenses:ProfessionalServices": 1
+  },
+  "OFFICE DEPOT": {
+    "Expenses:Supplies": 2
+  },
+  "OFFICEDEPOT": {
+    "Expenses:Supplies": 1
+  },
+  "PANERA": {
+    "Expenses:Meals": 3
+  },
+  "PARKING": {
+    "Expenses:Travel": 3
+  },
+  "PAYPAL": {
+    "Expenses:BankFees": 3
+  },
+  "PG&E": {
+    "Expenses:Internet": 3
+  },
+  "PLURALSIGHT": {
+    "Expenses:ProfessionalServices": 3
+  },
+  "PROGRESSIVE": {
+    "Expenses:Insurance": 3
+  },
+  "QUICKBOOKS": {
+    "Expenses:Software:SaaS": 3
+  },
+  "REGUS": {
+    "Expenses:Miscellaneous": 3
+  },
+  "SENTRY": {
+    "Expenses:Software:SaaS": 3
+  },
+  "SHELL": {
+    "Expenses:Travel": 3
+  },
+  "SLACK": {
+    "Expenses:Software:SaaS": 3
+  },
+  "SOUTHERN CAL EDISON": {
+    "Expenses:Internet": 2
+  },
+  "SOUTHERNCALEDISON": {
+    "Expenses:Internet": 1
+  },
+  "SOUTHWEST AIRLINES": {
+    "Expenses:Travel": 2
+  },
+  "SOUTHWESTAIRLINES": {
+    "Expenses:Travel": 1
+  },
+  "SPECTRUM": {
+    "Expenses:Phone": 3
+  },
+  "SPOTIFY": {
+    "Expenses:Software:SaaS": 3
+  },
+  "SQUARESPACE": {
+    "Expenses:Software:Hosting": 3
+  },
+  "STAPLES": {
+    "Expenses:Supplies": 3
+  },
+  "STARBUCKS": {
+    "Expenses:Meals": 3
+  },
+  "STATE FARM": {
+    "Expenses:Insurance": 2
+  },
+  "STATEFARM": {
+    "Expenses:Insurance": 1
+  },
+  "STRIPE": {
+    "Expenses:BankFees": 3
+  },
+  "SUBWAY": {
+    "Expenses:Meals": 3
+  },
+  "T-MOBILE": {
+    "Expenses:Phone": 3
+  },
+  "TARGET": {
+    "Expenses:Supplies": 3
+  },
+  "UBER": {
+    "Expenses:Travel": 3
+  },
+  "UBER EATS": {
+    "Expenses:Meals": 2
+  },
+  "UBEREATS": {
+    "Expenses:Meals": 1
+  },
+  "UDEMY": {
+    "Expenses:ProfessionalServices": 3
+  },
+  "ULINE": {
+    "Expenses:Supplies": 3
+  },
+  "UNITED AIRLINES": {
+    "Expenses:Travel": 2
+  },
+  "UNITEDAIRLINES": {
+    "Expenses:Travel": 1
+  },
+  "UPS": {
+    "Expenses:Supplies": 3
+  },
+  "USPS": {
+    "Expenses:Supplies": 3
+  },
+  "VERCEL": {
+    "Expenses:Software:SaaS": 3
+  },
+  "VERIZON": {
+    "Expenses:Phone": 3
+  },
+  "WALMART": {
+    "Expenses:Supplies": 3
+  },
+  "WEWORK": {
+    "Expenses:Miscellaneous": 3
+  },
+  "WIRE TRANSFER": {
+    "Expenses:BankFees": 2
+  },
+  "WIRETRANSFER": {
+    "Expenses:BankFees": 1
+  },
+  "WISE": {
+    "Expenses:BankFees": 3
+  },
+  "YOUTUBE PREMIUM": {
+    "Expenses:Software:Hosting": 2
+  },
+  "YOUTUBEPREMIUM": {
+    "Expenses:Software:Hosting": 1
+  },
+  "ZAPIER": {
+    "Expenses:Software:SaaS": 3
+  },
+  "ZOOM": {
+    "Expenses:Software:SaaS": 3
   }
 }
