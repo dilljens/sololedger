@@ -40,7 +40,7 @@ _pass_config = click.make_pass_decorator(dict, ensure=True)
 
 @click.group()
 @click.option("--config", "-c", default=None, help="Path to config.toml")
-@click.version_option(version="0.2.0")
+@click.version_option(version="0.3.0")
 @_pass_config
 def cli(ctx, config):
     """SoloLedger — accounting, invoicing, and tax tools for your consulting LLC."""

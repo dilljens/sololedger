@@ -10,6 +10,8 @@ pip install -r requirements.txt
 python -m app.main status
 ```
 
+[![Test](https://github.com/dilljens/sololedger/actions/workflows/test.yml/badge.svg)](https://github.com/dilljens/sololedger/actions/workflows/test.yml)
+
 ## What It Does
 
 | Command | What |
