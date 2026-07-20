@@ -6,12 +6,17 @@ Run with:
 Or with Docker:
     docker compose up api
 
-Authentication:
-    Pass API key via header: Authorization: Bearer YOUR_API_KEY
-    Set API_KEYS env var as a comma-separated list of valid keys.
-    If not set, API runs in "open" mode (no auth — useful behind a VPN).
+Authentication (two modes):
+    1. API key — via header: Authorization: Bearer YOUR_API_KEY
+       Set API_KEYS env var as a comma-separated list of valid keys.
+    2. Google OAuth — sign in with Google from the web UI.
+       Set GOOGLE_CLIENT_ID env var to enable.
+    If neither is configured, API runs in "open" mode (no auth).
 
-Endpoints:
+Public endpoints (no auth needed):
+    GET  /api/v1/public/status     — Basic setup status (no sensitive data)
+
+Authenticated endpoints:
     GET  /api/v1/status            — Dashboard: cash, P&L, deadlines
     GET  /api/v1/health            — Health check
 
@@ -39,20 +44,24 @@ Endpoints:
     POST /api/v1/notify/check      — Check and send notifications
 """
 
+import contextvars
 import datetime
-import io
+import hashlib
 import json
 import os
+import secrets
+import shutil
 import tempfile
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
+import requests as http_requests
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .config import Config
 from .ledger import Ledger
@@ -86,10 +95,269 @@ if _web_dir.exists():
 # Auth
 security = HTTPBearer(auto_error=False)
 
+# Google OAuth config
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+
+# In-memory session store
+# {token: {"email": str, "name": str, "picture": str, "method": str}}
+_sessions: dict[str, dict] = {}
+
+# Read API_KEYS once at startup
+_api_keys_env = os.environ.get("API_KEYS", "")
+_valid_api_keys = [k.strip() for k in _api_keys_env.split(",") if k.strip()] if _api_keys_env else []
+
+
+# ── Data paths (always relative to project root, not CWD) ───
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DATA_DIR = _PROJECT_ROOT
+
+# ── Built-in user store (email/password) ────────────────────
+
+_USERS_PATH = _DATA_DIR / "users.json"
+
+
+def _load_users() -> dict:
+    if _USERS_PATH.exists():
+        try:
+            return json.loads(_USERS_PATH.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_users(users: dict):
+    _USERS_PATH.write_text(json.dumps(users, indent=2))
+
+
+def _hash_password(password: str) -> str:
+    """Hash a password with PBKDF2-SHA256 and a random salt."""
+    salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return f"{salt}:{h.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    """Verify a password against a stored hash."""
+    try:
+        salt, hsh = stored.split(":", 1)
+        h = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+        return h.hex() == hsh
+    except Exception:
+        return False
+
+
+# ── Multi-tenant store ─────────────────────────────────────
+
+_current_tenant: contextvars.ContextVar[dict | None] = contextvars.ContextVar("current_tenant", default=None)
+
+_TENANTS_PATH = _DATA_DIR / "tenants.json"
+
+
+def _load_tenants() -> dict:
+    if _TENANTS_PATH.exists():
+        try:
+            return json.loads(_TENANTS_PATH.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_tenants(tenants: dict):
+    _TENANTS_PATH.write_text(json.dumps(tenants, indent=2))
+
+
+def _tenant_dir(user_id: str) -> Path:
+    return _DATA_DIR / "ledgers" / user_id
+
+
+def create_tenant(email: str, name: str = "") -> dict:
+    """Create a new tenant with an isolated ledger directory."""
+    tenants = _load_tenants()
+    if email in tenants:
+        return tenants[email]
+
+    user_id = secrets.token_hex(16)
+    tdir = _tenant_dir(user_id)
+    tdir.mkdir(parents=True, exist_ok=True)
+
+    # Copy template ledger
+    template_dir = _PROJECT_ROOT / "ledger"
+    if template_dir.exists():
+        for fname in ["accounts.beancount", "transactions.beancount"]:
+            src = template_dir / fname
+            if src.exists():
+                shutil.copy2(src, tdir / fname)
+
+    (tdir / "main.beancount").write_text(
+        f'include "accounts.beancount"\ninclude "transactions.beancount"\n'
+    )
+
+    display_name = name or email.split("@")[0]
+    config_toml = _generate_tenant_config(email, display_name)
+    (tdir / "config.toml").write_text(config_toml.strip())
+
+    tenant = {
+        "user_id": user_id,
+        "email": email,
+        "name": display_name,
+        "plan": "free",
+        "status": "active",
+        "stripe_customer_id": "",
+        "stripe_subscription_id": "",
+        "ledger_dir": str(_tenant_dir(user_id)),
+        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "trial_ends": "",
+        "onboarding_complete": False,
+        "plaid_access_token": "",
+    }
+    tenants[email] = tenant
+    _save_tenants(tenants)
+    return tenant
+
+
+def _generate_tenant_config(email: str, name: str) -> str:
+    import configparser
+    today = datetime.date.today().isoformat()
+    return f'''# SoloLedger — {name}
+# Auto-generated {today}
+
+[business]
+name = "{name}"
+owner = "{name}"
+state = "WY"
+ein = "XX-XXXXXXX"
+address = ""
+phone = ""
+email = "{email}"
+
+[ledger]
+path = "main.beancount"
+
+[accounts]
+checking = "Assets:Bank:BusinessChecking"
+ar = "Assets:AccountsReceivable"
+income = "Income:Consulting"
+owner_draws = "Equity:OwnerDraws"
+
+[tax]
+state = "WY"
+standard_deduction = 14600
+[[tax.brackets]]
+rate = 0.10
+floor = 0
+ceiling = 11925
+[[tax.brackets]]
+rate = 0.12
+floor = 11926
+ceiling = 48475
+[[tax.brackets]]
+rate = 0.22
+floor = 48476
+ceiling = 103350
+[[tax.brackets]]
+rate = 0.24
+floor = 103351
+ceiling = 197300
+[[tax.brackets]]
+rate = 0.32
+floor = 197301
+ceiling = 250525
+[[tax.brackets]]
+rate = 0.35
+floor = 250526
+ceiling = 626350
+[[tax.brackets]]
+rate = 0.37
+floor = 626351
+ceiling = 999999999
+[tax.self_employment]
+rate_social_security = 0.124
+rate_medicare = 0.029
+ss_wage_base = 184800
+deduction_ratio = 0.9235
+safe_harbor_percent = 1.00
+safe_harbor_percent_high_income = 1.10
+safe_harbor_threshold = 150000
+[tax.quarter_dates]
+q1 = [4, 15]
+q2 = [6, 15]
+q3 = [9, 15]
+q4 = [1, 15]
+
+[payments]
+stripe_enabled = false
+
+[notifications]
+desktop_enabled = false
+email_enabled = false
+remind_days_before = 7
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+smtp_user = ""
+smtp_password = ""
+alert_email = ""
+
+[banking]
+plaid_enabled = false
+'''
+
+
+def resolve_email_from_token(token: str) -> str | None:
+    """Extract user email from any token (session, API key)."""
+    if token in _sessions:
+        return _sessions[token].get("email", "")
+    if _valid_api_keys and token in _valid_api_keys:
+        return "api-key-user"
+    return None
+
+
+# ── Tenant middleware ──────────────────────────────────────
+
+@app.middleware("http")
+async def tenant_middleware(request: Request, call_next):
+    """Resolve the current tenant from the auth token before each request."""
+    _current_tenant.set(None)
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:]
+        email = resolve_email_from_token(token)
+        if email:
+            try:
+                tenants = _load_tenants()
+                if email in tenants:
+                    t = tenants[email]
+                    # Backfill missing fields
+                    if "onboarding_complete" not in t:
+                        t["onboarding_complete"] = True
+                    if "plaid_access_token" not in t:
+                        t["plaid_access_token"] = ""
+                    _current_tenant.set(t)
+                elif email != "api-key-user":
+                    # Auto-create tenant on first request
+                    tenant = create_tenant(email)
+                    _current_tenant.set(tenant)
+            except Exception as e:
+                print(f"[tenant_middleware] Failed to resolve tenant for {email}: {e}")
+    response = await call_next(request)
+    return response
+
+
+# ── Tenant-aware Config ────────────────────────────────────
 
 def get_config() -> Config:
-    """Load and return the Config."""
-    # Respect API_CONFIG env var, else default discovery
+    """Load Config for the current tenant, falling back to main config."""
+    tenant = _current_tenant.get()
+    if tenant:
+        tdir = Path(tenant["ledger_dir"])
+        cfg_path = tdir / "config.toml"
+        if cfg_path.exists():
+            try:
+                return Config(str(cfg_path))
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Tenant config load failed: {e}")
+
+    # Fallback: main config (open mode / admin)
     config_path = os.environ.get("API_CONFIG")
     try:
         return Config(config_path)
@@ -97,23 +365,57 @@ def get_config() -> Config:
         raise HTTPException(status_code=500, detail=f"Config load failed: {e}")
 
 
+def get_plan() -> str:
+    """Get the plan name for the current tenant. 'free' if no tenant."""
+    tenant = _current_tenant.get()
+    if tenant:
+        return tenant.get("plan", "free")
+    return "free"
+
+
+def require_plan(min_plan: str):
+    """Dependency: require a minimum plan level to access an endpoint.
+
+    Plans (in order): free < professional < business
+    Usage: @app.get(..., dependencies=[Depends(require_plan("professional"))])
+    """
+    PLAN_ORDER = {"free": 0, "professional": 1, "business": 2}
+    min_level = PLAN_ORDER.get(min_plan, 0)
+
+    def _check():
+        tenant = _current_tenant.get()
+        if not tenant:
+            # Open mode — allow all
+            return
+        user_plan = tenant.get("plan", "free")
+        if PLAN_ORDER.get(user_plan, 0) < min_level:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Upgrade to {min_plan} plan required",
+            )
+
+    return _check
+
+
 def check_auth(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """Optional API key auth. If API_KEYS is set, validate. Otherwise open."""
-    api_keys_env = os.environ.get("API_KEYS", "")
-    if not api_keys_env:
-        return  # Open mode — no auth needed
-
-    valid_keys = [k.strip() for k in api_keys_env.split(",") if k.strip()]
-    if not valid_keys:
+    """Check auth: API key, Google session token, or open mode."""
+    if not _api_keys_env and not GOOGLE_CLIENT_ID:
         return
 
     if credentials is None:
-        raise HTTPException(status_code=401, detail="API key required (Authorization: Bearer <key>)")
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-    if credentials.credentials not in valid_keys:
-        raise HTTPException(status_code=403, detail="Invalid API key")
+    token = credentials.credentials
+
+    if _valid_api_keys and token in _valid_api_keys:
+        return
+
+    if _sessions and token in _sessions:
+        return
+
+    raise HTTPException(status_code=403, detail="Invalid or expired token")
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────
@@ -210,6 +512,239 @@ def _decimal_to_float(val) -> float:
 async def health():
     """Simple health check — returns OK if the API is running."""
     return _ok({"status": "ok", "timestamp": datetime.datetime.now().isoformat()})
+
+
+# ── Public status (no auth) ─────────────────────────────────
+
+
+@app.get("/api/v1/public/status")
+async def public_status():
+    """Public endpoint to check if the app needs first-run setup.
+
+    Returns only non-sensitive info — safe to call without auth.
+    """
+    try:
+        cfg = get_config()
+        # Check if ledger has data
+        ledger = Ledger(cfg)
+        try:
+            cash = _decimal_to_float(ledger.cash_balance())
+        except Exception:
+            cash = 0.0
+        has_data = cash > 0 or ledger.net_income() != 0
+        return _ok({
+            "needs_setup": False,
+            "has_data": has_data,
+            "has_auth": bool(_api_keys_env or GOOGLE_CLIENT_ID or _sessions),
+            "auth_methods": {
+                "local": True,  # email/password always available
+                "google": bool(GOOGLE_CLIENT_ID),
+            },
+        })
+    except Exception:
+        return _ok({
+            "needs_setup": True,
+            "has_data": False,
+            "has_auth": False,
+            "auth_methods": {"local": True, "google": False},
+        })
+
+
+# ── Auth endpoints ──────────────────────────────────────────
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+
+@app.post("/api/v1/auth/google")
+async def auth_google(req: GoogleAuthRequest):
+    """Verify a Google ID token and create a session.
+
+    Accepts credential from Google Identity Services (One Tap / Sign In
+    With Google). Returns a session token the frontend uses as Bearer.
+    """
+    if not GOOGLE_CLIENT_ID:
+        return _err("Google sign-in not configured on this server", 501)
+
+    try:
+        resp = http_requests.post(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": req.credential},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return _err("Token verification failed", 401)
+
+        info = resp.json()
+        aud = info.get("aud", "")
+        if aud != GOOGLE_CLIENT_ID:
+            return _err("Token audience mismatch", 401)
+
+        email = info.get("email", "")
+        if not email:
+            return _err("Email not provided in token", 401)
+
+        # Create a session
+        token = secrets.token_urlsafe(32)
+        _sessions[token] = {
+            "email": email,
+            "name": info.get("name", email),
+            "picture": info.get("picture", ""),
+        }
+
+        return _ok({
+            "token": token,
+            "user": {
+                "email": email,
+                "name": info.get("name", email),
+                "picture": info.get("picture", ""),
+            },
+        })
+    except http_requests.RequestException as e:
+        return _err(f"Failed to verify token: {e}", 502)
+
+
+@app.get("/api/v1/auth/me", dependencies=[Depends(check_auth)])
+async def auth_me(request: Request):
+    """Return current user info if authenticated.
+
+    Works for both API key and Google session auth.
+    """
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return _err("Not authenticated", 401)
+
+    token = auth_header[7:]
+
+    # Check Google session
+    if token in _sessions:
+        return _ok(_sessions[token])
+
+    # Check API key — minimal info
+    if _valid_api_keys and token in _valid_api_keys:
+        return _ok({"email": "api-key-user", "name": "API Key", "picture": ""})
+
+    return _err("Not authenticated", 401)
+
+
+@app.get("/api/v1/auth/google/config")
+async def auth_google_config():
+    """Return the Google OAuth client ID for the frontend.
+
+    No auth required — the frontend uses this to configure the
+    Google Sign-In button.
+    """
+    return _ok({
+        "client_id": GOOGLE_CLIENT_ID,
+        "enabled": bool(GOOGLE_CLIENT_ID),
+    })
+
+
+# ── Built-in email/password auth ────────────────────────────
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+@app.post("/api/v1/auth/signup")
+async def auth_signup(req: SignupRequest):
+    """Create a new account with email and password.
+
+    Requires a valid email and a password (minimum 6 characters).
+    Returns a session token on success.
+    """
+    email = req.email.strip().lower()
+    if not email or "@" not in email:
+        return _err("Valid email required", 400)
+    if len(req.password) < 6:
+        return _err("Password must be at least 6 characters", 400)
+
+    users = _load_users()
+    if email in users:
+        return _err("An account with this email already exists", 409)
+
+    name = req.name.strip() or email.split("@")[0]
+
+    users[email] = {
+        "password": _hash_password(req.password),
+        "name": name,
+        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    _save_users(users)
+
+    # Auto-create tenant
+    create_tenant(email, name)
+
+    # Create session
+    token = secrets.token_urlsafe(32)
+    _sessions[token] = {
+        "email": email,
+        "name": name,
+        "picture": "",
+        "method": "local",
+    }
+
+    return _ok({
+        "token": token,
+        "user": {"email": email, "name": name, "picture": ""},
+    })
+
+
+class SigninRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/v1/auth/signin")
+async def auth_signin(req: SigninRequest):
+    """Sign in with email and password.
+
+    Returns a session token on success.
+    """
+    email = req.email.strip().lower()
+    if not email:
+        return _err("Email required", 400)
+
+    users = _load_users()
+    user = users.get(email)
+    if not user:
+        return _err("Invalid email or password", 401)
+
+    if not _verify_password(req.password, user["password"]):
+        return _err("Invalid email or password", 401)
+
+    # Create session
+    token = secrets.token_urlsafe(32)
+    _sessions[token] = {
+        "email": email,
+        "name": user.get("name", email.split("@")[0]),
+        "picture": "",
+        "method": "local",
+    }
+
+    return _ok({
+        "token": token,
+        "user": {
+            "email": email,
+            "name": user.get("name", email.split("@")[0]),
+            "picture": "",
+        },
+    })
+
+
+@app.post("/api/v1/auth/logout", dependencies=[Depends(check_auth)])
+async def auth_logout(request: Request):
+    """Log out — invalidate the current session token."""
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        if token in _sessions:
+            del _sessions[token]
+    return _ok({"logged_out": True})
 
 
 # ── Status / Dashboard ─────────────────────────────────────────────────────
@@ -408,6 +943,61 @@ async def accounts_receivable():
     })
 
 
+class MarkInvoicePaidRequest(BaseModel):
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    source_account: Optional[str] = None
+
+
+@app.post("/api/v1/invoices/{number}/pay", dependencies=[Depends(check_auth)])
+async def mark_invoice_paid(number: str, req: MarkInvoicePaidRequest):
+    """Mark an invoice as paid — records a payment transaction in the ledger.
+
+    Creates: checking_account +amount ; AR_account -amount
+    If amount is omitted, looks up the invoice amount from the ledger.
+    """
+    try:
+        cfg = get_config()
+        ledger = Ledger(cfg)
+        invoicer = Invoicer(cfg, ledger)
+    except Exception as e:
+        return _err(f"Config/ledger error: {e}", 500)
+
+    # Find the invoice amount from the ledger
+    invoice_amount = req.amount
+    if invoice_amount is None:
+        invoices = invoicer.list()
+        for inv in invoices:
+            inv_num = inv.get("date", "") + "-" + inv.get("client", "")
+            # Match by number pattern
+            if inv.get("_number") == number or number in inv.get("_key", ""):
+                invoice_amount = float(inv["amount"])
+                break
+        if invoice_amount is None:
+            return _err(f"Invoice {number} not found or amount required", 404)
+
+    pay_date = datetime.date.fromisoformat(req.date) if req.date else datetime.date.today()
+    amt = Decimal(str(invoice_amount)).quantize(Decimal("0.01"))
+    source = req.source_account or cfg.checking_account
+
+    entry = ledger.append(
+        date=pay_date,
+        payee=f"Payment — Invoice {number}",
+        narration=f"Payment received for invoice {number}",
+        postings=[
+            (source, f"{amt:.2f} USD"),
+            (cfg.ar_account, f"-{amt:.2f} USD"),
+        ],
+    )
+
+    return _ok({
+        "paid": True,
+        "amount": float(amt),
+        "date": pay_date.isoformat(),
+        "invoice": number,
+    })
+
+
 @app.get("/api/v1/invoices/{number}/pdf", dependencies=[Depends(check_auth)])
 async def get_invoice_pdf(number: str):
     """Download an invoice PDF by invoice number."""
@@ -529,7 +1119,7 @@ async def import_expenses(
 # ── Receipts ────────────────────────────────────────────────────────────────
 
 
-@app.post("/api/v1/receipts/scan", dependencies=[Depends(check_auth)])
+@app.post("/api/v1/receipts/scan", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def scan_receipt(
     file: UploadFile = File(...),
     preview: bool = Form(True),
@@ -587,10 +1177,6 @@ async def category_learn(req: CategoryLearnRequest):
     merchant = req.merchant
     account = req.account
     correct = req.correct
-    """Teach the categorizer that a merchant maps to an account.
-
-    Set correct=true to override all previous suggestions for this merchant.
-    """
     try:
         cfg = get_config()
         from .categorizer import Categorizer
@@ -604,7 +1190,7 @@ async def category_learn(req: CategoryLearnRequest):
         return _err(str(e), 500)
 
 
-@app.get("/api/v1/receipts/match", dependencies=[Depends(check_auth)])
+@app.get("/api/v1/receipts/match", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
     """Match a scanned receipt against recent uncleared bank transactions.
 
@@ -649,7 +1235,6 @@ async def tax_estimate(projected_income: Optional[float] = Query(None)):
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
-        taxer = type('TaxEstimator', (object,), {})()
         from .taxes import TaxEstimator as TE
         taxer = TE(cfg, ledger)
     except Exception as e:
@@ -837,7 +1422,7 @@ async def tax_pay(req: TaxPayRequest):
 # ── Bank / Plaid ────────────────────────────────────────────────────────────
 
 
-@app.post("/api/v1/bank/sync", dependencies=[Depends(check_auth)])
+@app.post("/api/v1/bank/sync", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def bank_sync(req: BankSyncRequest):
     """Fetch transactions from Plaid and import into ledger."""
     try:
@@ -893,7 +1478,7 @@ async def bank_sync(req: BankSyncRequest):
     })
 
 
-@app.get("/api/v1/bank/accounts", dependencies=[Depends(check_auth)])
+@app.get("/api/v1/bank/accounts", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def bank_accounts():
     """List connected bank accounts and balances."""
     try:
@@ -901,7 +1486,12 @@ async def bank_accounts():
     except ImportError:
         return _err("plaid-python not installed", 500)
 
-    feed = PlaidFeed()
+    tenant = _current_tenant.get()
+    access_token = (tenant or {}).get("plaid_access_token", "") or os.environ.get("PLAID_ACCESS_TOKEN", "")
+    if not access_token:
+        return _err("No bank connected. Use the 'Connect Bank' button in the Import page.", 400)
+
+    feed = PlaidFeed(access_token=access_token)
     accounts = feed.fetch_accounts()
 
     return _ok({
@@ -912,10 +1502,117 @@ async def bank_accounts():
     })
 
 
+class PlaidLinkTokenResponse(BaseModel):
+    link_token: str
+
+
+@app.get("/api/v1/bank/link-token", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+async def bank_link_token():
+    """Generate a Plaid Link token so the frontend can open Plaid Link.
+
+    The frontend uses this token to initialize the Plaid Link widget,
+    which lets the user select their bank and authenticate.
+    """
+    try:
+        from .bank_feed import PlaidFeed
+    except ImportError:
+        return _err("plaid-python not installed", 500)
+
+    result = PlaidFeed.generate_link_token()
+    if "error" in result:
+        return _err(result["error"], 500)
+    return _ok(result)
+
+
+class ExchangeTokenRequest(BaseModel):
+    public_token: str
+    accounts: list[str] = []
+
+
+@app.post("/api/v1/bank/exchange-token", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+async def bank_exchange_token(req: ExchangeTokenRequest):
+    """Exchange a Plaid public token for an access token and store it.
+
+    Called after the user completes Plaid Link in the browser.
+    Stores the access token securely in the user's tenant config.
+    """
+    tenant = _current_tenant.get()
+    if not tenant:
+        return _err("Not authenticated", 401)
+
+    try:
+        import plaid
+        from plaid.api import plaid_api
+        from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+
+        client_id = os.environ.get("PLAID_CLIENT_ID", "")
+        secret = os.environ.get("PLAID_SECRET", "")
+        plaid_env = os.environ.get("PLAID_ENV", "sandbox")
+
+        if not client_id or not secret:
+            return _err("PLAID_CLIENT_ID and PLAID_SECRET must be set", 500)
+
+        host_map = {
+            "sandbox": plaid.Environment.Sandbox,
+            "development": plaid.Environment.Development,
+            "production": plaid.Environment.Production,
+        }
+        configuration = plaid.Configuration(
+            host=host_map.get(plaid_env, plaid.Environment.Sandbox),
+            api_key={"clientId": client_id, "secret": secret, "plaidVersion": "2020-09-14"},
+        )
+        api_client = plaid.ApiClient(configuration)
+        client = plaid_api.PlaidApi(api_client)
+
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=req.public_token)
+        exchange_response = client.item_public_token_exchange(exchange_request)
+        access_token = exchange_response.access_token
+
+        # Store in tenant config
+        tenants = _load_tenants()
+        email = tenant["email"]
+        if email in tenants:
+            tenants[email]["plaid_access_token"] = access_token
+            _save_tenants(tenants)
+
+        return _ok({"connected": True, "item_id": exchange_response.item_id})
+    except Exception as e:
+        return _err(f"Failed to exchange token: {e}", 500)
+
+
+@app.get("/api/v1/bank/status", dependencies=[Depends(check_auth)])
+async def bank_status():
+    """Check if the user has a bank connected via Plaid."""
+    tenant = _current_tenant.get()
+    access_token = (tenant or {}).get("plaid_access_token", "")
+    has_main_token = bool(os.environ.get("PLAID_ACCESS_TOKEN", ""))
+
+    if access_token:
+        try:
+            from .bank_feed import PlaidFeed
+            feed = PlaidFeed(access_token=access_token)
+            accounts = feed.fetch_accounts()
+            return _ok({
+                "connected": True,
+                "account_count": len(accounts),
+                "accounts": [
+                    {"name": a["name"], "mask": a.get("mask", ""), "type": a["type"], "balance": a["current"]}
+                    for a in accounts[:5]
+                ],
+            })
+        except Exception:
+            return _ok({"connected": True, "account_count": 0, "accounts": []})
+
+    if has_main_token:
+        return _ok({"connected": True, "account_count": -1, "accounts": [], "note": "Using global PLAID_ACCESS_TOKEN"})
+
+    return _ok({"connected": False, "account_count": 0, "accounts": []})
+
+
 # ── Time Tracking ───────────────────────────────────────────────────────────
 
 
-@app.post("/api/v1/time/entries", dependencies=[Depends(check_auth)])
+@app.post("/api/v1/time/entries", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def time_entries(req: TimeFetchRequest):
     """Fetch time entries from Toggl or Clockify."""
     try:
@@ -1087,7 +1784,7 @@ async def process_retainers(preview: bool = Query(True)):
 # ── Notifications ───────────────────────────────────────────────────────────
 
 
-@app.post("/api/v1/notify/check", dependencies=[Depends(check_auth)])
+@app.post("/api/v1/notify/check", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def notify_check():
     """Check everything and return alerts."""
     try:
@@ -1550,7 +2247,7 @@ async def api_check():
 # ── Receipt List (attached documents) ──────────────────────────────────────
 
 
-@app.get("/api/v1/receipts/list", dependencies=[Depends(check_auth)])
+@app.get("/api/v1/receipts/list", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def api_receipt_list(year: Optional[str] = Query(None)):
     """List all receipt documents attached to the ledger."""
     try:
@@ -1660,103 +2357,455 @@ async def setup_business(req: SetupRequest):
     return _ok({"status": "configured", "business": req.name, "state": req.state})
 
 
-# ── Cloud checkout ──────────────────────────────────────────────────────────
+# ── Subscription management ──────────────────────────────────
+
+PLANS = {
+    "free": {"name": "Free", "price_monthly": 0, "price_annual": 0},
+    "professional": {"name": "Professional", "price_monthly": 2400, "price_annual": 24000},  # $24/mo, $240/yr
+    "business": {"name": "Business", "price_monthly": 5900, "price_annual": 59000},  # $59/mo, $590/yr
+}
 
 
-class CheckoutRequest(BaseModel):
-    plan: str = "cloud-monthly"
-    email: str = ""
-    success_url: str = ""
-    cancel_url: str = ""
+class CreateCheckoutRequest(BaseModel):
+    plan: str = "professional"
+    interval: str = "month"
+    success_url: str = "/settings?upgraded=true"
+    cancel_url: str = "/settings"
 
 
-@app.post("/api/v1/checkout", dependencies=[Depends(check_auth)])
-async def create_checkout(req: CheckoutRequest):
-    """Create a Stripe Checkout Session for SoloLedger Cloud.
+@app.post("/api/v1/subscription/create-checkout", dependencies=[Depends(check_auth)])
+async def create_subscription_checkout(req: CreateCheckoutRequest):
+    """Create a Stripe Checkout Session for a paid plan.
 
-    Requires STRIPE_SECRET_KEY env var on the server.
-    Returns a URL to redirect the user to Stripe's hosted checkout page.
+    Links the subscription to the current user's tenant.
+    Requires STRIPE_SECRET_KEY env var.
     """
-    from .payments import StripePayments
-    sp = StripePayments()
-    if not sp.enabled:
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not stripe_key:
         return _err("Stripe not configured. Set STRIPE_SECRET_KEY.", 503)
 
-    plan_config = {
-        "cloud-monthly": {"amount": "10.00", "name": "SoloLedger Cloud Monthly"},
-        "cloud-annual": {"amount": "96.00", "name": "SoloLedger Cloud Annual"},
-    }
+    tenant = _current_tenant.get()
+    if not tenant:
+        return _err("Not authenticated", 401)
 
-    plan = plan_config.get(req.plan)
-    if not plan:
+    if req.plan not in PLANS:
         return _err(f"Unknown plan: {req.plan}", 400)
+
+    plan_info = PLANS[req.plan]
+    if req.interval not in ("month", "year"):
+        return _err("Interval must be 'month' or 'year'", 400)
+
+    price_cents = plan_info["price_annual"] if req.interval == "year" else plan_info["price_monthly"]
+
+    # Build absolute URLs
+    base_url = os.environ.get("APP_URL", f"http://localhost:8100")
 
     try:
         import stripe as stripe_lib
-        # Create a checkout session for subscription
+
+        # Find or create Stripe customer
+        customer_id = tenant.get("stripe_customer_id", "")
+        if not customer_id:
+            customer = stripe_lib.Customer.create(email=tenant["email"], metadata={"user_id": tenant["user_id"]})
+            customer_id = customer.id
+            tenants = _load_tenants()
+            if tenant["email"] in tenants:
+                tenants[tenant["email"]]["stripe_customer_id"] = customer_id
+                _save_tenants(tenants)
+
         session = stripe_lib.checkout.Session.create(
             mode="subscription",
+            customer=customer_id,
             line_items=[{
                 "price_data": {
                     "currency": "usd",
-                    "product_data": {"name": plan["name"]},
-                    "unit_amount": int(float(plan["amount"]) * 100),
-                    "recurring": {"interval": "month" if req.plan == "cloud-monthly"
-                                  else "year", "interval_count": 1},
+                    "product_data": {
+                        "name": f"SoloLedger {plan_info['name']}",
+                        "description": f"{plan_info['name']} plan — {req.interval}ly",
+                    },
+                    "unit_amount": price_cents,
+                    "recurring": {"interval": req.interval, "interval_count": 1},
                 },
                 "quantity": 1,
             }],
-            customer_email=req.email or None,
-            success_url=req.success_url or "https://sololedger.app/cloud/welcome",
-            cancel_url=req.cancel_url or "https://sololedger.app/#pricing",
-            metadata={"plan": req.plan, "source": "landing-page"},
+            metadata={
+                "plan": req.plan,
+                "interval": req.interval,
+                "user_id": tenant["user_id"],
+                "email": tenant["email"],
+            },
+            success_url=base_url + req.success_url,
+            cancel_url=base_url + req.cancel_url,
         )
-        return _ok({"url": session.url, "id": session.id})
-    except stripe_lib.error.StripeError as e:
+        return _ok({"url": session.url, "session_id": session.id})
+    except Exception as e:
+        return _err(f"Stripe error: {e}", 500)
+
+
+@app.get("/api/v1/subscription/plans", dependencies=[Depends(check_auth)])
+async def list_plans():
+    """List available subscription plans with pricing."""
+    return _ok({
+        "plans": {
+            key: {
+                "name": val["name"],
+                "price_monthly": val["price_monthly"] / 100,
+                "price_annual": val["price_annual"] / 100,
+            }
+            for key, val in PLANS.items()
+        },
+        "current_plan": (_current_tenant.get() or {}).get("plan", "free"),
+    })
+
+
+@app.get("/api/v1/subscription/status", dependencies=[Depends(check_auth)])
+async def subscription_status():
+    """Get the current user's subscription status and plan details."""
+    tenant = _current_tenant.get()
+    if not tenant:
+        return _err("Not authenticated", 401)
+
+    return _ok({
+        "plan": tenant.get("plan", "free"),
+        "status": tenant.get("status", "active"),
+        "stripe_customer_id": bool(tenant.get("stripe_customer_id")),
+        "stripe_subscription_id": tenant.get("stripe_subscription_id", ""),
+        "email": tenant.get("email", ""),
+    })
+
+
+@app.post("/api/v1/subscription/portal", dependencies=[Depends(check_auth)])
+async def billing_portal():
+    """Create a Stripe Customer Portal session for managing the subscription."""
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
+    if not stripe_key:
+        return _err("Stripe not configured", 503)
+
+    tenant = _current_tenant.get()
+    if not tenant:
+        return _err("Not authenticated", 401)
+
+    customer_id = tenant.get("stripe_customer_id", "")
+    if not customer_id:
+        return _err("No Stripe customer record. Subscribe first.", 400)
+
+    base_url = os.environ.get("APP_URL", "http://localhost:8100")
+
+    try:
+        import stripe as stripe_lib
+        session = stripe_lib.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=base_url + "/settings",
+        )
+        return _ok({"url": session.url})
+    except Exception as e:
         return _err(f"Stripe error: {e}", 500)
 
 
 @app.post("/api/v1/stripe-webhook", include_in_schema=False)
 async def stripe_webhook(request: Request):
-    """Stripe webhook handler — provisions Cloud instances on payment.
+    """Stripe webhook — handle subscription lifecycle events.
 
-    Set STRIPE_WEBHOOK_SECRET in env for signature verification.
+    Events handled:
+      - checkout.session.completed → activate plan
+      - invoice.paid → confirm active status
+      - customer.subscription.updated → plan changes
+      - customer.subscription.deleted → downgrade to free
+
+    Set STRIPE_WEBHOOK_SECRET for signature verification.
     """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
     import stripe as stripe_lib
     secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    dev_mode = os.environ.get("STRIPE_DEV_MODE", "").lower() in ("1", "true", "yes")
 
     if secret:
         try:
             event = stripe_lib.Webhook.construct_event(payload, sig_header, secret)
         except stripe_lib.error.SignatureVerificationError:
             return _err("Invalid signature", 400)
-    else:
-        # Unsigned mode (dev/test) — parse directly
+    elif dev_mode:
+        # Unsigned mode only for local development — explicitly opt in
         event = json.loads(payload)
+    else:
+        return _err("Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET, or set STRIPE_DEV_MODE=true for development.", 503)
 
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        email = session.get("customer_details", {}).get("email", "") or session.get("customer_email", "")
-        plan = session.get("metadata", {}).get("plan", "cloud-monthly")
+    event_type = event["type"]
+    data = event["data"]["object"]
+
+    def _get_email(obj) -> str:
+        """Extract email from various Stripe object shapes."""
+        return (
+            obj.get("customer_details", {}).get("email", "")
+            or obj.get("customer_email", "")
+            or obj.get("email", "")
+        )
+
+    def _update_tenant(email: str, updates: dict):
+        tenants = _load_tenants()
+        if email in tenants:
+            tenants[email].update(updates)
+            _save_tenants(tenants)
+
+    def _find_tenant_by_customer(customer_id: str) -> str | None:
+        """Find a tenant email by Stripe customer ID."""
+        tenants = _load_tenants()
+        for email, t in tenants.items():
+            if t.get("stripe_customer_id") == customer_id:
+                return email
+        return None
+
+    if event_type == "checkout.session.completed":
+        email = _get_email(data)
+        plan = data.get("metadata", {}).get("plan", "professional")
+        sub_id = data.get("subscription", "")
+        customer_id = data.get("customer", "")
 
         if email:
-            # Trigger provisioning in background
-            import threading
-            threading.Thread(target=_provision_customer, args=(email, plan), daemon=True).start()
+            _update_tenant(email, {
+                "plan": plan,
+                "status": "active",
+                "stripe_subscription_id": sub_id or "",
+                "stripe_customer_id": customer_id or "",
+            })
 
-    return _ok({"received": True})
+    elif event_type == "customer.subscription.updated":
+        customer_id = data.get("customer", "")
+        status = data.get("status", "active")
+        items = data.get("items", {}).get("data", [])
+        metadata = data.get("metadata", {})
+        plan = metadata.get("plan", "professional")
+
+        email = _find_tenant_by_customer(customer_id)
+        if email:
+            _update_tenant(email, {
+                "plan": plan if status == "active" else "free",
+                "status": status,
+                "stripe_subscription_id": data.get("id", ""),
+            })
+
+    elif event_type == "customer.subscription.deleted":
+        customer_id = data.get("customer", "")
+        email = _find_tenant_by_customer(customer_id)
+        if email:
+            _update_tenant(email, {
+                "plan": "free",
+                "status": "canceled",
+                "stripe_subscription_id": "",
+            })
+
+    elif event_type == "invoice.paid":
+        customer_id = data.get("customer", "")
+        email = _find_tenant_by_customer(customer_id)
+        if email:
+            sub_id = data.get("subscription", "")
+            _update_tenant(email, {
+                "status": "active",
+                "stripe_subscription_id": sub_id or "",
+            })
+
+    elif event_type == "invoice.payment_failed":
+        customer_id = data.get("customer", "")
+        email = _find_tenant_by_customer(customer_id)
+        if email:
+            _update_tenant(email, {"status": "past_due"})
+
+    return _ok({"received": True, "event": event_type})
 
 
-def _provision_customer(email: str, plan: str):
-    """Provision a new Cloud instance for a paying customer."""
+# ── Attention / Alerts ────────────────────────────────────────
+
+
+@app.get("/api/v1/attention", dependencies=[Depends(check_auth)])
+async def get_attention():
+    """Return items needing the user's attention — overdue invoices,
+    upcoming deadlines, uncategorized transactions, ledger errors."""
     try:
-        from .provision import provision_customer
-        provision_customer(email, plan)
+        cfg = get_config()
+        ledger = Ledger(cfg)
     except Exception as e:
-        print(f"⚠ Provisioning failed for {email}: {e}", file=__import__('sys').stderr)
+        return _err(str(e), 500)
+
+    items = []
+
+    # Deadline info
+    try:
+        from .taxes import TaxEstimator
+        taxer = TaxEstimator(cfg, ledger)
+        deadlines = taxer.deadline_info()
+        for dl in deadlines["deadlines"][:3]:
+            if dl["status"] in ("overdue", "upcoming"):
+                items.append({
+                    "type": "deadline",
+                    "severity": "critical" if dl["status"] == "overdue" else "warning",
+                    "label": dl["label"],
+                    "detail": f"Due {dl['due']} ({dl['days_until']} days)",
+                })
+    except Exception:
+        pass
+
+    # Ledger errors
+    try:
+        errors = ledger.check()
+        if errors:
+            items.append({
+                "type": "ledger",
+                "severity": "critical",
+                "label": f"Ledger has {len(errors)} error(s)",
+                "detail": errors[0][:120],
+            })
+    except Exception:
+        pass
+
+    # No net income warning
+    try:
+        net = ledger.net_income()
+        if net <= 0:
+            items.append({
+                "type": "no_income",
+                "severity": "info",
+                "label": "No income recorded yet",
+                "detail": "Import transactions or create an invoice to get started.",
+            })
+    except Exception:
+        pass
+
+    # AR (overdue invoices)
+    try:
+        invoicer = Invoicer(cfg, ledger)
+        ar = invoicer.check_ar()
+        if ar.get("overdue_count", 0) > 0:
+            items.append({
+                "type": "overdue_invoices",
+                "severity": "critical",
+                "label": f"{ar['overdue_count']} overdue invoice(s)",
+                "detail": f"${ar['estimated_overdue_amount']:,.2f} total overdue",
+            })
+    except Exception:
+        pass
+
+    return _ok({"items": items, "count": len(items)})
+
+
+# ── Onboarding ────────────────────────────────────────────────
+
+
+@app.get("/api/v1/onboarding/status", dependencies=[Depends(check_auth)])
+async def onboarding_status():
+    """Check if the current user has completed onboarding."""
+    tenant = _current_tenant.get()
+    if not tenant:
+        return _ok({"needs_onboarding": True})
+
+    complete = tenant.get("onboarding_complete", False)
+    return _ok({
+        "needs_onboarding": not complete,
+        "has_ledger_data": False,  # checked below
+    })
+
+
+class OnboardingCompleteRequest(BaseModel):
+    skipped_bank: bool = False
+    skipped_import: bool = False
+
+
+@app.post("/api/v1/onboarding/complete", dependencies=[Depends(check_auth)])
+async def onboarding_complete(req: OnboardingCompleteRequest):
+    """Mark onboarding as complete for the current user."""
+    tenant = _current_tenant.get()
+    if not tenant:
+        return _err("Not authenticated", 401)
+
+    tenants = _load_tenants()
+    email = tenant["email"]
+    if email in tenants:
+        tenants[email]["onboarding_complete"] = True
+        _save_tenants(tenants)
+
+    return _ok({"onboarding_complete": True})
+
+
+# ── LLM Settings ──────────────────────────────────────────────
+
+_llm_settings_path: Optional[Path] = None
+
+
+def _get_llm_settings_path():
+    global _llm_settings_path
+    if _llm_settings_path is None:
+        try:
+            cfg = get_config()
+            _llm_settings_path = cfg.project_root / "llm_settings.json"
+        except Exception:
+            _llm_settings_path = _DATA_DIR / "llm_settings.json"
+    return _llm_settings_path
+
+
+class LlmSettingsRequest(BaseModel):
+    api_key: Optional[str] = None
+    backend: Optional[str] = None
+    model: Optional[str] = None
+
+
+@app.get("/api/v1/settings/llm", dependencies=[Depends(check_auth)])
+async def get_llm_settings():
+    """Get current LLM configuration (key is masked)."""
+    settings_path = _get_llm_settings_path()
+    config = {}
+    if settings_path.exists():
+        try:
+            config = json.loads(settings_path.read_text())
+        except Exception:
+            pass
+
+    # Mask the API key
+    key = config.get("api_key", "")
+    if key and len(key) > 8:
+        config["api_key"] = key[:8] + "••••••••••"
+    elif key:
+        config["api_key"] = "••••••••••"
+
+    return _ok({
+        "backend": config.get("backend", os.environ.get("SL_LLM_BACKEND", "openai")),
+        "model": config.get("model", os.environ.get("SL_LLM_MODEL", "")),
+        "api_key_configured": bool(config.get("api_key") or os.environ.get("SL_LLM_API_KEY")),
+        "api_key": config.get("api_key", ""),
+    })
+
+
+@app.post("/api/v1/settings/llm", dependencies=[Depends(check_auth)])
+async def set_llm_settings(req: LlmSettingsRequest):
+    """Save LLM configuration to server.
+
+    Stores backend, model, and API key so AI features
+    (categorization, receipt scanning, content) can use them.
+    """
+    settings_path = _get_llm_settings_path()
+    config = {}
+    if settings_path.exists():
+        try:
+            config = json.loads(settings_path.read_text())
+        except Exception:
+            pass
+
+    # Merge: only update provided fields
+    if req.api_key is not None:
+        config["api_key"] = req.api_key if req.api_key else ""
+    if req.backend is not None:
+        config["backend"] = req.backend
+    if req.model is not None:
+        config["model"] = req.model if req.model else ""
+
+    settings_path.write_text(json.dumps(config, indent=2))
+
+    return _ok({
+        "saved": True,
+        "backend": config.get("backend", "openai"),
+        "model": config.get("model", ""),
+        "api_key_configured": bool(config.get("api_key")),
+    })
 
 
 # ── Run ─────────────────────────────────────────────────────────────────────

@@ -74,17 +74,23 @@ class Config:
         self._project_root = Path(path).parent
 
     def _find_config(self) -> Path:
-        """Walk up from CWD looking for config.toml."""
+        """Walk up from CWD or script dir looking for config.toml."""
+        # Try script directory first
+        script_dir = Path(__file__).resolve().parent.parent
+        for parent in [script_dir] + list(script_dir.parents):
+            candidate = parent / "config.toml"
+            if candidate.exists():
+                return candidate
+
+        # Fall back to CWD walk
         start = Path.cwd()
         for parent in [start] + list(start.parents):
             candidate = parent / "config.toml"
             if candidate.exists():
                 return candidate
-        print(
-            "ERROR: config.toml not found. Run from the project directory.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+
+        msg = "config.toml not found. Run from the project directory."
+        raise FileNotFoundError(msg)
 
     @property
     def project_root(self) -> Path:

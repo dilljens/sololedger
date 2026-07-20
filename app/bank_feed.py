@@ -53,10 +53,10 @@ class PlaidTransaction:
 class PlaidFeed:
     """Fetch bank transactions from Plaid and import into Beancount."""
 
-    def __init__(self, cfg: Optional[Config] = None):
+    def __init__(self, cfg: Optional[Config] = None, access_token: Optional[str] = None):
         self.cfg = cfg
         self._client = None
-        self._access_token = os.environ.get("PLAID_ACCESS_TOKEN", "")
+        self._access_token = access_token or os.environ.get("PLAID_ACCESS_TOKEN", "")
         self._enabled = bool(self._access_token)
 
     @property

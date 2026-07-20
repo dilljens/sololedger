@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SoloLedger</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -12,29 +12,132 @@
   <aside class="sidebar">
     <div class="logo">Solo<span>Ledger</span></div>
     <nav>
-      <a href="#" data-page="dashboard" class="active">📊 Dashboard</a>
-      <a href="#" data-page="accounts">🏦 Accounts</a>
-      <a href="#" data-page="import">📥 Import</a>
-      <a href="#" data-page="invoices">📄 Invoices</a>
-      <a href="#" data-page="new-invoice">➕ New Invoice</a>
-      <a href="#" data-page="transactions">📋 Transactions</a>
-      <a href="#" data-page="receipts">🧾 Receipts</a>
-      <a href="#" data-page="categorize">🏷️ Categorize</a>
-      <a href="#" data-page="tax">💰 Tax</a>
-      <a href="#" data-page="deadlines">📅 Deadlines</a>
-      <a href="#" data-page="mileage">🚗 Mileage</a>
-      <a href="#" data-page="health">🔍 Ledger Health</a>
-      <a href="#" data-page="reports">📊 Reports</a>
-      <a href="#" data-page="settings">⚙️ Settings</a>
+      <a href="#" data-page="dashboard" data-label="Dashboard" class="active"><span>📊</span> <span>Dashboard</span></a>
+      <a href="#" data-page="accounts" data-label="Accounts"><span>🏦</span> <span>Accounts</span></a>
+      <a href="#" data-page="import" data-label="Import"><span>📥</span> <span>Import</span></a>
+      <a href="#" data-page="invoices" data-label="Invoices"><span>📄</span> <span>Invoices</span></a>
+      <a href="#" data-page="new-invoice" data-label="New Invoice"><span>➕</span> <span>New Inv.</span></a>
+      <a href="#" data-page="transactions" data-label="Transactions"><span>📋</span> <span>Transactions</span></a>
+      <a href="#" data-page="receipts" data-label="Receipts"><span>🧾</span> <span>Receipts</span></a>
+      <a href="#" data-page="categorize" data-label="Categorize"><span>🏷️</span> <span>Categorize</span></a>
+      <a href="#" data-page="tax" data-label="Tax"><span>💰</span> <span>Tax</span></a>
+      <a href="#" data-page="deadlines" data-label="Deadlines"><span>📅</span> <span>Deadlines</span></a>
+      <a href="#" data-page="mileage" data-label="Mileage"><span>🚗</span> <span>Mileage</span></a>
+      <a href="#" data-page="health" data-label="Health"><span>🔍</span> <span>Health</span></a>
+      <a href="#" data-page="reports" data-label="Reports"><span>📊</span> <span>Reports</span></a>
+      <a href="#" data-page="settings" data-label="Settings"><span>⚙️</span> <span>Settings</span></a>
     </nav>
-    <div class="sidebar-footer">
-      <span class="version">v0.2.0</span>
+    <div class="sidebar-user" id="sidebar-user">
+      <div class="sidebar-user-info" id="sidebar-user-info" style="display:none;">
+        <img id="user-avatar" class="user-avatar" src="" alt="">
+        <span id="user-name" class="user-name"></span>
+        <button class="btn btn-ghost btn-sm" onclick="handleLogout()" title="Sign out">🚪</button>
+      </div>
+      <button class="btn btn-primary btn-sm sidebar-signin" id="sidebar-signin" onclick="showAuthModal()" style="width:100%;justify-content:center;">
+        🔑 Sign In
+      </button>
+      <div class="sidebar-footer" style="border:none;padding:8px 0 0;font-size:0.65rem;">v0.3.0 · MIT</div>
     </div>
   </aside>
 
   <main class="main">
     <div id="page-content"></div>
   </main>
+
+  <!-- Auth modal -->
+  <div id="auth-modal-overlay" class="modal-overlay" style="display:none;" onclick="closeAuthModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeAuthModal()">✕</button>
+      <div class="modal-body">
+        <div class="text-center" style="margin-bottom:20px;">
+          <div style="font-size:2rem;margin-bottom:8px;">🔐</div>
+          <h2 id="auth-modal-title" style="font-size:1.2rem;font-weight:700;">Sign In</h2>
+          <p style="color:var(--gray-500);font-size:0.85rem;">Access your SoloLedger dashboard</p>
+        </div>
+
+        <!-- Email / Password form -->
+        <div id="local-auth-form">
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:3px;">Email</label>
+              <input type="email" id="auth-email" placeholder="you@example.com"
+                class="form-input" style="width:100%;"
+                autocomplete="email">
+            </div>
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:3px;">Password</label>
+              <input type="password" id="auth-password" placeholder="Password"
+                class="form-input" style="width:100%;font-family:var(--font-mono);"
+                autocomplete="current-password"
+                onkeydown="if(event.key==='Enter') submitSignIn()">
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary" onclick="submitSignIn()" style="flex:1;justify-content:center;" id="auth-submit-btn">Sign In</button>
+            </div>
+            <p style="font-size:0.8rem;color:var(--gray-500);text-align:center;margin:0;">
+              <span id="auth-toggle-text">Don't have an account?</span>
+              <a href="#" id="auth-toggle-link" onclick="toggleAuthMode()" style="font-weight:600;">Sign Up</a>
+            </p>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div id="auth-divider-local" class="auth-divider"><span>or continue with</span></div>
+
+        <!-- Google sign-in button container (rendered by JS) -->
+        <div id="google-signin-container" style="display:none;"></div>
+
+        <!-- Google not configured message -->
+        <div id="google-not-configured" style="display:none;text-align:center;padding:8px;">
+          <p style="color:var(--gray-500);font-size:0.8rem;margin:0;">
+            <span style="opacity:0.5;">Google sign-in (configure <code>GOOGLE_CLIENT_ID</code>)</span>
+          </p>
+        </div>
+
+        <div id="auth-error" class="text-danger text-sm mt-3" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Plaid Link -->
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+
+  <!-- Mobile bottom navigation -->
+  <nav class="mobile-nav">
+    <a href="#" data-page="dashboard" class="active"><span class="icon">📊</span><span class="nav-label">Home</span></a>
+    <a href="#" data-page="import" data-label="Import"><span class="icon">📥</span><span class="nav-label">Import</span></a>
+    <a href="#" data-page="transactions" data-label="Transactions"><span class="icon">📋</span><span class="nav-label">Txns</span></a>
+    <a href="#" data-page="tax" data-label="Tax"><span class="icon">💰</span><span class="nav-label">Tax</span></a>
+    <a href="#" data-page="more" data-label="More" id="mobile-more-btn"><span class="icon">☰</span><span class="nav-label">More</span></a>
+  </nav>
+
+  <!-- Mobile drawer (hidden by default) -->
+  <div id="mobile-drawer-overlay" class="modal-overlay" style="display:none;z-index:60;" onclick="closeMobileDrawer(event)">
+    <div style="position:fixed;top:0;right:0;width:260px;height:100vh;background:#fff;box-shadow:var(--shadow-xl);padding:16px;overflow-y:auto;" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <strong style="font-size:1rem;">All Pages</strong>
+        <button class="btn btn-ghost" onclick="closeMobileDrawer()" style="font-size:1.2rem;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <a href="#" data-page="dashboard" class="mobile-drawer-item"><span>📊</span> Dashboard</a>
+        <a href="#" data-page="accounts" class="mobile-drawer-item"><span>🏦</span> Accounts</a>
+        <a href="#" data-page="import" class="mobile-drawer-item"><span>📥</span> Import</a>
+        <a href="#" data-page="invoices" class="mobile-drawer-item"><span>📄</span> Invoices</a>
+        <a href="#" data-page="new-invoice" class="mobile-drawer-item"><span>➕</span> New Invoice</a>
+        <a href="#" data-page="transactions" class="mobile-drawer-item"><span>📋</span> Transactions</a>
+        <a href="#" data-page="receipts" class="mobile-drawer-item"><span>🧾</span> Receipts</a>
+        <a href="#" data-page="categorize" class="mobile-drawer-item"><span>🏷️</span> Categorize</a>
+        <a href="#" data-page="tax" class="mobile-drawer-item"><span>💰</span> Tax</a>
+        <a href="#" data-page="deadlines" class="mobile-drawer-item"><span>📅</span> Deadlines</a>
+        <a href="#" data-page="mileage" class="mobile-drawer-item"><span>🚗</span> Mileage</a>
+        <a href="#" data-page="health" class="mobile-drawer-item"><span>🔍</span> Health</a>
+        <a href="#" data-page="reports" class="mobile-drawer-item"><span>📊</span> Reports</a>
+        <a href="#" data-page="settings" class="mobile-drawer-item"><span>⚙️</span> Settings</a>
+      </div>
+    </div>
+  </div>
 
   <script src="/app/js/api.js"></script>
   <script src="/app/js/app.js"></script>

@@ -126,7 +126,6 @@ class Notifier:
         if alerts:
             net = ledger.net_income()
             if net > 0:
-                taxer = TaxEstimator(self.cfg, ledger, state_code=self.cfg.state_code)
                 est = taxer.quarterly_estimate(net)
                 amt_msg = (
                     f"Suggested next payment: ${est['suggested_payment']:,.2f}\n"

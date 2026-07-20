@@ -11,3 +11,7 @@ venv/
 *.egg-info/
 dist/
 build/
+llm_settings.json
+users.json
+tenants.json
+ledgers/

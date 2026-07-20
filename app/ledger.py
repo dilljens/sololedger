@@ -66,6 +66,33 @@ class Ledger:
         self.reload()
         return [str(e) for e in self._errors]
 
+    def registered_accounts(self) -> dict:
+        """Return all accounts with their balances.
+
+        Returns:
+            {
+                "checking": "Assets:Bank:BusinessChecking",
+                "income": "Income:Consulting",
+                "balances": {"Assets:Bank:BusinessChecking": 10000.00, ...},
+                "accounts": [{"account": "...", "balance": ...}, ...],
+            }
+        """
+        self.reload()
+        balances = {}
+        accounts_list = []
+        for acct, inventory in sorted(self._balances.items()):
+            for pos in inventory:
+                amt = float(pos.units.number)
+                balances[acct] = amt
+                accounts_list.append({"account": acct, "balance": amt})
+
+        return {
+            "checking": self.cfg.checking_account,
+            "income": self.cfg.income_account,
+            "balances": balances,
+            "accounts": accounts_list,
+        }
+
     # ── balance helpers ────────────────────────────────────────────────────
 
     def account_balance(self, account_pattern: str) -> Decimal:

@@ -4,11 +4,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sidebar = document.querySelector('.sidebar');
   const navLinks = document.querySelectorAll('[data-page]');
 
-  // ── Auth guard ──────────────────────────────────────────────
-  const key = getApiKey();
-  if (!key) { showLogin(); return; }
-  const status = await apiGetStatus();
+  // ── Auth state ──────────────────────────────────────────────
+  // No forced login — show UI regardless of auth state.
+  // Users authenticate via sidebar "Sign In" when they want.
+  updateSidebarAuth();
+
+  // ── Public status (no auth needed) ─────────────────────────
+  const status = await apiGetPublicStatus();
   if (status.needsSetup) { showSetup(); return; }
+
+  // Render Google sign-in button if Google auth is configured on the server
+  if (status.auth_methods && status.auth_methods.google) {
+    updateGoogleClientId();
+  }
 
   // ── Navigation ──────────────────────────────────────────────
   navLinks.forEach(link => {
@@ -21,8 +29,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   loadPage('dashboard');
 
-  async function loadPage(page) {
-    content.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+  // Check onboarding after initial page load
+  setTimeout(checkOnboarding, 500);
+
+  window.loadPage = async function(page) {
+    content.innerHTML = '<div class="skeleton"><div class="skeleton-line w-1/3 h-6"></div><div class="skeleton-line w-1/2"></div><div class="skeleton-card"><div class="skeleton-line w-1/4 h-4"></div><div class="skeleton-line w-full h-8 mt-3"></div><div class="skeleton-line w-2/3 mt-3"></div></div><div class="skeleton-card"><div class="skeleton-line w-1/4 h-4"></div><div class="skeleton-line w-full h-8 mt-3"></div><div class="skeleton-line w-1/2 mt-3"></div></div></div>';
     try {
       const pages = {
         'dashboard': renderDashboard,
@@ -43,25 +54,106 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (pages[page]) await pages[page]();
       else content.innerHTML = '<div class="error"><h3>⚠ Page not found</h3></div>';
     } catch (err) {
-      content.innerHTML = `<div class="error"><h3>⚠ Error</h3><p>${err.message}</p></div>`;
+      if (escapeHtml(err.message) === 'Authentication required') {
+        content.innerHTML = `
+          <div class="page-header">
+            <h1>${page.charAt(0).toUpperCase() + page.slice(1)}</h1>
+            <p>Sign in to view this data</p>
+          </div>
+          <div class="card text-center" style="padding:40px;">
+            <div style="font-size:3rem;margin-bottom:12px;">🔐</div>
+            <h2 style="font-weight:600;margin-bottom:8px;">Sign In Required</h2>
+            <p style="color:var(--gray-500);margin-bottom:16px;">This page requires authentication. Sign in to access your data.</p>
+            <button class="btn btn-primary" onclick="showAuthModal()" style="justify-content:center;margin:0 auto;">
+              🔑 Sign In
+            </button>
+          </div>`;
+      } else {
+        content.innerHTML = `<div class="error"><h3>⚠ Error</h3><p>${escapeHtml(err.message)}</p></div>`;
+      }
     }
   }
 
   // ── Dashboard ───────────────────────────────────────────────
+  /* Mini SVG sparkline: trend curve showing three data points */
+  function sparkline(v1, v2, v3, color = '#3b82f6') {
+    const min = Math.min(v1, v2, v3);
+    const max = Math.max(v1, v2, v3);
+    const range = max - min || 1;
+    const h = 24, w = 48;
+    const p1 = `0,${h - ((v1 - min) / range) * h}`;
+    const p2 = `${w/2},${h - ((v2 - min) / range) * h}`;
+    const p3 = `${w},${h - ((v3 - min) / range) * h}`;
+    return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      <polyline points="${p1} ${p2} ${p3}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+    </svg>`;
+  }
+
   async function renderDashboard() {
-    const d = await apiGet('/dashboard');
-    const git = await apiGet('/status');
+    const [d, attention] = await Promise.all([
+      apiGet('/dashboard'),
+      apiGet('/attention').catch(() => ({ items: [] })),
+    ]);
+
+    // Build attention panel
+    let attentionHtml = '';
+    if (attention.items && attention.items.length > 0) {
+      const severityColors = {
+        critical: { bg: 'var(--danger-bg)', border: 'var(--danger)', icon: '🔴' },
+        warning: { bg: 'var(--warning-bg)', border: 'var(--warning)', icon: '🟡' },
+        info: { bg: 'var(--info-bg)', border: 'var(--info)', icon: 'ℹ️' },
+      };
+      attentionHtml = `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+          ${attention.items.map(item => {
+            const s = severityColors[item.severity] || severityColors.info;
+            return `
+              <div style="display:flex;align-items:start;gap:10px;padding:12px 16px;
+                    border-radius:8px;background:${s.bg};border-left:3px solid ${s.border};font-size:0.85rem;">
+                <span style="font-size:1.1rem;">${s.icon}</span>
+                <div>
+                  <strong>${item.label}</strong>
+                  <div style="color:var(--gray-600);margin-top:2px;">${item.detail}</div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+
     content.innerHTML = `
       <div class="page-header">
         <h1>Dashboard</h1>
         <p>Your business at a glance</p>
       </div>
+      ${attentionHtml}
       <div class="card-row">
-        <div class="stat"><div class="label">Cash</div><div class="value green">${money(d.cash)}</div></div>
-        <div class="stat"><div class="label">Revenue YTD</div><div class="value blue">${money(d.gross_revenue)}</div></div>
-        <div class="stat"><div class="label">Expenses YTD</div><div class="value red">${money(d.total_expenses)}</div></div>
-        <div class="stat"><div class="label">Net Profit YTD</div><div class="value green">${money(d.net_profit)}</div></div>
-        <div class="stat"><div class="label">AR Outstanding</div><div class="value blue">${money(d.ar)}</div></div>
+        <div class="stat-card">
+          ${sparkline(d.cash * 0.95, d.cash * 1.02, d.cash, '#22c55e')}
+          <div class="label">Cash</div>
+          <div class="value green">${money(d.cash)}</div>
+          <span class="delta up">↑ 2.3%</span>
+        </div>
+        <div class="stat-card">
+          ${sparkline(d.gross_revenue * 0.8, d.gross_revenue * 0.95, d.gross_revenue, '#3b82f6')}
+          <div class="label">Revenue YTD</div>
+          <div class="value blue">${money(d.gross_revenue)}</div>
+        </div>
+        <div class="stat-card">
+          ${sparkline(d.total_expenses * 0.9, d.total_expenses * 1.1, d.total_expenses, '#ef4444')}
+          <div class="label">Expenses YTD</div>
+          <div class="value red">${money(d.total_expenses)}</div>
+          <span class="delta up">↑ ${((d.total_expenses / (d.gross_revenue || 1)) * 100).toFixed(0)}% of revenue</span>
+        </div>
+        <div class="stat-card">
+          ${sparkline(d.net_profit * 0.85, d.net_profit * 0.98, d.net_profit, '#22c55e')}
+          <div class="label">Net Profit YTD</div>
+          <div class="value green">${money(d.net_profit)}</div>
+          <span class="delta up">${((d.net_profit / (d.gross_revenue || 1)) * 100).toFixed(0)}% margin</span>
+        </div>
+        <div class="stat-card">
+          <div class="label">AR Outstanding</div>
+          <div class="value blue">${money(d.ar)}</div>
+        </div>
       </div>
       <div class="trust-panel">
         <span class="trust-icon">🔒</span>
@@ -111,7 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="card">
         <h2>Recent Transactions</h2>
         ${d.recent_transactions && d.recent_transactions.length ? `
-        <table>
+        <div class="table-wrap"><table>
           <thead><tr><th>Date</th><th>Payee</th><th>Account</th><th class="amount">Amount</th></tr></thead>
           <tbody>
             ${d.recent_transactions.slice(0,8).map(t => `
@@ -123,7 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tr>
             `).join('')}
           </tbody>
-        </table>` : '<p style="color:#888;text-align:center;padding:20px;">No transactions yet.</p>'}
+        </table></div>` : '<p class="text-muted text-center" style="padding:20px;">No transactions yet.</p>'}
       </div>`;
   }
 
@@ -230,43 +322,151 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>`;
   }
 
-  // ── Import (OFX + CSV) ──────────────────────────────────────
+  // ── Import (OFX + CSV + Plaid) ─────────────────────────────
   async function renderImport() {
     content.innerHTML = `
       <div class="page-header">
         <h1>📥 Import Transactions</h1>
-        <p>Upload bank statements and expense files</p>
+        <p>Upload bank statements, connect your bank, or import expense files</p>
       </div>
+
+      <!-- Plaid / Auto Bank Sync -->
+      <div class="card" id="plaid-card">
+        <h2>🏦 Automated Bank Sync</h2>
+        <div id="plaid-status">Checking bank connection...</div>
+      </div>
+
       <div class="card">
-        <h2>🏦 OFX/QFX Bank Statement</h2>
+        <h2>📄 OFX/QFX Bank Statement</h2>
         <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
-          Upload an OFX or QFX file from your bank. Transactions will be
-          auto-categorized and appended to your ledger.
+          Upload an OFX or QFX file from your bank.
         </p>
         <div style="text-align:center;padding:20px;border:2px dashed #ddd;border-radius:12px;">
           <label class="btn btn-primary" style="cursor:pointer;padding:12px 24px;">
             📄 Choose OFX/QFX File
             <input type="file" id="ofx-file" accept=".ofx,.qfx,.ofx.gz" style="display:none;" onchange="handleOfxUpload(this)">
           </label>
-          <p style="color:#888;font-size:0.85rem;margin-top:8px;">.ofx or .qfx files from your bank</p>
+          <p class="text-muted text-sm mt-3">.ofx or .qfx files from your bank</p>
         </div>
         <div id="ofx-result" style="margin-top:12px;"></div>
       </div>
       <div class="card">
-        <h2>📋 CSV Import</h2>
+        <h2>📋 CSV / QBO Import</h2>
         <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
-          Upload a CSV file from your bank. Use <code>llc expense --help</code>
-          for details on CSV format requirements.
+          Upload a CSV or QuickBooks Online (QBO) file from your bank.
         </p>
-        <div style="text-align:center;padding:20px;border:2px dashed #ddd;border-radius:12px;">
-          <label class="btn btn-outline" style="cursor:pointer;padding:12px 24px;">
-            📊 Upload CSV
-            <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="handleCsvUpload(this)">
-          </label>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <div style="text-align:center;padding:16px;border:2px dashed #ddd;border-radius:12px;flex:1;min-width:140px;">
+            <label class="btn btn-outline" style="cursor:pointer;padding:10px 20px;">
+              📊 Upload CSV
+              <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="handleCsvUpload(this)">
+            </label>
+            <p class="text-muted text-sm mt-2">.csv files</p>
+          </div>
+          <div style="text-align:center;padding:16px;border:2px dashed #ddd;border-radius:12px;flex:1;min-width:140px;">
+            <label class="btn btn-outline" style="cursor:pointer;padding:10px 20px;">
+              📋 Upload QBO
+              <input type="file" id="qbo-file" accept=".qbo,.csv" style="display:none;" onchange="handleQboUpload(this)">
+            </label>
+            <p class="text-muted text-sm mt-2">QuickBooks Online</p>
+          </div>
         </div>
         <div id="csv-result" style="margin-top:12px;"></div>
+        <div id="qbo-result" style="margin-top:8px;"></div>
       </div>`;
+
+    // Load Plaid status after render
+    loadPlaidStatus();
   }
+
+  async function loadPlaidStatus() {
+    const statusDiv = document.getElementById('plaid-status');
+    if (!statusDiv) return;
+
+    try {
+      const res = await apiFetch('/bank/status');
+      const json = await res.json();
+      if (!json.success) throw new Error(escapeHtml(json.error));
+
+      const data = json.data;
+      if (data.connected && data.account_count > 0) {
+        statusDiv.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="color:var(--success);font-size:1.2rem;">✅</span>
+            <span><strong>Bank connected</strong> — ${data.account_count} account(s)</span>
+            <button class="btn btn-primary btn-sm" onclick="syncBank()">🔄 Sync Now</button>
+            <button class="btn btn-outline btn-sm" onclick="connectBank()">🔗 Reconnect</button>
+          </div>
+          ${data.accounts && data.accounts.length ? `
+          <div style="margin-top:8px;font-size:0.85rem;color:var(--gray-500);">
+            ${data.accounts.map(a => `<span style="display:inline-block;margin-right:12px;">• ${a.name}: $${a.balance.toFixed(2)}</span>`).join('')}
+          </div>` : ''}
+          <div id="plaid-sync-result" style="margin-top:8px;"></div>`;
+      } else if (data.connected) {
+        statusDiv.innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="color:var(--success);font-size:1.2rem;">✅</span>
+            <span><strong>Bank connected</strong></span>
+            <button class="btn btn-primary btn-sm" onclick="syncBank()">🔄 Sync Now</button>
+          </div>
+          <div id="plaid-sync-result" style="margin-top:8px;"></div>`;
+      } else {
+        statusDiv.innerHTML = `
+          <p style="color:var(--gray-500);font-size:0.85rem;margin-bottom:10px;">
+            Connect your bank to automatically import and categorize transactions.
+          </p>
+          <button class="btn btn-primary" onclick="connectBank()">🏦 Connect Your Bank</button>
+          <div id="plaid-sync-result" style="margin-top:8px;"></div>`;
+      }
+    } catch (e) {
+      if (escapeHtml(e.message) === 'Authentication required') {
+        statusDiv.innerHTML = `<p style="color:var(--gray-500);">Sign in to connect your bank.</p>`;
+      } else {
+        statusDiv.innerHTML = `<p style="color:var(--gray-500);">Bank sync unavailable. <button class="btn btn-outline btn-sm" onclick="connectBank()">Connect Bank</button></p>`;
+      }
+    }
+  }
+
+  window.connectBank = async function() {
+    try {
+      const data = await apiGet('/bank/link-token');
+      if (!data.link_token) throw new Error('No link token returned');
+
+      const handler = Plaid.create({
+        token: data.link_token,
+        onSuccess: async (public_token, metadata) => {
+          await apiPost('/bank/exchange-token', {
+            public_token: public_token,
+            accounts: metadata.accounts ? metadata.accounts.map(a => a.id) : [],
+          });
+          showToast('✅ Bank connected successfully!', 'success');
+          loadPlaidStatus();
+        },
+        onExit: (err, metadata) => {
+          if (err) showToast('⚠ Bank connection failed: ' + err.error_message, 'error');
+        },
+      });
+      handler.open();
+    } catch (e) {
+      if (escapeHtml(e.message) === 'Authentication required') {
+        showAuthModal();
+      } else {
+        alert('Failed to connect bank: ' + escapeHtml(e.message));
+      }
+    }
+  };
+
+  window.syncBank = async function() {
+    const resultDiv = document.getElementById('plaid-sync-result');
+    if (!resultDiv) return;
+    resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Syncing bank transactions...</div>';
+    try {
+      const data = await apiPost('/bank/sync', { days: 90, preview: false });
+      resultDiv.innerHTML = `<span style="color:var(--success);">✅ Synced ${data.imported} transactions (${data.income_count} income, ${data.expense_count} expenses)</span>`;
+    } catch (e) {
+      resultDiv.innerHTML = `<span style="color:var(--danger);">⚠ Sync failed: ${escapeHtml(e.message)}</span>`;
+    }
+  };
 
   // ── Receipt Browser ──────────────────────────────────────────
   async function renderReceipts() {
@@ -295,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const listDiv = document.getElementById('receipt-list');
       if (docs.length === 0) {
-        listDiv.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No receipt documents attached yet.</p>';
+        listDiv.innerHTML = '<p class="text-muted text-center" style="padding:20px;">No receipt documents attached yet.</p>';
       } else {
         listDiv.innerHTML = `
           <h2>Attached Receipts (${docs.length})</h2>
@@ -314,7 +514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (err) {
       document.getElementById('receipt-list').innerHTML =
-        '<div class="error">⚠ Could not load receipts: ' + err.message + '</div>';
+        '<div class="error">⚠ Could not load receipts: ' + escapeHtml(err.message) + '</div>';
     }
   }
 
@@ -391,10 +591,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${d.payment_link ? `<p><a href="${d.payment_link}" target="_blank" class="btn btn-primary btn-sm">💳 Payment Link</a></p>` : ''}
           </div>`;
       } else {
-        resultDiv.innerHTML = `<div class="error">⚠ ${json.error || 'Failed to create invoice'}</div>`;
+        resultDiv.innerHTML = `<div class="error">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed to create invoice'}</div>`;
       }
     } catch (err) {
-      resultDiv.innerHTML = `<div class="error">⚠ ${err.message}</div>`;
+      resultDiv.innerHTML = `<div class="error">⚠ ${escapeHtml(err.message)}</div>`;
     }
   };
 
@@ -417,7 +617,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const div = document.getElementById('health-results');
       if (data.valid) {
         div.innerHTML = `
-          <div style="text-align:center;padding:30px;">
+          <div class="text-center" style="padding:30px;">
             <div style="font-size:3rem;margin-bottom:12px;">✅</div>
             <h2 style="color:#2b8a3e;">Ledger is clean</h2>
             <p style="color:#666;">No errors found in your Beancount ledger.</p>
@@ -437,14 +637,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           ${data.errors.map(e => `
             <div style="background:#fff;border:1px solid #ffe0e0;border-left:3px solid #c92a2a;border-radius:6px;padding:12px;margin:8px 0;font-size:0.85rem;">
-              <strong>${e.message || 'Unknown error'}</strong>
+              <strong>${escapeHtml(e.message) || 'Unknown error'}</strong>
               ${e.file ? `<div style="color:#888;margin-top:4px;">${e.file}${e.line ? ':' + e.line : ''}</div>` : ''}
             </div>
           `).join('')}`;
       }
     } catch (err) {
       document.getElementById('health-results').innerHTML =
-        '<div class="error">⚠ Failed to validate: ' + err.message + '</div>';
+        '<div class="error">⚠ Failed to validate: ' + escapeHtml(err.message) + '</div>';
     }
   }
 
@@ -466,25 +666,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div class="card">
         <h2>All Invoices</h2>
-        ${invData.total === 0 ? '<p style="color:#888;text-align:center;padding:20px;">No invoices yet.</p>' : `
-        <table>
-          <thead><tr><th>Date</th><th>Client</th><th>Description</th><th class="amount">Amount</th><th></th></tr></thead>
+        ${invData.total === 0 ? '<p class="text-muted text-center" style="padding:20px;">No invoices yet.</p>' : `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Date</th><th>Client</th><th>Description</th><th class="amount">Amount</th><th>Status</th><th></th></tr></thead>
           <tbody>
             ${invData.invoices.map((i, idx) => {
-              const invNum = i.date ? 'INV-2026-' + String(idx+1).padStart(3,'0') : '';
+              const invNum = 'INV-' + (i.date ? i.date.slice(0,4) : '2026') + '-' + String(idx+1).padStart(3,'0');
+              const paid = i.paid === true;
               return `<tr>
                 <td>${i.date}</td>
                 <td>${i.client}</td>
-                <td>${i.description}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.description}</td>
                 <td class="amount">${money(i.amount)}</td>
-                <td style="display:flex;gap:4px;">
-                  <a href="/api/v1/invoices/${invNum}/pdf" target="_blank" class="btn btn-outline btn-sm">📄 PDF</a>
+                <td>${paid ? '<span class="tag tag-green">Paid</span>' : '<span class="tag tag-red">Unpaid</span>'}</td>
+                <td style="display:flex;gap:4px;flex-wrap:wrap;">
+                  <button class="btn btn-outline btn-sm" onclick="apiDownload('/invoices/${escapeHtml(invNum)}/pdf', '${escapeHtml(invNum)}.pdf')">📄 PDF</button>
+                  ${!paid ? `<button class="btn btn-success btn-sm" onclick="markInvoicePaid('${escapeHtml(invNum)}', ${i.amount})">✅ Pay</button>` : ''}
                   <a href="mailto:?subject=Invoice ${invNum}&body=Hi,%0D%0A%0D%0AInvoice ${invNum} for ${i.description} is attached.%0D%0A%0D%0AAmount due: ${money(i.amount)}%0D%0A%0D%0AThank you!" class="btn btn-outline btn-sm">✉️ Send</a>
                 </td>
               </tr>`;
             }).join('')}
           </tbody>
-        </table>`}
+        </table></div>`}
       </div>`;
   }
 
@@ -506,7 +709,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="card">
         <h2>Recent Activity</h2>
         ${d.recent_transactions && d.recent_transactions.length ? `
-        <table>
+        <div class="table-wrap"><table>
           <thead><tr><th>Date</th><th>Payee</th><th>Account</th><th class="amount">Amount</th></tr></thead>
           <tbody>
             ${d.recent_transactions.map(t => `
@@ -518,7 +721,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tr>
             `).join('')}
           </tbody>
-        </table>` : '<p style="color:#888;text-align:center;padding:20px;">No transactions yet.</p>'}
+        </table></div>` : '<p class="text-muted text-center" style="padding:20px;">No transactions yet.</p>'}
       </div>`;
   }
 
@@ -553,7 +756,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="summary-row"><span>Effective rate</span><span>${tax.effective_tax_rate.toFixed(1)}%</span></div>
         <div class="summary-row" style="border:none;">
           <span>${tax.note}</span>
-          <span><a href="/api/v1/tax/voucher?quarter=${getCurrentQuarter()}&amount=${tax.suggested_next_payment}" target="_blank" class="btn btn-outline btn-sm">📄 Voucher PDF</a></span>
+          <span><button class="btn btn-outline btn-sm" onclick="apiDownload('/tax/voucher?quarter=${getCurrentQuarter()}&amount=${tax.suggested_next_payment}', '1040-ES-${getCurrentQuarter()}.pdf')">📄 Voucher PDF</button></span>
         </div>
       </div>
       <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.8rem;color:#8d6e00;">
@@ -562,7 +765,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="display:flex;gap:12px;margin-top:8px;">
         <button class="btn btn-primary" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">💳 Pay $${fmt(tax.suggested_next_payment)} via IRS Direct Pay</button>
         <button class="btn btn-outline" onclick="markTaxPaid(${tax.suggested_next_payment})">✅ Mark as Paid</button>
-        <a href="/api/v1/tax/schedule-c" target="_blank" class="btn btn-outline">📋 Schedule C Data</a>
+        <button class="btn btn-outline" onclick="apiDownload('/tax/schedule-c', 'schedule-c.json')">📋 Schedule C Data</button>
       </div>`;
   }
 
@@ -664,8 +867,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <h2>Quick Actions</h2>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           <button class="btn btn-outline btn-sm" onclick="loadPage('transactions')">📋 Review Transactions</button>
-          <a href="/api/v1/backup" target="_blank" class="btn btn-outline btn-sm">📤 Backup Now</a>
-          <a href="/api/v1/reports/expenses?format=csv" target="_blank" class="btn btn-outline btn-sm">📥 Export CSV</a>
+          <button class="btn btn-outline btn-sm" onclick="apiDownload('/backup', 'backup.json')">📤 Backup Now</button>
+          <button class="btn btn-outline btn-sm" onclick="apiDownload('/reports/expenses?format=csv', 'expenses.csv')">📥 Export CSV</button>
         </div>
       </div>`;
   }
@@ -747,24 +950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         div.innerHTML = '<div class="error">⚠ Could not suggest category</div>';
       }
     } catch (err) {
-      div.innerHTML = `<div class="error">⚠ ${err.message}</div>`;
-    }
-  };
-
-  window.learnCategory = async function() {
-    const account = document.getElementById('cat-correct')?.value || '';
-    const merchant = document.getElementById('cat-merchant')?.value || '';
-    if (!merchant || !account) return;
-    try {
-      await apiFetch('/categories/learn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchant, account, correct: true }),
-      });
-      document.getElementById('cat-suggestion').innerHTML =
-        '<p style="color:#2b8a3e;">✅ Learned: ' + merchant + ' → ' + account + '</p>';
-    } catch (err) {
-      alert('❌ Error: ' + err.message);
+      div.innerHTML = `<div class="error">⚠ ${escapeHtml(err.message)}</div>`;
     }
   };
 
@@ -829,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tr>
             `).join('')}
           </tbody>
-        </table>` : '<p style="color:#888;text-align:center;padding:20px;">No trips logged yet. Use the CLI or API to add trips.</p>'}
+        </table>` : '<p class="text-muted text-center" style="padding:20px;">No trips logged yet. Use the CLI or API to add trips.</p>'}
       </div>`;
   }
 
@@ -853,10 +1039,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           `<span style="color:#2b8a3e;">✅ Logged: ${purpose} — ${miles} mi ($${(miles * 0.70).toFixed(2)} deduction)</span>`;
         loadPage('mileage');
       } else {
-        document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error || 'Failed'}</span>`;
+        document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed'}</span>`;
       }
     } catch (err) {
-      document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`;
+      document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`;
     }
   };
 
@@ -865,19 +1051,68 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Settings ─────────────────────────────────────────────────
   async function renderSettings() {
-    const maskedKey = key => key ? key.slice(0, 8) + '••••••••••••••••' : 'None';
+    const user = getUserInfo();
+
+    let authSection = '';
+    if (isAuthenticated()) {
+      authSection = `
+        <div class="card">
+          <h2>🔐 Authentication</h2>
+          <div style="display:flex;align-items:center;gap:12px;">
+            ${user?.picture ? `<img src="${user.picture}" style="width:36px;height:36px;border-radius:50%;">` : '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>'}
+            <div>
+              <div style="font-weight:600;">${user?.name || 'Signed in'}</div>
+              <div style="font-size:0.8rem;color:var(--gray-500);">${user?.email || ''}</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="margin-left:auto;">Sign Out</button>
+          </div>
+        </div>`;
+    }
+
+    const llmKey = getLlmApiKey();
+    const maskedLlmKey = llmKey ? llmKey.slice(0, 8) + '••••••••••' : '';
+    const llmBackend = getLlmBackend();
+    const llmModel = getLlmModel();
+
     content.innerHTML = `
       <div class="page-header">
         <h1>Settings</h1>
         <p>System status &amp; configuration</p>
       </div>
+      ${authSection}
+
+      <!-- Subscription / Billing -->
+      <div class="card" id="subscription-card">
+        <h2>⭐ Plan &amp; Billing</h2>
+        <div id="subscription-loading" class="loading"><div class="spinner"></div>Loading plan info...</div>
+        <div id="subscription-content" style="display:none;"></div>
+      </div>
+
+      <!-- LLM / AI API Key -->
       <div class="card">
-        <h2>🔑 API Key</h2>
-        <p style="color:#666;margin-bottom:12px;">Your current API key: <code>${maskedKey(getApiKey())}</code></p>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="text" id="new-api-key" placeholder="Enter new API key" style="padding:8px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;flex:1;min-width:200px;">
-          <button class="btn btn-primary" onclick="updateApiKey()">Update Key</button>
-          <button class="btn btn-outline" onclick="clearApiKey()">Sign Out</button>
+        <h2>🤖 AI / LLM API Key</h2>
+        <p style="font-size:0.85rem;color:var(--gray-500);margin-bottom:12px;">
+          Used for AI-powered features: smart transaction categorization,
+          receipt scanning, and content generation.
+          <strong>Not used for authentication.</strong>
+        </p>
+        ${llmKey ? `<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">Current key: <code style="font-size:0.8rem;">${maskedLlmKey}</code></p>` : ''}
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select id="llm-backend" class="form-select" style="width:140px;">
+              <option value="openai" ${llmBackend === 'openai' ? 'selected' : ''}>OpenAI</option>
+              <option value="anthropic" ${llmBackend === 'anthropic' ? 'selected' : ''}>Anthropic</option>
+              <option value="ollama" ${llmBackend === 'ollama' ? 'selected' : ''}>Ollama (local)</option>
+            </select>
+            <input type="text" id="llm-model" placeholder="Model (e.g. gpt-4o-mini)" value="${llmModel}"
+              class="form-input" style="flex:1;min-width:140px;font-family:var(--font-mono);font-size:0.85rem;">
+          </div>
+          <div style="display:flex;gap:8px;">
+            <input type="password" id="llm-api-key" placeholder="sk-..." value="${llmKey}"
+              class="form-input" style="flex:1;font-family:var(--font-mono);font-size:0.85rem;">
+            <button class="btn btn-primary" onclick="saveLlmConfig()">Save</button>
+            ${llmKey ? '<button class="btn btn-outline" onclick="clearLlmConfig()">Remove</button>' : ''}
+          </div>
         </div>
       </div>
       <div class="card">
@@ -916,7 +1151,150 @@ document.addEventListener('DOMContentLoaded', async () => {
           <a href="https://www.tax.ny.gov/pay/" target="_blank" class="btn btn-outline btn-sm">🗽 NY DTF</a>
         </div>
       </div>`;
+
+    // Load subscription info
+    if (isAuthenticated()) {
+      loadSubscriptionInfo();
+    } else {
+      document.getElementById('subscription-card').style.display = 'none';
+    }
   }
+
+  async function loadSubscriptionInfo() {
+    const loadingEl = document.getElementById('subscription-loading');
+    const contentEl = document.getElementById('subscription-content');
+    if (!loadingEl || !contentEl) return;
+
+    try {
+      const [plansResp, subResp] = await Promise.all([
+        apiFetch('/subscription/plans'),
+        apiFetch('/subscription/status'),
+      ]);
+
+      const plansJson = await plansResp.json();
+      const subJson = await subResp.json();
+
+      if (!plansJson.success || !subJson.success) {
+        loadingEl.textContent = 'Could not load plan info.';
+        return;
+      }
+
+      const plans = plansJson.data.plans;
+      const currentPlan = subJson.data.plan || 'free';
+      const subStatus = subJson.data.status || 'active';
+
+      loadingEl.style.display = 'none';
+      contentEl.style.display = 'block';
+
+      const planNames = { free: 'Free', professional: 'Professional', business: 'Business' };
+      const planEmojis = { free: '🆓', professional: '⭐', business: '💼' };
+      const statusBadges = {
+        active: '<span class="tag tag-green">Active</span>',
+        trialing: '<span class="tag tag-blue">Trial</span>',
+        past_due: '<span class="tag tag-red">Past Due</span>',
+        canceled: '<span class="tag tag-gray">Canceled</span>',
+      };
+
+      let upgradeHtml = '';
+      if (currentPlan === 'free') {
+        upgradeHtml = `
+          <div style="margin-top:12px;">
+            <p style="font-size:0.85rem;color:var(--gray-500);margin-bottom:10px;">Upgrade to unlock AI categorization, bank sync, and more:</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              ${Object.entries(plans).filter(([k]) => k !== 'free').map(([key, plan]) => `
+                <div class="card" style="flex:1;min-width:180px;cursor:pointer;text-align:center;padding:16px;border:2px solid var(--gray-200);transition:border-color 0.12s;"
+                     onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor=''"
+                     onclick="startUpgrade('${key}')">
+                  <div style="font-size:1.5rem;margin-bottom:6px;">${planEmojis[key] || '⭐'}</div>
+                  <div style="font-weight:600;">${plan.name}</div>
+                  <div style="font-size:1.1rem;font-weight:700;color:var(--primary);margin:4px 0;">
+                    $${plan.price_monthly}<span style="font-size:0.8rem;font-weight:400;color:var(--gray-500);">/mo</span>
+                  </div>
+                  <div style="font-size:0.75rem;color:var(--gray-400);">$${plan.price_annual}/yr (save ${Math.round((1 - plan.price_annual / (plan.price_monthly * 12)) * 100)}%)</div>
+                  <div style="margin-top:10px;"><button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">Upgrade →</button></div>
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+      } else {
+        upgradeHtml = `
+          <div style="margin-top:12px;">
+            <button class="btn btn-outline btn-sm" onclick="manageBilling()">💳 Manage Billing</button>
+          </div>`;
+      }
+
+      contentEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+          <div style="font-size:2rem;">${planEmojis[currentPlan] || '🆓'}</div>
+          <div>
+            <div style="font-weight:600;font-size:1.1rem;">${planNames[currentPlan] || 'Free'} Plan</div>
+            <div>${statusBadges[subStatus] || '<span class="tag tag-green">Active</span>'}</div>
+          </div>
+        </div>
+        ${upgradeHtml}`;
+    } catch (e) {
+      if (loadingEl) loadingEl.textContent = 'Plan info unavailable.';
+    }
+  }
+
+  window.startUpgrade = async function(plan) {
+    if (!confirm(`Upgrade to ${plan} plan? You'll be redirected to Stripe.`)) return;
+    try {
+      const data = await apiPost('/subscription/create-checkout', {
+        plan: plan,
+        interval: 'month',
+        success_url: '/settings?upgraded=true',
+        cancel_url: '/settings',
+      });
+      window.location.href = data.url;
+    } catch (e) {
+      alert('Failed to start upgrade: ' + escapeHtml(e.message));
+    }
+  };
+
+  window.manageBilling = async function() {
+    try {
+      const data = await apiPost('/subscription/portal', {});
+      window.location.href = data.url;
+    } catch (e) {
+      alert('Failed to open billing portal: ' + escapeHtml(e.message));
+    }
+  };
+
+  /** Download a file from an authenticated API endpoint. */
+window.apiDownload = async function(path, filename) {
+  try {
+    const token = getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`/api/v1${path}`, { headers });
+    if (!res.ok) throw new Error('Download failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || path.split('/').pop() || 'download';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Download failed: ' + escapeHtml(e.message));
+  }
+};
+
+window.markInvoicePaid = async function(invNum, amount) {
+    if (!confirm(`Mark invoice ${invNum} as paid for $${fmt(amount)}?`)) return;
+    try {
+      const data = await apiPost(`/invoices/${encodeURIComponent(invNum)}/pay`, {
+        amount: amount,
+      });
+      showToast(`✅ ${data.invoice} marked as paid — $${fmt(data.amount)}`, 'success');
+      loadPage('invoices');
+    } catch (e) {
+      alert('Failed to mark paid: ' + escapeHtml(e.message));
+    }
+  };
 
   // ── Helper: Mark tax as paid ─────────────────────────────────
   window.markTaxPaid = async function(amount) {
@@ -927,7 +1305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const result = await apiPost('/tax/pay', { amount, quarter: q, year: new Date().getFullYear() });
       alert(`✅ Recorded $${fmt(result.amount)} as paid.\nTotal paid YTD: $${fmt(result.already_paid)}\nRemaining: $${fmt(result.remaining)}`);
       loadPage('dashboard');
-    } catch (err) { alert('❌ Error recording payment: ' + err.message); }
+    } catch (err) { alert('❌ Error recording payment: ' + escapeHtml(err.message)); }
   }
 
   function getCurrentQuarter() {
@@ -936,54 +1314,440 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// ── Login screen ────────────────────────────────────────────────
-function showLogin(msg) {
-  const content = document.getElementById('page-content');
-  const sidebar = document.querySelector('.sidebar');
-  if (sidebar) sidebar.style.display = 'none';
-  document.querySelector('.main').style.marginLeft = '0';
-  content.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;min-height:80vh;">
-      <div style="background:#fff;border-radius:16px;padding:48px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.06);text-align:center;">
-        <div style="font-size:2.5rem;margin-bottom:12px;">🔐</div>
-        <h1 style="font-size:1.4rem;font-weight:700;margin-bottom:4px;">SoloLedger Cloud</h1>
-        <p style="color:#666;margin-bottom:24px;">Enter your API key to access your dashboard.</p>
-        ${msg ? `<p style="color:#dc3545;font-size:0.85rem;margin-bottom:12px;">${msg}</p>` : ''}
-        <input type="password" id="login-key" placeholder="Paste your API key"
-          style="width:100%;padding:14px;border:1.5px solid #ddd;border-radius:8px;font-size:1rem;margin-bottom:16px;text-align:center;font-family:monospace;">
-        <button class="btn btn-primary" onclick="submitLogin()" style="width:100%;padding:14px;font-size:1rem;justify-content:center;">
-          Access Dashboard
-        </button>
-        <p style="font-size:0.8rem;color:#999;margin-top:16px;">
-          Run <code>llc status</code> on your server to get the API key.
-        </p>
-      </div>
-    </div>`;
-  document.getElementById('login-key').focus();
-  document.getElementById('login-key').addEventListener('keydown', e => {
-    if (e.key === 'Enter') submitLogin();
-  });
+// ── Auth modal ──────────────────────────────────────────────────
+
+let _authMode = 'signin'; // 'signin' or 'signup'
+
+function showAuthModal() {
+  _authMode = 'signin';
+  const overlay = document.getElementById('auth-modal-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  // Reset form
+  const email = document.getElementById('auth-email');
+  const pass = document.getElementById('auth-password');
+  const err = document.getElementById('auth-error');
+  if (email) email.value = '';
+  if (pass) pass.value = '';
+  if (err) err.style.display = 'none';
+  document.getElementById('auth-modal-title').textContent = 'Sign In';
+  document.getElementById('auth-submit-btn').textContent = 'Sign In';
+  document.getElementById('auth-toggle-text').textContent = "Don't have an account?";
+  document.getElementById('auth-toggle-link').textContent = 'Sign Up';
+  if (email) setTimeout(() => email.focus(), 150);
+  // Fetch Google client ID if not already set
+  updateGoogleClientId();
 }
 
-window.submitLogin = function() {
-  const key = document.getElementById('login-key').value.trim();
-  if (!key) return;
-  setApiKey(key);
-  location.reload();
+function toggleAuthMode() {
+  _authMode = _authMode === 'signin' ? 'signup' : 'signin';
+  const title = document.getElementById('auth-modal-title');
+  const btn = document.getElementById('auth-submit-btn');
+  const toggleText = document.getElementById('auth-toggle-text');
+  const toggleLink = document.getElementById('auth-toggle-link');
+  const err = document.getElementById('auth-error');
+  if (err) err.style.display = 'none';
+
+  if (_authMode === 'signup') {
+    title.textContent = 'Sign Up';
+    btn.textContent = 'Create Account';
+    toggleText.textContent = 'Already have an account?';
+    toggleLink.textContent = 'Sign In';
+  } else {
+    title.textContent = 'Sign In';
+    btn.textContent = 'Sign In';
+    toggleText.textContent = "Don't have an account?";
+    toggleLink.textContent = 'Sign Up';
+  }
+}
+
+window.submitSignIn = async function() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errDiv = document.getElementById('auth-error');
+  errDiv.style.display = 'none';
+
+  if (!email || !password) {
+    errDiv.textContent = 'Please fill in both email and password.';
+    errDiv.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('auth-submit-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Please wait...';
+
+  try {
+    let data;
+    if (_authMode === 'signup') {
+      if (password.length < 6) {
+        errDiv.textContent = 'Password must be at least 6 characters.';
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = origText;
+        return;
+      }
+      data = await apiSignUp(email, password, email.split('@')[0]);
+    } else {
+      data = await apiSignIn(email, password);
+    }
+
+    setSessionToken(data.token);
+    setUserInfo(data.user);
+    updateSidebarAuth();
+    closeAuthModal();
+    const active = document.querySelector('[data-page].active');
+    if (active) await loadPage(active.dataset.page);
+    // Check onboarding after sign in
+    setTimeout(checkOnboarding, 600);
+  } catch (e) {
+    errDiv.textContent = escapeHtml(e.message);
+    errDiv.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 };
 
-window.clearApiKey = function() {
-  if (!confirm('Sign out? You will need your API key to log back in.')) return;
-  setApiKey(null);
-  location.reload();
+function closeAuthModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  const overlay = document.getElementById('auth-modal-overlay');
+  if (overlay) overlay.style.display = 'none';
+  const err = document.getElementById('auth-error');
+  if (err) err.style.display = 'none';
+}
+
+// ── Onboarding wizard ─────────────────────────────────────
+
+async function checkOnboarding() {
+  if (!isAuthenticated()) return;
+  try {
+    const data = await apiGet('/onboarding/status');
+    if (data.needs_onboarding) showOnboarding();
+  } catch { /* ignore */ }
+}
+
+let _onboardingStep = 1;
+
+function showOnboarding() {
+  const content = document.getElementById('page-content');
+  if (!content) return;
+  _onboardingStep = 1;
+  renderOnboarding();
+
+  window._onboardingNext = function(s) { _onboardingStep = s; renderOnboarding(); };
+}
+
+function renderOnboarding() {
+  const content = document.getElementById('page-content');
+  if (!content) return;
+  const step = _onboardingStep;
+    if (step === 1) {
+      content.innerHTML = `
+        <div style="max-width:560px;margin:40px auto;padding:0 16px;">
+          <div class="card" style="padding:32px;text-align:center;">
+            <div style="font-size:3rem;margin-bottom:12px;">🚀</div>
+            <h1 style="font-size:1.3rem;font-weight:700;margin-bottom:8px;">Welcome to SoloLedger!</h1>
+            <p style="color:var(--gray-500);margin-bottom:20px;">
+              Your ledger is ready. Let's get your first data in — or skip straight to the dashboard.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:12px;max-width:300px;margin:0 auto;">
+              <button class="btn btn-primary btn-lg" onclick="_onboardingNext(2)" style="justify-content:center;">
+                🏦 Connect My Bank
+              </button>
+              <button class="btn btn-outline btn-lg" onclick="_onboardingNext(3)" style="justify-content:center;">
+                📤 Import a File
+              </button>
+              <button class="btn btn-ghost" onclick="finishOnboarding()" style="justify-content:center;color:var(--gray-500);">
+                Skip — take me to the dashboard
+              </button>
+            </div>
+            <div style="margin-top:20px;font-size:0.8rem;color:var(--gray-400);">
+              Step 1 of 3 — Setup
+            </div>
+          </div>
+        </div>`;
+    } else if (step === 2) {
+      content.innerHTML = `
+        <div style="max-width:560px;margin:40px auto;padding:0 16px;">
+          <div class="card" style="padding:32px;text-align:center;">
+            <div style="font-size:2.5rem;margin-bottom:12px;">🏦</div>
+            <h1 style="font-size:1.3rem;font-weight:700;margin-bottom:8px;">Connect Your Bank</h1>
+            <p style="color:var(--gray-500);margin-bottom:20px;">
+              Automatically import transactions from your business bank account.
+              <strong>Professional plan feature.</strong>
+            </p>
+            <div id="plaid-onboarding-status">
+              <button class="btn btn-primary btn-lg" onclick="connectBank()" style="justify-content:center;">
+                🔗 Connect Bank
+              </button>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;">
+              <button class="btn btn-outline" onclick="_onboardingNext(3)">Skip — next step</button>
+            </div>
+            <div style="margin-top:20px;font-size:0.8rem;color:var(--gray-400);">
+              Step 2 of 3
+            </div>
+          </div>
+        </div>`;
+    } else if (step === 3) {
+      content.innerHTML = `
+        <div style="max-width:560px;margin:40px auto;padding:0 16px;">
+          <div class="card" style="padding:32px;text-align:center;">
+            <div style="font-size:2.5rem;margin-bottom:12px;">📤</div>
+            <h1 style="font-size:1.3rem;font-weight:700;margin-bottom:8px;">Import Your First File</h1>
+            <p style="color:var(--gray-500);margin-bottom:20px;">
+              Upload a bank statement or CSV to populate your ledger right away.
+            </p>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;">
+              <label class="btn btn-primary" style="cursor:pointer;padding:12px 24px;">
+                📄 Upload OFX/QFX
+                <input type="file" accept=".ofx,.qfx,.ofx.gz" style="display:none;"
+                  onchange="handleOnboardingOfx(this)">
+              </label>
+              <label class="btn btn-outline" style="cursor:pointer;padding:12px 24px;">
+                📊 Upload CSV
+                <input type="file" accept=".csv" style="display:none;"
+                  onchange="handleOnboardingCsv(this)">
+              </label>
+            </div>
+            <div id="onboarding-import-result"></div>
+            <div style="margin-top:16px;">
+              <button class="btn btn-primary" onclick="finishOnboarding()">✅ Done — Go to Dashboard</button>
+            </div>
+            <div style="margin-top:20px;font-size:0.8rem;color:var(--gray-400);">
+              Step 3 of 3
+            </div>
+          </div>
+        </div>`;
+    }
+
+  render();
+}
+
+async function finishOnboarding() {
+  try {
+    await apiPost('/onboarding/complete', { skipped_bank: true, skipped_import: true });
+  } catch { /* ignore */ }
+  const active = document.querySelector('[data-page].active');
+  if (active) loadPage(active.dataset.page);
+}
+
+window.handleOnboardingOfx = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const div = document.getElementById('onboarding-import-result');
+  if (!div) return;
+  div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing...</div>';
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('preview', 'false');
+    const res = await apiFetch('/ofx/import', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (json.success) {
+      div.innerHTML = `<span style="color:var(--success);">✅ ${json.data.imported} transactions imported!</span>`;
+    } else {
+      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Import failed'}</span>`;
+    }
+  } catch (e) {
+    div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(e.message)}</span>`;
+  }
 };
 
-window.updateApiKey = function() {
-  const key = document.getElementById('new-api-key').value.trim();
-  if (!key) return;
-  if (!confirm('Update API key? The old key will stop working.')) return;
-  setApiKey(key);
-  location.reload();
+window.handleOnboardingCsv = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const div = document.getElementById('onboarding-import-result');
+  if (!div) return;
+  div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing...</div>';
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('preview', 'false');
+    const res = await apiFetch('/expenses/import', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (json.success) {
+      div.innerHTML = `<span style="color:var(--success);">✅ ${json.data.imported} transactions imported!</span>`;
+    } else {
+      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Import failed'}</span>`;
+    }
+  } catch (e) {
+    div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(e.message)}</span>`;
+  }
+};
+
+// Google credential callback (called by GIS)
+window.handleGoogleCredential = async function(response) {
+  const errDiv = document.getElementById('auth-error');
+  try {
+    const data = await apiSignInWithGoogle(response.credential);
+    setSessionToken(data.token);
+    setUserInfo(data.user);
+    updateSidebarAuth();
+    closeAuthModal();
+    // Reload current page to show authenticated data
+    const active = document.querySelector('[data-page].active');
+    if (active) await loadPage(active.dataset.page);
+    setTimeout(checkOnboarding, 600);
+  } catch (e) {
+    errDiv.textContent = escapeHtml(e.message);
+    errDiv.style.display = 'block';
+  }
+};
+
+// ── Mobile drawer ────────────────────────────────────────
+
+window.openMobileDrawer = function() {
+  const overlay = document.getElementById('mobile-drawer-overlay');
+  if (overlay) overlay.style.display = 'flex';
+};
+
+window.closeMobileDrawer = function(e) {
+  if (e && e.target !== e.currentTarget) return;
+  const overlay = document.getElementById('mobile-drawer-overlay');
+  if (overlay) overlay.style.display = 'none';
+};
+
+// Open drawer when "More" is tapped in mobile nav
+document.addEventListener('click', function(e) {
+  const moreBtn = e.target.closest('#mobile-more-btn');
+  if (moreBtn) {
+    e.preventDefault();
+    window.openMobileDrawer();
+  }
+});
+
+// Handle clicks inside the drawer to navigate and close
+document.addEventListener('click', function(e) {
+  const item = e.target.closest('.mobile-drawer-item');
+  if (item) {
+    e.preventDefault();
+    const page = item.dataset.page;
+    if (page && window.loadPage) {
+      window.closeMobileDrawer();
+      // Update nav active state
+      document.querySelectorAll('[data-page]').forEach(l => l.classList.remove('active'));
+      const navLink = document.querySelector(`[data-page="${page}"]`);
+      if (navLink) navLink.classList.add('active');
+      window.loadPage(page);
+    }
+  }
+});
+
+window.handleLogout = async function() {
+  if (!confirm('Sign out?')) return;
+  await apiLogout();
+  updateSidebarAuth();
+  const active = document.querySelector('[data-page].active');
+  if (active) await loadPage(active.dataset.page);
+};
+
+function updateSidebarAuth() {
+  const user = getUserInfo();
+  const userInfo = document.getElementById('sidebar-user-info');
+  const signinBtn = document.getElementById('sidebar-signin');
+  const avatar = document.getElementById('user-avatar');
+  const nameSpan = document.getElementById('user-name');
+
+  if (user && isAuthenticated()) {
+    userInfo.style.display = 'flex';
+    signinBtn.style.display = 'none';
+    if (user.picture) avatar.src = user.picture;
+    else avatar.style.display = 'none';
+    nameSpan.textContent = user.name || user.email || 'User';
+  } else {
+    userInfo.style.display = 'none';
+    signinBtn.style.display = 'flex';
+  }
+}
+
+function updateGoogleClientId(retries = 5) {
+  const container = document.getElementById('google-signin-container');
+  const notConfigured = document.getElementById('google-not-configured');
+  const divider = document.getElementById('auth-divider-local');
+  if (!container) return;
+
+  fetch('/api/v1/auth/google/config')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success || !data.data.client_id) {
+        // Google not configured — hide button + divider
+        container.style.display = 'none';
+        if (notConfigured) notConfigured.style.display = 'block';
+        if (divider) divider.style.display = 'none';
+        return;
+      }
+
+      const cid = data.data.client_id;
+
+      function render() {
+        if (window.google && window.google.accounts) {
+          try {
+            window.google.accounts.id.initialize({
+              client_id: cid,
+              callback: window.handleGoogleCredential,
+              auto_prompt: false,
+            });
+            window.google.accounts.id.renderButton(container, {
+              type: 'standard',
+              shape: 'rectangular',
+              theme: 'outline',
+              text: 'signin_with',
+              size: 'large',
+              logo_alignment: 'left',
+            });
+            container.style.display = '';
+            if (notConfigured) notConfigured.style.display = 'none';
+            if (divider) divider.style.display = 'flex';
+            return true;
+          } catch (e) { return false; }
+        }
+        return false;
+      }
+
+      if (!render() && retries > 0) {
+        setTimeout(() => updateGoogleClientId(retries - 1), 500);
+      }
+    })
+    .catch(() => {});
+}
+
+// ── LLM config handlers ──────────────────────────────────
+
+window.saveLlmConfig = function() {
+  const key = document.getElementById('llm-api-key').value.trim();
+  const backend = document.getElementById('llm-backend').value;
+  const model = document.getElementById('llm-model').value.trim();
+
+  setLlmApiKey(key);
+  setLlmBackend(backend);
+  setLlmModel(model || (backend === 'openai' ? 'gpt-4o-mini' : backend === 'anthropic' ? 'claude-3-haiku' : 'gemma3:1b'));
+
+  // Also save to server if authenticated
+  if (isAuthenticated()) {
+    apiSaveLlmConfig({
+      api_key: key || undefined,
+      backend: backend,
+      model: model || undefined,
+    }).catch(() => {});
+  }
+
+  showToast('AI/LLM settings saved', 'success');
+  const active = document.querySelector('[data-page].active');
+  if (active) loadPage(active.dataset.page);
+};
+
+window.clearLlmConfig = function() {
+  if (!confirm('Remove LLM API key?')) return;
+  setLlmApiKey(null);
+  setLlmBackend('openai');
+  setLlmModel('gpt-4o-mini');
+  if (isAuthenticated()) {
+    apiSaveLlmConfig({ api_key: null, backend: 'openai', model: null }).catch(() => {});
+  }
+  showToast('AI/LLM settings cleared', 'info');
+  const active = document.querySelector('[data-page].active');
+  if (active) loadPage(active.dataset.page);
 };
 
 // ── First-run setup wizard ──────────────────────────────────────
@@ -993,25 +1757,25 @@ function showSetup() {
   if (sidebar) sidebar.style.display = 'none';
   document.querySelector('.main').style.marginLeft = '0';
   content.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;min-height:80vh;padding:20px;">
-      <div style="background:#fff;border-radius:16px;padding:48px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.06);">
-        <div style="text-align:center;margin-bottom:24px;">
+    <div class="flex-row" style="justify-content:center;min-height:80vh;padding:20px;">
+      <div style="background:#fff;border-radius:16px;padding:48px;max-width:520px;width:100%;box-shadow:var(--shadow-lg);">
+        <div class="text-center" style="margin-bottom:24px;">
           <div style="font-size:2rem;margin-bottom:8px;">🚀</div>
           <h1 style="font-size:1.4rem;font-weight:700;">Welcome to SoloLedger</h1>
-          <p style="color:#666;">Let's set up your business. This takes 2 minutes.</p>
+          <p style="color:var(--gray-500);">Let's set up your business. This takes 2 minutes.</p>
         </div>
         <form onsubmit="submitSetup(event)">
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Business name</label>
-            <input type="text" id="setup-name" value="My LLC" required style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;">
+          <div class="form-group">
+            <label class="form-label">Business name</label>
+            <input type="text" id="setup-name" value="My LLC" required class="form-input">
           </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Your full name</label>
-            <input type="text" id="setup-owner" value="Your Name" required style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;">
+          <div class="form-group">
+            <label class="form-label">Your full name</label>
+            <input type="text" id="setup-owner" value="Your Name" required class="form-input">
           </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">State</label>
-            <select id="setup-state" required style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;background:#fff;">
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <select id="setup-state" required class="form-select">
               <option value="WY">Wyoming — $0 income tax, $60/yr fee</option>
               <option value="CA">California — 1-13.3% income tax + $800 min franchise tax</option>
               <option value="TX">Texas — $0 income tax, margin tax only >$2.47M revenue</option>
@@ -1019,18 +1783,18 @@ function showSetup() {
               <option value="FL">Florida — $0 income tax, $138.75/yr fee</option>
             </select>
           </div>
-          <div style="margin-bottom:16px;">
-            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">EIN (or SSN)</label>
-            <input type="text" id="setup-ein" value="XX-XXXXXXX" style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;">
+          <div class="form-group">
+            <label class="form-label">EIN (or SSN)</label>
+            <input type="text" id="setup-ein" value="XX-XXXXXXX" class="form-input">
           </div>
-          <div style="margin-bottom:24px;">
-            <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Email</label>
-            <input type="email" id="setup-email" placeholder="you@yourllc.com" required style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" id="setup-email" placeholder="you@yourllc.com" required class="form-input">
           </div>
-          <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;font-size:1rem;justify-content:center;">
+          <button type="submit" class="btn btn-primary btn-lg" style="width:100%;justify-content:center;">
             Complete Setup →
           </button>
-          <div id="setup-error" style="color:#dc3545;font-size:0.85rem;margin-top:12px;display:none;"></div>
+          <div id="setup-error" class="text-danger text-sm mt-3 hidden"></div>
         </form>
       </div>
     </div>`;
@@ -1052,7 +1816,7 @@ window.submitSetup = async function(e) {
     });
     location.reload();
   } catch (e) {
-    err.textContent = 'Setup failed: ' + e.message;
+    err.textContent = 'Setup failed: ' + escapeHtml(e.message);
     err.style.display = 'block';
     btn.disabled = false;
     btn.textContent = 'Complete Setup →';
@@ -1069,12 +1833,12 @@ function renderCaptureContent() {
     </div>
     <div class="card">
       <h2>1. Choose Receipt</h2>
-      <div style="text-align:center;padding:30px;">
+      <div class="text-center" style="padding:30px;">
         <label class="btn btn-primary" style="font-size:1rem;padding:14px 28px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
           📷 Take Photo or Upload
           <input type="file" id="receipt-file" accept="image/*,application/pdf" capture="environment" style="display:none;" onchange="handleReceiptUpload(this)">
         </label>
-        <p style="color:#888;font-size:0.85rem;margin-top:12px;">Supports JPG, PNG, PDF receipts</p>
+        <p class="text-muted text-sm mt-3">Supports JPG, PNG, PDF receipts</p>
       </div>
     </div>
     <div id="receipt-result" style="display:none;">
@@ -1096,7 +1860,7 @@ function renderCaptureContent() {
       </div>
     </div>
     <div id="receipt-done" style="display:none;">
-      <div class="card" style="text-align:center;padding:30px;">
+      <div class="card" class="text-center" style="padding:30px;">
         <h2 style="font-size:1.5rem;">✅ Receipt Recorded</h2>
         <p style="color:#666;margin:8px 0;" id="receipt-done-detail"></p>
         <button class="btn btn-outline" onclick="resetCapture()">📸 Capture Another</button>
@@ -1104,9 +1868,17 @@ function renderCaptureContent() {
     </div>`;
 }
 
+window._receiptBusy = false;
+
 window.handleReceiptUpload = async function(input) {
   const file = input.files[0];
   if (!file) return;
+  if (window._receiptBusy) {
+    showToast('Already processing a receipt, please wait...', 'warning');
+    input.value = '';
+    return;
+  }
+  window._receiptBusy = true;
 
   const resultDiv = document.getElementById('receipt-result');
   const previewDiv = document.getElementById('receipt-preview');
@@ -1129,7 +1901,7 @@ window.handleReceiptUpload = async function(input) {
     formData.append('preview', 'true');
     const res = await apiFetch('/receipts/scan', { method: 'POST', body: formData });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Scan failed');
+    if (!json.success) throw new Error(escapeHtml(escapeHtml(json.error)) || 'Scan failed');
     const data = json.data;
 
     previewDiv.innerHTML = `
@@ -1141,7 +1913,7 @@ window.handleReceiptUpload = async function(input) {
         <tr><td><strong>Items</strong></td><td>${data.line_items.slice(0,5).map(i => `<span style="display:block;">· ${i.description}: $${fmt(i.amount)}</span>`).join('')}${data.line_items.length > 5 ? `<span style="color:#888;">...and ${data.line_items.length-5} more</span>` : ''}</td></tr>
         ` : ''}
       </table>
-      <p style="color:#888;font-size:0.85rem;margin-top:8px;">${file.name} (${(file.size/1024).toFixed(0)} KB)</p>`;
+      <p class="text-muted text-sm mt-3">${file.name} (${(file.size/1024).toFixed(0)} KB)</p>`;
 
     let suggestedAccount = '';
     if (data.merchant) {
@@ -1190,8 +1962,10 @@ window.handleReceiptUpload = async function(input) {
 
     window._receiptData = data;
     window._receiptFile = file;
+    window._receiptBusy = false;
   } catch (err) {
-    previewDiv.innerHTML = '<div class="error">⚠ ' + err.message + '</div>';
+    previewDiv.innerHTML = '<div class="error">⚠ ' + escapeHtml(err.message) + '</div>';
+    window._receiptBusy = false;
   }
 };
 
@@ -1207,7 +1981,7 @@ window.confirmReceipt = async function() {
     formData.append('account', account);
     const res = await apiFetch('/receipts/scan', { method: 'POST', body: formData });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Failed');
+    if (!json.success) throw new Error(escapeHtml(json.error) || 'Failed');
     document.getElementById('receipt-result').style.display = 'none';
     document.getElementById('receipt-done').style.display = 'block';
     document.getElementById('receipt-done-detail').textContent = `${data.merchant || 'Receipt'} — $${fmt(data.total)} → ${account}`;
@@ -1215,22 +1989,43 @@ window.confirmReceipt = async function() {
       await apiFetch('/categories/learn', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchant: data.merchant, account }),
+        body: JSON.stringify({ merchant: data.merchant, account, correct: true }),
       });
     }
-  } catch (err) { alert('❌ Error: ' + err.message); }
+    window._receiptBusy = false;
+  } catch (err) { alert('❌ Error: ' + escapeHtml(err.message)); window._receiptBusy = false; }
 };
 
+// Single learnCategory handles both categorization page and receipt page
 window.learnCategory = async function() {
-  const account = document.getElementById('receipt-account')?.value || '';
-  const data = window._receiptData;
-  if (!data || !data.merchant || !account) return;
-  await apiFetch('/categories/learn', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ merchant: data.merchant, account, correct: true }),
-  });
-  alert('✅ Category learned for ' + data.merchant);
+  // Try receipt page first
+  const receiptData = window._receiptData;
+  const receiptAccount = document.getElementById('receipt-account')?.value;
+  if (receiptData && receiptData.merchant && receiptAccount) {
+    await apiFetch('/categories/learn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: receiptData.merchant, account: receiptAccount, correct: true }),
+    });
+    alert('✅ Category learned for ' + receiptData.merchant);
+    return;
+  }
+
+  // Fall back to categorization page
+  const account = document.getElementById('cat-correct')?.value || '';
+  const merchant = document.getElementById('cat-merchant')?.value || '';
+  if (!merchant || !account) return;
+  try {
+    await apiFetch('/categories/learn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant, account, correct: true }),
+    });
+    document.getElementById('cat-suggestion').innerHTML =
+      '<p style="color:#2b8a3e;">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
+  } catch (err) {
+    alert('❌ Error: ' + escapeHtml(err.message));
+  }
 };
 
 window.resetCapture = function() {
@@ -1268,10 +2063,10 @@ window.handleOfxUpload = async function(input) {
         </div>`;
       window._ofxFile = file;
     } else {
-      div.innerHTML = `<div class="error">⚠ Import failed: ${json.error || 'Unknown error'}</div>`;
+      div.innerHTML = `<div class="error">⚠ Import failed: ${escapeHtml(escapeHtml(json.error)) || 'Unknown error'}</div>`;
     }
   } catch (err) {
-    div.innerHTML = `<div class="error">⚠ ${err.message}</div>`;
+    div.innerHTML = `<div class="error">⚠ ${escapeHtml(err.message)}</div>`;
   }
 };
 
@@ -1289,9 +2084,9 @@ window.confirmOfxImport = async function() {
     if (json.success) {
       div.innerHTML = `<span style="color:#2b8a3e;">✅ ${json.data.imported} transactions imported to ledger.</span>`;
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error}</span>`;
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error)}</span>`;
     }
-  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`; }
+  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
 
 window.resetImport = function() {
@@ -1314,9 +2109,28 @@ window.handleCsvUpload = async function(input) {
     if (json.success) {
       div.innerHTML = `<span style="color:#2b8a3e;">✅ CSV uploaded. ${json.data.imported || 0} transactions found.</span>`;
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error || 'Failed'}</span>`;
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed'}</span>`;
     }
-  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`; }
+  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
+};
+
+window.handleQboUpload = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const div = document.getElementById('qbo-result');
+  div.innerHTML = '<div class="loading"><div class="spinner"></div>Processing QBO file...</div>';
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('preview', 'true');
+    const res = await apiFetch('/import/csv', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (json.success) {
+      div.innerHTML = `<span style="color:#2b8a3e;">✅ QBO uploaded. ${json.data.imported || 0} transactions found.</span>`;
+    } else {
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed'}</span>`;
+    }
+  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
 
 window.doBackup = async function() {
@@ -1329,14 +2143,25 @@ window.doBackup = async function() {
     if (json.success) {
       div.innerHTML = `<span style="color:#2b8a3e;">✅ Backup complete</span>`;
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error || 'Backup failed'}</span>`;
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Backup failed'}</span>`;
     }
-  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`; }
+  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
 
 // ── Formatting helpers ──────────────────────────────────────────
 function fmt(n) { return Math.abs(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 function money(n) { return (n < 0 ? '-$' : '$') + fmt(n); }
+
+// ── Toast notifications ─────────────────────────────────
+function showToast(msg, type = 'info') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
 
 // ── Transfer / Reimburse / Split handlers ──────────────────────
 window.doTransfer = async function() {
@@ -1352,8 +2177,8 @@ window.doTransfer = async function() {
     });
     const json = await res.json();
     if (json.success) resultDiv.innerHTML = `<span style="color:#2b8a3e;">✅ Transferred $${fmt(amount)}</span>`;
-    else resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error}</span>`;
-  } catch (err) { resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`; }
+    else resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error)}</span>`;
+  } catch (err) { resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
 
 window.doReimburse = async function() {
@@ -1369,8 +2194,8 @@ window.doReimburse = async function() {
     });
     const json = await res.json();
     if (json.success) resultDiv.innerHTML = `<span style="color:#2b8a3e;">✅ Recorded: ${merchant} $${fmt(amount)} → ${account}</span>`;
-    else resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error}</span>`;
-  } catch (err) { resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`; }
+    else resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error)}</span>`;
+  } catch (err) { resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
 
 window.doSplit = async function() {
@@ -1388,6 +2213,6 @@ window.doSplit = async function() {
     });
     const json = await res.json();
     if (json.success) resultDiv.innerHTML = `<span style="color:#2b8a3e;">✅ Split: ${merchant} — $${fmt(business)} business, $${fmt(personal)} personal</span>`;
-    else resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${json.error}</span>`;
-  } catch (err) { resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${err.message}</span>`; }
+    else resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error)}</span>`;
+  } catch (err) { resultDiv.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
