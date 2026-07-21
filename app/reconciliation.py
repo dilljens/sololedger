@@ -93,8 +93,9 @@ class Reconciliation:
                     "account": account,
                     "status": status,
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"⚠ Failed to process uncleared txn: {e}", file=sys.stderr)
 
         uncleared.sort(key=lambda t: t["date"], reverse=True)
         return uncleared
@@ -154,8 +155,9 @@ class Reconciliation:
             if entries:
                 last = sorted(entries, key=lambda e: e["date"], reverse=True)[0]
                 return datetime.date.fromisoformat(last["date"])
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"⚠ Failed to load reconciliation history: {e}", file=sys.stderr)
         return None
 
     def _log_completion(self, date: datetime.date, account: str, balance: Decimal):

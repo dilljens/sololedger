@@ -130,6 +130,8 @@ def _call_ollama(model: str, prompt: str, system: str, timeout: int) -> Optional
     except ImportError:
         return None
     except Exception as e:
+        import sys
+        print(f"⚠ Ollama call failed: {e}", file=sys.stderr)
         return None
 
 
@@ -158,6 +160,8 @@ def _call_openai(model: str, prompt: str, system: str, timeout: int) -> Optional
     except ImportError:
         return None
     except Exception as e:
+        import sys
+        print(f"⚠ OpenAI call failed: {e}", file=sys.stderr)
         return None
 
 
@@ -186,6 +190,8 @@ def _call_anthropic(model: str, prompt: str, system: str, timeout: int) -> Optio
     except ImportError:
         return None
     except Exception as e:
+        import sys
+        print(f"⚠ Anthropic call failed: {e}", file=sys.stderr)
         return None
 
 
@@ -269,7 +275,9 @@ class LlmCategorizer:
                 return False
             models = resp.json().get("models", [])
             return any(m.get("name", "").startswith(self._model) for m in models)
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"⚠ Ollama health check failed: {e}", file=sys.stderr)
             return False
 
     def suggest(

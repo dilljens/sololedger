@@ -69,8 +69,8 @@ class OfxParser:
             raw_amount = self._extract(block, r"<TRNAMT>(.*?)</TRNAMT>", "0")
             try:
                 ofx_amount = Decimal(raw_amount.strip())
-            except Exception:
-                ofx_amount = Decimal("0")
+        except (ValueError, TypeError):
+            ofx_amount = Decimal("0")
 
             # Negate: OFX positive inflow → our negative (credit)
             # OFX negative outflow → our positive (debit)
@@ -243,8 +243,9 @@ class OfxImporter:
             suggested = cat.suggest(payee)
             if suggested:
                 return {"account": suggested, "method": "categorizer"}
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"⚠ Categorizer failed for '{payee}': {e}", file=sys.stderr)
 
         # Keyword fallback
         if "INTEREST" in upper or "DIVIDEND" in upper:

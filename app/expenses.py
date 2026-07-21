@@ -151,7 +151,7 @@ class ExpenseImporter:
             raw = "-" + raw[1:-1]
         try:
             return Decimal(raw)
-        except Exception:
+        except (ValueError, TypeError):
             return Decimal("0")
 
     def _categorize_expense(self, desc: str) -> str:

@@ -149,7 +149,9 @@ class TaxEstimator:
                     "annual_llc_fee": 0,
                 }
             return calc.calculate_all(net_profit, total_revenue, adjusted_net)
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"⚠ State tax calculation failed: {e}", file=sys.stderr)
             return {
                 "state_code": self.state_code,
                 "total_state_tax": Decimal("0"),

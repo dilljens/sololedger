@@ -141,8 +141,9 @@ class TimeTracker:
             if r.ok:
                 for p in r.json():
                     projects[p["id"]] = p["name"]
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"⚠ Toggl project fetch failed: {e}", file=sys.stderr)
 
         entries = []
         for raw in raw_entries:
@@ -222,8 +223,9 @@ class TimeTracker:
             if r.ok:
                 for p in r.json():
                     projects[p["id"]] = p.get("name", "Unknown")
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"⚠ Clockify project fetch failed: {e}", file=sys.stderr)
 
         entries = []
         for raw in raw_entries:
@@ -256,7 +258,7 @@ class TimeTracker:
             return None
         try:
             return datetime.datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        except Exception:
+        except (ValueError, TypeError):
             return None
 
     @staticmethod

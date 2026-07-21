@@ -158,7 +158,7 @@ def _get_state_info(state: str) -> Optional[str]:
         if summary:
             return f"{data.get('name', state)} — {summary}"
         return None
-    except Exception:
+    except (KeyError, TypeError):
         return None
 
 

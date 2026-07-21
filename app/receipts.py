@@ -124,8 +124,8 @@ class ReceiptScanner:
             try:
                 import PIL.ImageOps
                 img = PIL.ImageOps.autocontrast(img, cutoff=5)
-            except Exception:
-                pass
+            except ImportError:
+                pass  # PIL.ImageOps not available — skip enhancement
 
             text = pytesseract.image_to_string(img)
             return text
@@ -166,7 +166,7 @@ class ReceiptScanner:
                         if parsed:
                             result["date"] = parsed.isoformat()
                             break
-                    except Exception:
+                    except (ValueError, TypeError):
                         pass
             if result["date"]:
                 break
@@ -300,7 +300,7 @@ class ReceiptScanner:
                 val = Decimal(m.group(1).replace(",", ""))
                 if val > 0 and val < 10_000_000:  # Sanity check
                     return val
-            except Exception:
+            except (ValueError, TypeError):
                 pass
         return None
 
@@ -464,41 +464,7 @@ class ReceiptScanner:
                         "account": m.group(2),
                         "path": Path(m.group(3)).name,
                     })
-        except Exception:
-            pass
+        except Exception as e:
+            import sys
+            print(f"⚠ Failed to list receipt documents: {e}", file=sys.stderr)
         return docs
-
-        print(f"  Merchant: {result.get('merchant', 'Unknown')}")
-        print(f"  Date:     {result.get('date', 'Unknown')}")
-        print(f"  Total:    ${result.get('total', 0):,.2f}")
-        if result.get("line_items"):
-            print(f"  Items:    {len(result['line_items'])}")
-            for item in result["line_items"][:5]:
-                print(f"    · {item['description'][:40]:40s} ${item['amount']:>8,.2f}")
-            if len(result["line_items"]) > 5:
-                print(f"    ... and {len(result['line_items']) - 5} more")
-
-        if not preview and result["total"] is not None:
-            ledger = Ledger(self.cfg) if self.cfg else None
-            entry = self.to_beancount_entry(result, preview=False)
-            if entry and ledger:
-                # Parse the entry and append
-                # Extract fields from the generated entry
-                lines = entry.strip().split("\n")
-                first = lines[0]
-                date_str = first[:10]
-                # ... would need proper beancount parsing
-                # For now, use the ledger.append method
-                ledger.append(
-                    date=datetime.date.fromisoformat(result["date"]) if result.get("date") else datetime.date.today(),
-                    payee=result.get("merchant") or "Unknown",
-                    narration=f"Receipt: {result.get('merchant', 'Unknown')[:80]}",
-                    postings=[
-                        (account, f"{result['total']:.2f} USD"),
-                        (self.cfg.checking_account, f"-{result['total']:.2f} USD"),
-                    ],
-                )
-                print(f"✓ Entry appended to ledger")
-                result["appended"] = True
-
-        return result

@@ -72,7 +72,7 @@ class Categorizer:
         if self._map_path.exists():
             try:
                 return json.loads(self._map_path.read_text())
-            except (json.JSONDecodeError, Exception):
+            except (json.JSONDecodeError, OSError):
                 return {}
         return {}
 
@@ -124,7 +124,9 @@ class Categorizer:
             rules = _get_rules_engine()
             result = rules.match(merchant)
             return result["account"] if result else None
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"⚠ Pattern match failed: {e}", file=sys.stderr)
             return None
 
     def _pattern_suggest_with_confidence(self, merchant: str) -> dict:
@@ -152,7 +154,9 @@ class Categorizer:
                 "tier": "pattern",
                 "rule": result["rule"],
             }
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"⚠ Pattern match (confidence) failed: {e}", file=sys.stderr)
             return {"account": None, "count": 0, "total": 0, "confidence": "none"}
 
     # ── Tier 3: embedding similarity ────────────────────────────────────
@@ -164,7 +168,9 @@ class Categorizer:
             cat = _get_embed_categorizer()
             result = cat.suggest(merchant)
             return result.get("account")
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"⚠ Embedding suggest failed: {e}", file=sys.stderr)
             return None
 
     def _embed_suggest_with_confidence(self, merchant: str) -> dict:
@@ -173,7 +179,9 @@ class Categorizer:
         try:
             cat = _get_embed_categorizer()
             return cat.suggest_with_confidence(merchant)
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"⚠ Embedding suggest (confidence) failed: {e}", file=sys.stderr)
             return {"account": None, "count": 0, "total": 0, "confidence": "none"}
 
     # ── Public API ──────────────────────────────────────────────────────

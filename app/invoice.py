@@ -424,3 +424,80 @@ class Invoicer:
                 print(f"  · {info['client']} — next invoice: {next_date_str}")
 
         return results
+
+    def mark_paid(
+        self,
+        invoice_number: str,
+        amount: Optional[Decimal] = None,
+        date: Optional[datetime.date] = None,
+        source_account: Optional[str] = None,
+    ) -> dict:
+        """Mark an invoice as paid — records a payment in the ledger.
+
+        Args:
+            invoice_number: Invoice number (e.g. INV-2026-001)
+            amount: Payment amount (default: auto-lookup from invoice)
+            date: Payment date (default: today)
+            source_account: Source account (default: checking from config)
+
+        Returns:
+            dict with paid, amount, date, invoice
+        """
+        pay_date = date or datetime.date.today()
+        src = source_account or self.cfg.checking_account
+
+        # Look up amount if not provided
+        if amount is None:
+            invoices = self.list()
+            for inv in invoices:
+                inv_num = inv.get("date", "") + "-" + inv.get("client", "")
+                if inv.get("_number") == invoice_number or invoice_number in inv.get("_key", ""):
+                    amount = Decimal(str(inv["amount"]))
+                    break
+            if amount is None:
+                # Fall back to AR balance — estimate
+                ar = self.ledger.account_balance(self.cfg.ar_account)
+                if ar > 0:
+                    amount = ar
+                else:
+                    raise ValueError(f"Invoice {invoice_number} not found and AR balance is zero")
+
+        amt = amount.quantize(Decimal("0.01"))
+        self.ledger.append(
+            date=pay_date,
+            payee=f"Payment — Invoice {invoice_number}",
+            narration=f"Payment received for invoice {invoice_number}",
+            postings=[
+                (src, f"{amt:.2f} USD"),
+                (self.cfg.ar_account, f"-{amt:.2f} USD"),
+            ],
+        )
+
+        return {
+            "paid": True,
+            "amount": float(amt),
+            "date": pay_date.isoformat(),
+            "invoice": invoice_number,
+        }
+
+    def remove_retainer(self, retainer_id: str) -> bool:
+        """Remove a retainer configuration by ID.
+
+        Args:
+            retainer_id: The retainer ID from list_retainers()
+
+        Returns:
+            True if removed, False if not found.
+        """
+        retainers = self._load_retainers()
+        if retainer_id in retainers:
+            del retainers[retainer_id]
+            path = self._retainers_path()
+            with open(path, "w") as f:
+                json.dump(retainers, f, indent=2)
+            return True
+        return False
+
+    def list_retainers(self) -> dict:
+        """List all retainer configurations (public wrapper)."""
+        return self._load_retainers()

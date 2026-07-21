@@ -44,3 +44,28 @@ jobs:
       - name: Verify ledger integrity
         run: |
           python -m app.main check
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check JS files compile
+        run: |
+          files=$(find web/js -name '*.js' | sort)
+          for f in $files; do
+            node --check "$f"
+            echo "  ✓ $f"
+          done
+          count=$(echo "$files" | wc -l)
+          echo "All $count JS files pass syntax check"
+
+      - name: Check CSS files exist and are non-empty
+        run: |
+          wc -l web/css/*.css

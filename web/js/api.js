@@ -1,70 +1,72 @@
 // SoloLedger API client — Google auth + LLM key support
-const API_BASE = '/api/v1';
+export const API_BASE = '/api/v1';
+
+const FETCH_TIMEOUT = 30000; // 30s
 
 // ── Auth (Google session only) ────────────────────────────
 
-function getSessionToken() {
+export function getSessionToken() {
   return localStorage.getItem('sololedger_session');
 }
 
-function setSessionToken(token) {
+export function setSessionToken(token) {
   if (token) localStorage.setItem('sololedger_session', token);
   else localStorage.removeItem('sololedger_session');
 }
 
-function getUserInfo() {
+export function getUserInfo() {
   const raw = localStorage.getItem('sololedger_user');
   return raw ? JSON.parse(raw) : null;
 }
 
-function setUserInfo(user) {
+export function setUserInfo(user) {
   if (user) localStorage.setItem('sololedger_user', JSON.stringify(user));
   else localStorage.removeItem('sololedger_user');
 }
 
-function getAuthToken() {
+export function getAuthToken() {
   return getSessionToken();
 }
 
-function isAuthenticated() {
+export function isAuthenticated() {
   return !!getSessionToken();
 }
 
-function clearAuth() {
+export function clearAuth() {
   setSessionToken(null);
   setUserInfo(null);
 }
 
 // ── LLM API Key (separate from auth) ─────────────────────
 
-function getLlmApiKey() {
+export function getLlmApiKey() {
   return localStorage.getItem('sololedger_llm_key') || '';
 }
 
-function setLlmApiKey(key) {
+export function setLlmApiKey(key) {
   if (key) localStorage.setItem('sololedger_llm_key', key);
   else localStorage.removeItem('sololedger_llm_key');
 }
 
-function getLlmBackend() {
+export function getLlmBackend() {
   return localStorage.getItem('sololedger_llm_backend') || 'openai';
 }
 
-function setLlmBackend(backend) {
+export function setLlmBackend(backend) {
   if (backend) localStorage.setItem('sololedger_llm_backend', backend);
   else localStorage.removeItem('sololedger_llm_backend');
 }
 
-function getLlmModel() {
+export function getLlmModel() {
   return localStorage.getItem('sololedger_llm_model') || 'gpt-4o-mini';
 }
 
-function setLlmModel(model) {
+export function setLlmModel(model) {
   if (model) localStorage.setItem('sololedger_llm_model', model);
   else localStorage.removeItem('sololedger_llm_model');
 }
 
-function getLlmConfig() {
+export function getLlmConfig() {
   return {
     api_key: getLlmApiKey(),
     backend: getLlmBackend(),
@@ -74,9 +76,7 @@ function getLlmConfig() {
 
 // ── Core fetch ────────────────────────────────────────────
 
-const FETCH_TIMEOUT = 30000; // 30s
-
-async function apiFetch(path, options = {}) {
+export async function apiFetch(path, options = {}) {
   const token = getAuthToken();
   const headers = { ...options.headers };
 
@@ -99,7 +99,7 @@ async function apiFetch(path, options = {}) {
   return res;
 }
 
-async function apiGet(path) {
+export async function apiGet(path) {
   const res = await apiFetch(path);
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
@@ -112,7 +112,7 @@ async function apiGet(path) {
   return json.data;
 }
 
-async function apiPost(path, body) {
+export async function apiPost(path, body) {
   const res = await apiFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -131,7 +131,7 @@ async function apiPost(path, body) {
 
 // ── Public status (no auth needed) ────────────────────────
 
-async function apiGetPublicStatus() {
+export async function apiGetPublicStatus() {
   try {
     const res = await fetch(`${API_BASE}/public/status`);
     if (!res.ok) return { needsSetup: true, hasAuth: false, auth_methods: {} };
@@ -145,7 +145,7 @@ async function apiGetPublicStatus() {
 
 // ── Auth helpers ──────────────────────────────────────────
 
-async function apiSignIn(email, password) {
+export async function apiSignIn(email, password) {
   const res = await fetch(`${API_BASE}/auth/signin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -156,7 +156,7 @@ async function apiSignIn(email, password) {
   return json.data;
 }
 
-async function apiSignUp(email, password, name) {
+export async function apiSignUp(email, password, name) {
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -167,7 +167,7 @@ async function apiSignUp(email, password, name) {
   return json.data;
 }
 
-async function apiSignInWithGoogle(credential) {
+export async function apiSignInWithGoogle(credential) {
   const res = await fetch(`${API_BASE}/auth/google`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -178,7 +178,7 @@ async function apiSignInWithGoogle(credential) {
   return json.data;
 }
 
-async function apiGetAuthMe() {
+export async function apiGetAuthMe() {
   const token = getAuthToken();
   if (!token) return null;
   const res = await apiFetch('/auth/me');
@@ -188,7 +188,7 @@ async function apiGetAuthMe() {
   return json.data;
 }
 
-async function apiLogout() {
+export async function apiLogout() {
   try {
     await apiPost('/auth/logout', {});
   } catch { /* ignore */ }
@@ -197,11 +197,11 @@ async function apiLogout() {
 
 // ── LLM config ────────────────────────────────────────────
 
-async function apiSaveLlmConfig(config) {
+export async function apiSaveLlmConfig(config) {
   return await apiPost('/settings/llm', config);
 }
 
-async function apiGetLlmConfig() {
+export async function apiGetLlmConfig() {
   try {
     const res = await apiFetch('/settings/llm');
     if (!res.ok) return null;
@@ -216,18 +216,28 @@ async function apiGetLlmConfig() {
 // ── Security / formatting helpers ─────────────────────────
 
 /** Escape a string for safe insertion into innerHTML. */
-function escapeHtml(s) {
+export function escapeHtml(s) {
   if (s == null) return '';
   const d = document.createElement('div');
   d.textContent = String(s);
   return d.innerHTML;
 }
 
-function fmt(n) {
+export function fmt(n) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function money(n) {
+export function money(n) {
   const abs = Math.abs(n);
   return (n < 0 ? '-$' : '$') + fmt(abs);
+}
+
+export function showToast(msg, type = 'info') {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
 }

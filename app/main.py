@@ -314,7 +314,7 @@ def retainer_list(ctx):
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
 
-    retainers = invoicer._load_retainers()
+    retainers = invoicer.list_retainers()
     if not retainers:
         click.echo("No retainers configured. Use 'llc retainer add' first.")
         return
@@ -360,13 +360,7 @@ def retainer_remove(ctx, retainer_id):
     cfg = ctx["cfg"]
     invoicer = Invoicer(cfg, None)
 
-    retainers = invoicer._load_retainers()
-    if retainer_id in retainers:
-        del retainers[retainer_id]
-        path = invoicer._retainers_path()
-        import json
-        with open(path, "w") as f:
-            json.dump(retainers, f, indent=2)
+    if invoicer.remove_retainer(retainer_id):
         click.echo(f"✓ Retainer '{retainer_id}' removed.")
     else:
         click.echo(f"Retainer '{retainer_id}' not found.")
