@@ -8,16 +8,16 @@
     "exists": true,
     "path": "docs/wiki/",
     "created": "2026-07-16",
-    "lastUpdated": "2026-07-16",
-    "lastCheck": "2026-07-16",
-    "lastGraphSync": "2026-07-16",
+    "lastUpdated": "2026-07-21",
+    "lastCheck": "2026-07-21",
+    "lastGraphSync": "2026-07-21",
     "domains": [
       {
         "name": "Core Ledger",
         "doc": "features/ledger.md",
         "files": 1,
         "coverage": 85,
-        "updated": "2026-07-16",
+        "updated": "2026-07-21",
         "staleness": 0,
         "status": "FRESH"
       },
@@ -26,7 +26,7 @@
         "doc": "features/invoicing.md",
         "files": 1,
         "coverage": 80,
-        "updated": "2026-07-16",
+        "updated": "2026-07-21",
         "staleness": 0,
         "status": "FRESH"
       },
@@ -35,7 +35,7 @@
         "doc": "features/expenses.md",
         "files": 1,
         "coverage": 80,
-        "updated": "2026-07-16",
+        "updated": "2026-07-21",
         "staleness": 0,
         "status": "FRESH"
       },
@@ -44,7 +44,7 @@
         "doc": "features/taxes.md",
         "files": 1,
         "coverage": 85,
-        "updated": "2026-07-16",
+        "updated": "2026-07-21",
         "staleness": 0,
         "status": "FRESH"
       },
@@ -53,7 +53,7 @@
         "doc": "features/time-tracking.md",
         "files": 1,
         "coverage": 75,
-        "updated": "2026-07-16",
+        "updated": "2026-07-21",
         "staleness": 0,
         "status": "FRESH"
       }
@@ -84,6 +84,6 @@
   },
   "memory": {
     "conventionsDiscovered": 0,
-    "lastSync": "2026-07-16"
+    "lastSync": "2026-07-21"
   }
 }
