@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "project": {
+    "root": "/home/dillon/_code/sololedger",
+    "name": "solo-ledger"
+  },
+  "wiki": {
+    "exists": true,
+    "path": "docs/wiki/",
+    "created": "2026-07-16",
+    "lastUpdated": "2026-07-16",
+    "lastCheck": "2026-07-16",
+    "lastGraphSync": "2026-07-16",
+    "domains": [
+      {
+        "name": "Core Ledger",
+        "doc": "features/ledger.md",
+        "files": 1,
+        "coverage": 85,
+        "updated": "2026-07-16",
+        "staleness": 0,
+        "status": "FRESH"
+      },
+      {
+        "name": "Invoicing",
+        "doc": "features/invoicing.md",
+        "files": 1,
+        "coverage": 80,
+        "updated": "2026-07-16",
+        "staleness": 0,
+        "status": "FRESH"
+      },
+      {
+        "name": "Expenses",
+        "doc": "features/expenses.md",
+        "files": 1,
+        "coverage": 80,
+        "updated": "2026-07-16",
+        "staleness": 0,
+        "status": "FRESH"
+      },
+      {
+        "name": "Taxes",
+        "doc": "features/taxes.md",
+        "files": 1,
+        "coverage": 85,
+        "updated": "2026-07-16",
+        "staleness": 0,
+        "status": "FRESH"
+      },
+      {
+        "name": "Time Tracking",
+        "doc": "features/time-tracking.md",
+        "files": 1,
+        "coverage": 75,
+        "updated": "2026-07-16",
+        "staleness": 0,
+        "status": "FRESH"
+      }
+    ],
+    "coverage": {
+      "documented": 5,
+      "total": 5,
+      "percent": 100
+    },
+    "standards": {
+      "rules": 3,
+      "enforced": 0,
+      "patterns": 4
+    },
+    "glossary": {
+      "terms": 6,
+      "suggested": 0
+    },
+    "crossReferences": {
+      "broken": 0,
+      "total": 7
+    },
+    "health": {
+      "avgStaleness": 0,
+      "freshestDomain": "Core Ledger",
+      "mostStaleDomain": "Time Tracking"
+    }
+  },
+  "memory": {
+    "conventionsDiscovered": 0,
+    "lastSync": "2026-07-16"
+  }
+}
