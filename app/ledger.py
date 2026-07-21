@@ -167,7 +167,9 @@ class Ledger:
         """
         date_str = date.isoformat()
         abs_path = Path(filepath).resolve()
-        entry = f'{date_str} document {account:45s} "{abs_path}"\n\n'
+        # Escape backslashes and quotes in the path for safe Beancount insertion
+        safe_path = str(abs_path).replace("\\", "\\\\").replace('"', '\\"')
+        entry = f'{date_str} document {account:45s} "{safe_path}"\n\n'
 
         doc_path = self.cfg.ledger_dir / "transactions.beancount"
         with open(doc_path, "a") as f:

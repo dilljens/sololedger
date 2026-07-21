@@ -11,7 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .config import Config
 from .ledger import Ledger
@@ -159,7 +159,8 @@ class Invoicer:
 
     def _render_pdf(self, invoice: dict, payment_url: str | None = None) -> Path:
         """Render HTML invoice template to PDF via weasyprint."""
-        env = Environment(loader=FileSystemLoader(str(self.cfg.project_root / "templates")))
+        env = Environment(loader=FileSystemLoader(str(self.cfg.project_root / "templates")),
+                          autoescape=select_autoescape(['html', 'xml']))
         template = env.get_template("invoice.html")
 
         html = template.render(

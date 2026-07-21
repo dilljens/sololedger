@@ -68,9 +68,12 @@ class RulesEngine:
             for p in patterns:
                 if not p:
                     continue
+                # Reject patterns longer than 200 chars or with nested quantifiers (ReDoS guard)
+                if len(p) > 200 or re.search(r'\(\.[*+]\)\{|\(\.[*+]\)\+|\(\?:\.[*+]\)\{|\+[?+*}]', p):
+                    continue
                 try:
                     compiled.append(re.compile(p, re.IGNORECASE))
-                except re.error as e:
+                except re.error:
                     continue
 
             if compiled:

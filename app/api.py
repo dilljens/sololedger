@@ -349,7 +349,10 @@ def get_config() -> Config:
     """Load Config for the current tenant, falling back to main config."""
     tenant = _current_tenant.get()
     if tenant:
-        tdir = Path(tenant["ledger_dir"])
+        tdir = Path(tenant["ledger_dir"]).resolve()
+        # Sandbox: tenant dir must be within the project data directory
+        if not str(tdir).startswith(str(_PROJECT_ROOT.resolve())):
+            raise HTTPException(status_code=403, detail="Tenant ledger_dir is outside project root")
         cfg_path = tdir / "config.toml"
         if cfg_path.exists():
             try:
@@ -893,7 +896,8 @@ async def create_invoice(req: InvoiceCreateRequest):
         "description": result["description"],
         "amount": float(result["amount"]),
         "payment_url": result.get("payment_url"),
-        "pdf_path": result.get("pdf_path"),
+        # Return only filename, not full path
+        "pdf_path": Path(result.get("pdf_path", "")).name if result.get("pdf_path") else None,
         "status": result["status"],
     })
 
@@ -1001,10 +1005,17 @@ async def mark_invoice_paid(number: str, req: MarkInvoicePaidRequest):
 @app.get("/api/v1/invoices/{number}/pdf", dependencies=[Depends(check_auth)])
 async def get_invoice_pdf(number: str):
     """Download an invoice PDF by invoice number."""
+    # Prevent path traversal — reject separators and parent-dir references
+    if "/" in number or "\\" in number or ".." in number:
+        raise HTTPException(status_code=400, detail="Invalid invoice number")
     from fastapi.responses import FileResponse
     cfg = get_config()
-    pdf_path = cfg.invoices_dir / f"{number}.pdf"
-    html_path = cfg.invoices_dir / f"{number}.html"
+    inv_dir = cfg.invoices_dir.resolve()
+    pdf_path = (inv_dir / f"{number}.pdf").resolve()
+    html_path = (inv_dir / f"{number}.html").resolve()
+    # Ensure resolved path stays within invoices_dir
+    if not str(pdf_path).startswith(str(inv_dir)):
+        raise HTTPException(status_code=403, detail="Invalid invoice number")
     if pdf_path.exists():
         return FileResponse(str(pdf_path), media_type="application/pdf", filename=f"{number}.pdf")
     if html_path.exists():
@@ -1081,7 +1092,8 @@ async def import_expenses(
     from .expenses import ExpenseImporter
 
     # Save upload to temp file
-    suffix = Path(file.filename or "import.csv").suffix
+    _ext = Path(file.filename or ".csv").suffix.lower()
+    suffix = _ext if _ext in (".csv", ".qbo", ".ofx", ".ofx.gz") else ".csv"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
@@ -1132,7 +1144,8 @@ async def scan_receipt(
 
     from .receipts import ReceiptScanner
 
-    suffix = Path(file.filename or "receipt.pdf").suffix
+    _ext = Path(file.filename or ".pdf").suffix.lower()
+    suffix = _ext if _ext in (".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp") else ".pdf"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
@@ -1325,6 +1338,10 @@ async def tax_voucher(quarter: str = Query("Q3"), amount: Optional[float] = Quer
     The IRS still accepts estimated tax payments via mail with Form 1040-ES.
     This generates a printable voucher with your business info and the amount.
     """
+    # Validate quarter — only Q1–Q4 allowed
+    if quarter not in ("Q1", "Q2", "Q3", "Q4"):
+        raise HTTPException(status_code=400, detail="Quarter must be Q1, Q2, Q3, or Q4")
+
     cfg = get_config()
     ledger = Ledger(cfg)
 
@@ -1339,9 +1356,10 @@ async def tax_voucher(quarter: str = Query("Q3"), amount: Optional[float] = Quer
             amount = 0.0
 
     from pathlib import Path
-    from jinja2 import Environment, FileSystemLoader
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-    env = Environment(loader=FileSystemLoader(str(cfg.project_root / "templates")))
+    env = Environment(loader=FileSystemLoader(str(cfg.project_root / "templates")),
+                      autoescape=select_autoescape(['html', 'xml']))
     template = env.get_template("voucher.html")
 
     html = template.render(
@@ -1826,18 +1844,20 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
     webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    dev_mode = os.environ.get("STRIPE_DEV_MODE", "").lower() in ("1", "true", "yes")
 
-    # Verify signature if webhook secret is configured
     if webhook_secret:
         try:
             from stripe import Webhook
             event = Webhook.construct_event(payload, sig_header, webhook_secret)
         except Exception as e:
             return {"success": False, "error": f"Signature verification failed: {e}"}
-    else:
-        # No signature verification — for development only
+    elif dev_mode:
+        # Unsigned mode only for local development — explicitly opt in
         import json
         event = json.loads(payload)
+    else:
+        return _err("Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET, or set STRIPE_DEV_MODE=true for development.", 503)
 
     event_type = event.get("type", "")
     if event_type != "checkout.session.completed":
@@ -1942,7 +1962,8 @@ async def import_csv(
 
     from .importer import Importer
 
-    suffix = Path(file.filename or "import.csv").suffix
+    _ext = Path(file.filename or ".csv").suffix.lower()
+    suffix = _ext if _ext in (".csv", ".qbo") else ".csv"
     import tempfile
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         content = await file.read()
@@ -1984,7 +2005,8 @@ async def api_ofx_import(
     importer = OfxImporter(cfg, ledger)
 
     # Save uploaded file temporarily
-    suffix = Path(file.filename).suffix if file.filename else ".ofx"
+    _ext = Path(file.filename or ".ofx").suffix.lower() if file.filename else ".ofx"
+    suffix = _ext if _ext in (".ofx", ".qfx", ".ofx.gz") else ".ofx"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
@@ -2302,7 +2324,7 @@ async def setup_business(req: SetupRequest):
     """
     config_path = os.environ.get("API_CONFIG", "")
     if not config_path:
-        config_path = str(Path.cwd() / "config.toml")
+        config_path = str(_PROJECT_ROOT / "config.toml")
 
     try:
         from .setup import write_business_config, init_ledger

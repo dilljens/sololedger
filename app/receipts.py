@@ -53,9 +53,16 @@ class ReceiptScanner:
               - success: bool
               - error: str if failed
         """
-        path = Path(filepath)
+        path = Path(filepath).resolve()
         if not path.exists():
             return {"success": False, "error": f"File not found: {path}"}
+        # Restrict source to ledger dir or temp dir
+        _allowed_base = self.cfg.ledger_dir.resolve()
+        if not str(path).startswith(str(_allowed_base)):
+            import tempfile
+            _tmp_dir = Path(tempfile.gettempdir()).resolve()
+            if not str(path).startswith(str(_tmp_dir)):
+                return {"success": False, "error": "File path is outside allowed directories"}
 
         # Determine file type
         ext = path.suffix.lower()
@@ -377,9 +384,17 @@ class ReceiptScanner:
         Returns:
             dict with success, document_path, entry fields
         """
-        src = Path(filepath)
+        src = Path(filepath).resolve()
         if not src.exists():
             return {"success": False, "error": f"File not found: {src}"}
+        # Ensure source is within project ledger directory (sandbox)
+        _allowed_base = self.cfg.ledger_dir.resolve()
+        if not str(src).startswith(str(_allowed_base)):
+            # Allow temp directories for upload flow
+            import tempfile
+            _tmp_dir = Path(tempfile.gettempdir()).resolve()
+            if not str(src).startswith(str(_tmp_dir)):
+                return {"success": False, "error": "File path is outside allowed directories"}
 
         # Build documents directory: docs/receipts/YYYY/account/
         docs_dir = self.cfg.ledger_dir / "documents" / "receipts" / date[:4] / account.replace(":", "_")
@@ -447,7 +462,7 @@ class ReceiptScanner:
                     docs.append({
                         "date": doc_date,
                         "account": m.group(2),
-                        "path": m.group(3),
+                        "path": Path(m.group(3)).name,
                     })
         except Exception:
             pass

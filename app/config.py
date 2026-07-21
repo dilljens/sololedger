@@ -36,6 +36,11 @@ class Config:
         # Ledger
         ledger_rel = raw["ledger"]["path"]
         self.ledger_path = (Path(path).parent / ledger_rel).resolve()
+        # Safety: ledger path should be within the config's project directory
+        _cfg_dir = Path(path).resolve().parent
+        if not str(self.ledger_path).startswith(str(_cfg_dir)):
+            import warnings
+            warnings.warn(f"Ledger path {self.ledger_path} is outside config directory {_cfg_dir}")
 
         # Account mappings
         accts = raw["accounts"]

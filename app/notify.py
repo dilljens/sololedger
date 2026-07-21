@@ -11,7 +11,7 @@ Config (in config.toml):
   smtp_host = "smtp.gmail.com"
   smtp_port = 587
   smtp_user = "you@gmail.com"
-  smtp_password = "app-password"   # Or set NOTIFY_SMTP_PASSWORD env var
+  smtp_password = "<your-password>"   # Or set NOTIFY_SMTP_PASSWORD env var
   alert_email = "you@gmail.com"
   desktop_enabled = true
   remind_days_before = 7
