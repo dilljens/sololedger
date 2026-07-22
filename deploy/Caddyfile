@@ -2,6 +2,9 @@
 # Replace placeholder VPS IP below with your actual IP for internal Caddy adjusments
 
 sololedger.ferrumeng.com {
+    # Redirect root to the SPA
+    redir / /app/ 302
+
     # API — use @api matcher so path is NOT stripped
     @api {
         path /api/*
