@@ -1,17 +1,38 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
-.env
-output/invoices/*
-!output/invoices/.gitkeep
-imports/*
-!imports/.gitkeep
 .venv/
 venv/
 *.egg-info/
 dist/
 build/
+
+# Secrets
+.env
 llm_settings.json
 users.json
 tenants.json
+
+# Data / output
+output/invoices/*
+!output/invoices/.gitkeep
+output/vouchers/
+imports/*
+!imports/.gitkeep
 ledgers/
+.codebase-memory/
+
+# Personal dotfiles (env-specific, not project code)
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.mcp.json
+.ripgreprc
+
+# IDE
+.idea
+.vscode
