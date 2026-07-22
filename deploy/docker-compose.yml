@@ -71,10 +71,41 @@ services:
       - sololedger-api
       - poolsplat
 
+  # ── Netdata — system monitoring + alerts ──────────────────────────
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    restart: unless-stopped
+    hostname: ferrum-vps
+    network_mode: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdata_config:/etc/netdata
+      - netdata_lib:/var/lib/netdata
+      - netdata_cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+    environment:
+      - NETDATA_EMAIL_SEND=${NETDATA_EMAIL_SEND:-}
+      - NETDATA_EMAIL_TO=${NETDATA_EMAIL_TO:-dillon@ferrumengineeringllc.com}
+      - PGID=999
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
 volumes:
   ledger_data:
   output_data:
   imports_data:
   poolsplat_scenes:
+  netdata_config:
+  netdata_lib:
+  netdata_cache:
   caddy_data:
   caddy_config:
