@@ -34,7 +34,9 @@ docker system prune -af --volumes=false 2>&1 | tee -a "$LOG"
 log "Vacuuming journal logs (keep 7d)..."
 journalctl --vacuum-time=7d 2>&1 | tee -a "$LOG"
 
-# ── 4. APT cache ────────────────────────────────────────────────────
+# ── 4. APT — autoremove old kernels + clean cache ──────────────────
+log "Removing old kernels and orphaned packages..."
+apt autoremove --purge -y 2>&1 | tee -a "$LOG"
 log "Cleaning APT cache..."
 apt-get clean -y 2>&1 | tee -a "$LOG"
 
