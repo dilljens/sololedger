@@ -2,14 +2,24 @@
 # Replace placeholder VPS IP below with your actual IP for internal Caddy adjusments
 
 sololedger.ferrumeng.com {
-    handle_path /api/* {
+    # API — use @api matcher so path is NOT stripped
+    @api {
+        path /api/*
+    }
+    handle @api {
         reverse_proxy sololedger-api:8100
     }
 
-    handle_path /docs {
+    # Docs
+    @docs {
+        path /docs
+        path /openapi.json
+    }
+    handle @docs {
         reverse_proxy sololedger-api:8100
     }
 
+    # Everything else — SPA served by FastAPI
     handle {
         reverse_proxy sololedger-api:8100
     }
