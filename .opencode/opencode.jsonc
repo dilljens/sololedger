@@ -3,7 +3,7 @@
   "mcp": {
     "lsp-mcp": {
       "type": "local",
-      "command": ["python", "/home/dillon/oh-my-agent/mcp/lsp-mcp/server.py"],
+      "command": ["oma-run", "mcp/lsp-mcp/server.py"],
       "enabled": true
     }
   }
