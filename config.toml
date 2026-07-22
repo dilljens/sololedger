@@ -11,6 +11,13 @@ address = "123 Main St, City, ST ZIP"
 phone = "+1 555-555-5555"
 email = "you@yourllc.com"
 
+# Entity type: "smllc" (Schedule C, default) or "scorp" (1120-S, S-Corp election)
+# S-Corp requires reasonable_salary and payroll_frequency to be set.
+[entity]
+entity_type = "smllc"
+# reasonable_salary = 50000       # Annual W-2 salary (S-Corp only)
+# payroll_frequency = "monthly"   # Options: monthly, biweekly, semimonthly
+
 [ledger]
 path = "ledger/main.beancount"      # Path to your main Beancount file
 

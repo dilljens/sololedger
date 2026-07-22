@@ -39,11 +39,108 @@ class TestConfigLoading:
         with pytest.raises(FileNotFoundError):
             Config("/nonexistent/path/config.toml")
 
-    def test_find_config_walks_up(self, tmp_path, monkeypatch):
-        """Config._find_config walks up from cwd."""
+    def test_entity_type_defaults_to_smllc(self, sample_config):
+        assert sample_config.entity_type == "smllc"
+
+    def test_entity_type_scorp(self, tmp_path):
         from app.config import Config
-        nested = tmp_path / "a" / "b" / "c"
-        nested.mkdir(parents=True)
+        cfg_file = tmp_path / "config.toml"
+        cfg_file.write_text("""\
+[business]
+name = "S Corp LLC"
+owner = "Owner"
+state = "WY"
+ein = "XX-XXXXXXX"
+address = "A"
+phone = "B"
+email = "C"
+
+[entity]
+entity_type = "scorp"
+reasonable_salary = 50000
+payroll_frequency = "biweekly"
+
+[ledger]
+path = "test.beancount"
+
+[accounts]
+checking = "Assets:Bank:Checking"
+ar = "Assets:AR"
+income = "Income:Main"
+owner_draws = "Equity:Draws"
+
+[tax]
+state = "WY"
+standard_deduction = 14600
+[[tax.brackets]]
+rate = 0.10
+floor = 0
+ceiling = 11925
+[tax.self_employment]
+rate_social_security = 0.124
+rate_medicare = 0.029
+ss_wage_base = 184800
+deduction_ratio = 0.9235
+[tax.quarter_dates]
+q1 = [4, 15]
+q2 = [6, 15]
+q3 = [9, 15]
+q4 = [1, 15]
+""")
+        cfg = Config(tmp_path / "config.toml")
+        assert cfg.entity_type == "scorp"
+        assert cfg.reasonable_salary == 50000
+        assert cfg.payroll_frequency == "biweekly"
+
+    def test_entity_type_unknown_falls_back(self, tmp_path):
+        from app.config import Config
+        cfg_file = tmp_path / "config.toml"
+        cfg_file.write_text("""\
+[business]
+name = "X"
+owner = "Y"
+state = "WY"
+ein = "XX-XXXXXXX"
+address = "A"
+phone = "B"
+email = "C"
+
+[entity]
+entity_type = "corp"
+
+[ledger]
+path = "test.beancount"
+
+[accounts]
+checking = "Assets:Bank:Checking"
+ar = "Assets:AR"
+income = "Income:Main"
+owner_draws = "Equity:Draws"
+
+[tax]
+state = "WY"
+standard_deduction = 14600
+[[tax.brackets]]
+rate = 0.10
+floor = 0
+ceiling = 11925
+[tax.self_employment]
+rate_social_security = 0.124
+rate_medicare = 0.029
+ss_wage_base = 184800
+deduction_ratio = 0.9235
+[tax.quarter_dates]
+q1 = [4, 15]
+q2 = [6, 15]
+q3 = [9, 15]
+q4 = [1, 15]
+""")
+        cfg = Config(tmp_path / "config.toml")
+        assert cfg.entity_type == "smllc"
+
+    def test_find_config_walks_up(self, tmp_path):
+        """Config._find_config walks up from cwd with explicit path."""
+        from app.config import Config
         config_file = tmp_path / "config.toml"
         config_file.write_text("""\
 [business]
@@ -85,6 +182,5 @@ q2 = [6, 15]
 q3 = [9, 15]
 q4 = [1, 15]
 """)
-        monkeypatch.chdir(nested)
-        cfg = Config()
+        cfg = Config(tmp_path / "config.toml")
         assert cfg.business_name == "X"

@@ -1,0 +1,80 @@
+# Ferrum Engineering — Production stack for VPS
+#
+# Serves:
+#   sololedger.ferrumeng.com  →  SoloLedger API + SPA
+#   poolsplat.ferrumeng.com    →  PoolSplat 3D viewer + API
+#
+# Prerequisites:
+#   git clone https://github.com/dilljens/sololedger /opt/sololedger
+#   git clone https://github.com/dilljens/poolsplat /opt/poolsplat
+#   cd /opt/sololedger/deploy
+#   cp .env.example .env
+#   nano .env          # fill in secrets
+#   docker compose up -d
+
+services:
+
+  # ── SoloLedger API + SPA ─────────────────────────────────────────
+  sololedger-api:
+    build:
+      context: /opt/sololedger
+      dockerfile: Dockerfile.api
+    container_name: sololedger-api
+    restart: unless-stopped
+    expose:
+      - "8100"
+    volumes:
+      - ledger_data:/app/ledger
+      - /opt/sololedger/config.toml:/app/config.toml:ro
+      - output_data:/app/output
+      - imports_data:/app/imports
+    environment:
+      - API_PORT=8100
+      - API_CONFIG=/app/config.toml
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - PLAID_CLIENT_ID=${PLAID_CLIENT_ID:-}
+      - PLAID_SECRET=${PLAID_SECRET:-}
+      - PLAID_ACCESS_TOKEN=${PLAID_ACCESS_TOKEN:-}
+      - PLAID_ENV=${PLAID_ENV:-sandbox}
+      - TOGGL_API_TOKEN=${TOGGL_API_TOKEN:-}
+      - NOTIFY_SMTP_PASSWORD=${NOTIFY_SMTP_PASSWORD:-}
+
+  # ── PoolSplat 3D viewer + AI photo editor ────────────────────────
+  poolsplat:
+    build:
+      context: /opt/poolsplat
+      dockerfile: Dockerfile
+    container_name: poolsplat
+    restart: unless-stopped
+    expose:
+      - "3138"
+    volumes:
+      - poolsplat_scenes:/root/.poolsplat/scenes
+    environment:
+      - POOLSPLAT_PORT=3138
+      - FAL_KEY=${FAL_KEY:-}
+      - NODE_ENV=production
+
+  # ── Caddy — reverse proxy + auto TLS ─────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: ferrum-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - sololedger-api
+      - poolsplat
+
+volumes:
+  ledger_data:
+  output_data:
+  imports_data:
+  poolsplat_scenes:
+  caddy_data:
+  caddy_config:

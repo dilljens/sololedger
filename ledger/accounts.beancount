@@ -42,3 +42,26 @@
 ;; Taxes Payable — set aside money as you earn it
 2026-01-01 open Liabilities:TaxesPayable:FederalIncome  USD
 2026-01-01 open Liabilities:TaxesPayable:SelfEmployment USD
+
+;; ============================================================================
+;; S-Corp Payroll Accounts (unused in SMLLC mode)
+;; ============================================================================
+;; S-Corp equity accounts
+2026-01-01 open Equity:RetainedEarnings        USD   ;; accumulated prior-year earnings
+2026-01-01 open Equity:ShareholderDistributions USD   ;; non-payroll distributions
+
+;; Payroll liability accounts — net wages & tax withholdings
+2026-01-01 open Liabilities:PayrollPayable             USD   ;; net wages owed but not yet disbursed
+2026-01-01 open Liabilities:PayrollTaxesPayable:SocialSecurity USD
+2026-01-01 open Liabilities:PayrollTaxesPayable:Medicare        USD
+2026-01-01 open Liabilities:PayrollTaxesPayable:FederalWithholding USD
+2026-01-01 open Liabilities:PayrollTaxesPayable:StateWithholding  USD
+2026-01-01 open Liabilities:PayrollTaxesPayable:FUTA              USD
+2026-01-01 open Liabilities:PayrollTaxesPayable:SUTA              USD
+
+;; Payroll expense accounts — officer salary & employer taxes
+2026-01-01 open Expenses:Payroll:GrossWages             USD   ;; officer W-2 salary
+2026-01-01 open Expenses:Payroll:EmployerSocialSecurity  USD   ;; 6.2% employer SS match
+2026-01-01 open Expenses:Payroll:EmployerMedicare        USD   ;; 1.45% employer Medicare match
+2026-01-01 open Expenses:Payroll:FUTA                    USD   ;; 0.6% on first $7K
+2026-01-01 open Expenses:Payroll:SUTA                    USD   ;; state unemployment (varies)

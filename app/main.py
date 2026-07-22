@@ -65,7 +65,10 @@ def status(ctx):
 
     # Reload ledger
     errors = ledger.check()
+    ent_type = getattr(cfg, 'entity_type', 'smllc')
+    ent_label = "S-Corp (1120-S)" if ent_type == "scorp" else "SMLLC (Schedule C)"
     click.echo("═══ SoloLedger Dashboard ═══")
+    click.echo(f"  Entity type:         {ent_label}")
     click.echo()
 
     # Cash
@@ -451,18 +454,41 @@ def tax_estimate(ctx, projected_income, state_override):
     annual = taxer.total_projected_tax(projection, total_revenue=projected_revenue)
     quarterly = taxer.quarterly_estimate(ytd_net, projection)
 
+    entity_type = annual.get("entity_type", "smllc")
+    is_scorp = entity_type == "scorp"
     state_name = annual.get("state_tax", {}).get("state_name", state_code)
-    click.echo(f"═══ Tax Estimate (Single-Member LLC — {state_name}) ═══")
+    header_label = f"S-Corp (1120-S — {state_name})" if is_scorp else f"Single-Member LLC (Schedule C — {state_name})"
+    click.echo(f"═══ Tax Estimate ({header_label}) ═══")
     click.echo()
     click.echo(f"  YTD Net Profit:                ${ytd_net:>10,.2f}")
     click.echo(f"  Projected Annual Net:          ${projection:>10,.2f}")
     click.echo()
-    click.echo(f"  ── Federal ──")
-    click.echo(f"  Self-Employment Tax (15.3%):   ${annual['self_employment_tax']['total_se_tax']:>10,.2f}")
-    click.echo(f"    ↳ Deductible half (AGI):     ${annual['self_employment_tax']['deductible_half']:>10,.2f}")
-    click.echo(f"  Federal Income Tax:            ${annual['federal_income_tax']['income_tax']:>10,.2f}")
-    click.echo(f"    ↳ Taxable income:            ${annual['federal_income_tax']['taxable_income']:>10,.2f}")
-    click.echo(f"    ↳ Effective rate:            {annual['federal_income_tax']['effective_rate']:.1f}%")
+
+    if is_scorp:
+        fica = annual.get("fica", {})
+        form1120 = annual.get("form_1120s", {})
+        click.echo(f"  ── Payroll (FICA) ──")
+        click.echo(f"  Officer Salary:               ${fica.get('salary', 0):>10,.2f}")
+        if fica:
+            click.echo(f"  Employee FICA (withheld):     ${fica['employee']['total']:>10,.2f}")
+            click.echo(f"  Employer FICA (expense):      ${fica['employer']['total']:>10,.2f}")
+        click.echo(f"  Total FICA:                   ${fica.get('total_fica', 0):>10,.2f}")
+        if form1120:
+            click.echo(f"  ── 1120-S Income ──")
+            click.echo(f"  1120-S Ordinary Income:       ${form1120.get('ordinary_income', 0):>10,.2f}")
+            click.echo(f"    ↳ Officer salary:           ${form1120.get('officer_salary', 0):>10,.2f}")
+            click.echo(f"    ↳ Employer payroll taxes:   ${form1120.get('employer_payroll_taxes', 0):>10,.2f}")
+        click.echo(f"  ── Federal Income Tax ──")
+        click.echo(f"  Taxable income (W-2 + K-1):   ${annual['federal_income_tax']['taxable_income']:>10,.2f}")
+        click.echo(f"  Federal Income Tax:            ${annual['federal_income_tax']['income_tax']:>10,.2f}")
+        click.echo(f"    ↳ Effective rate:            {annual['federal_income_tax']['effective_rate']:.1f}%")
+    else:
+        click.echo(f"  ── Federal ──")
+        click.echo(f"  Self-Employment Tax (15.3%):   ${annual['self_employment_tax']['total_se_tax']:>10,.2f}")
+        click.echo(f"    ↳ Deductible half (AGI):     ${annual['self_employment_tax']['deductible_half']:>10,.2f}")
+        click.echo(f"  Federal Income Tax:            ${annual['federal_income_tax']['income_tax']:>10,.2f}")
+        click.echo(f"    ↳ Taxable income:            ${annual['federal_income_tax']['taxable_income']:>10,.2f}")
+        click.echo(f"    ↳ Effective rate:            {annual['federal_income_tax']['effective_rate']:.1f}%")
 
     # State tax breakdown
     st = annual.get("state_tax", {})
@@ -504,14 +530,22 @@ def tax_estimate(ctx, projected_income, state_override):
 @tax.command("schedule-c")
 @_pass_config
 def tax_schedule_c(ctx):
-    """Generate Schedule C summary data for tax filing."""
+    """Generate Schedule C summary data for tax filing (SMLLC) or income data for S-Corp."""
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
 
-    summary = taxer.schedule_c_summary()
+    ent_type = getattr(cfg, 'entity_type', 'smllc')
+    if ent_type == "scorp":
+        click.echo("═══ Schedule C (SMLLC) / Business Income Summary (S-Corp) ═══")
+        click.echo("  ℹ  S-Corp uses Form 1120-S, not Schedule C. This summary")
+        click.echo("     shows the raw revenue/expense data. Use 'llc tax estimate'")
+        click.echo("     for the full S-Corp/1120-S tax projection.")
+        click.echo()
+    else:
+        click.echo("═══ Schedule C Summary ═══")
 
-    click.echo("═══ Schedule C Summary ═══")
+    summary = taxer.schedule_c_summary()
     click.echo()
     click.echo(f"  Part I — Income")
     click.echo(f"    Gross receipts:              ${summary['gross_receipts']:>10,.2f}")
@@ -553,6 +587,88 @@ def tax_deadlines(ctx):
         }.get(d["status"], "🟢")
 
         click.echo(f"  {icon}  {d['label']}: {d['due']}  ({d['days_until']:>+4d} days)")
+
+
+@tax.command("form-1120s")
+@click.option("--json", "as_json", is_flag=True, default=False,
+              help="Output as JSON (for export/import into tax software)")
+@click.option("--projected-income", "-i", type=float, default=None,
+              help="Projected full-year net income (default: YTD * 2)")
+@_pass_config
+def tax_form_1120s(ctx, as_json, projected_income):
+    """Generate Form 1120-S data for S-Corp tax filing.
+
+    Shows gross receipts, officer compensation, payroll taxes,
+    other deductions, and 1120-S ordinary business income.
+
+    S-Corp mode only (entity_type = "scorp"). For SMLLC, use
+    'llc tax schedule-c' instead.
+
+    Examples:
+        llc tax form-1120s
+        llc tax form-1120s --json
+        llc tax form-1120s --projected-income 120000
+    """
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+
+    ent_type = getattr(cfg, 'entity_type', 'smllc')
+    if ent_type != "scorp":
+        click.echo("⚠  Form 1120-S is for S-Corp (entity_type='scorp').")
+        click.echo("   Set entity_type = 'scorp' in config.toml [entity] section.")
+        click.echo("   For SMLLC, use: llc tax schedule-c")
+        return
+
+    taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
+
+    ytd_net = ledger.net_income()
+    if projected_income:
+        projection = Decimal(str(projected_income))
+    else:
+        projection = ytd_net * Decimal("2")
+
+    ytd_revenue = ledger.gross_revenue()
+    projected_revenue = ytd_revenue * Decimal("2") if ytd_revenue > 0 else projection * Decimal("1.1")
+
+    result = taxer.form_1120s_export(projection, total_revenue=projected_revenue)
+
+    if as_json:
+        import json
+        # Convert Decimal to float for JSON
+        def default_serializer(o):
+            if isinstance(o, Decimal):
+                return float(o)
+            raise TypeError(f"Object of type {type(o)} is not JSON serializable")
+        click.echo(json.dumps(result, indent=2, default=default_serializer))
+        return
+
+    income = result["income"]
+    click.echo("═══ Form 1120-S — U.S. Income Tax Return for an S Corporation ═══")
+    click.echo()
+    click.echo(f"  Shareholder:                {result['shareholder']['name']} (100% owner)")
+    click.echo()
+    click.echo(f"  ── Income ──")
+    click.echo(f"  Gross receipts (Line 1a):   ${income['gross_receipts']:>10,.2f}")
+    click.echo()
+    click.echo(f"  ── Deductions ──")
+    click.echo(f"  Officer compensation:       ${income['officer_compensation']:>10,.2f}")
+    click.echo(f"  Employer payroll taxes:     ${income['employer_payroll_taxes']:>10,.2f}")
+    click.echo(f"  Other business expenses:    ${income['other_deductions']:>10,.2f}")
+    click.echo(f"  ─────────────────────────────────────────────")
+    click.echo(f"  Ordinary income (Line 21):  ${income['ordinary_income']:>10,.2f}")
+    click.echo()
+    click.echo(f"  ── Balance Sheet (Schedule L) ──")
+    bs = result["balance_sheet"]
+    click.echo(f"  Cash:                       ${bs['cash']:>10,.2f}")
+    click.echo(f"  Accounts Receivable:        ${bs['accounts_receivable']:>10,.2f}")
+    click.echo(f"  Total Assets:               ${bs['total_assets']:>10,.2f}")
+    click.echo()
+    click.echo(f"  ── K-1 (Shareholder) ──")
+    click.echo(f"  Ordinary business income:   ${result['shareholder']['ordinary_income']:>10,.2f}")
+    click.echo(f"  Ownership:                  {result['shareholder']['ownership_pct']}%")
+    click.echo()
+    from .disclaimer import CLI_DISCLAIMER
+    click.echo(CLI_DISCLAIMER)
 
 
 @tax.command("state-list")
@@ -935,6 +1051,137 @@ def receipt_list(ctx, year):
     click.echo(f"\nTotal: {len(docs)} document(s)")
 
 
+# ── payroll (S-Corp) ──────────────────────────────────────────────────────
+
+
+@cli.group()
+def payroll():
+    """Import payroll from Gusto CSV and manage S-Corp payroll entries.
+
+    S-Corp mode only. Requires entity_type = "scorp" in config.toml.
+    """
+
+
+@payroll.command("import")
+@click.argument("csv_file", type=click.Path(exists=True))
+@click.option("--preview", is_flag=True, help="Preview only, don't import")
+@_pass_config
+def payroll_import(ctx, csv_file, preview):
+    """Import a Gusto payroll CSV export into the ledger.
+
+    Creates the full payroll journal entry: gross wages, employee
+    withholdings, employer taxes, and net pay payable.
+
+    Example:
+        llc payroll import gusto-payroll.csv --preview
+        llc payroll import gusto-payroll.csv
+    """
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+
+    try:
+        from .payroll import PayrollImporter
+    except ImportError:
+        click.echo("⚠  Payroll module not available.")
+        return
+
+    importer = PayrollImporter(cfg, ledger)
+
+    click.echo("═══ Payroll Import ═══")
+    click.echo()
+
+    results = importer.import_gusto_csv(csv_file, preview=preview)
+
+    total_gross = 0
+    total_net = 0
+    total_er = 0
+    imported = 0
+    errors = 0
+
+    for r in results:
+        if "error" in r:
+            click.echo(f"  ✗ {r.get('employee', '?')}: {r['error']}")
+            errors += 1
+            continue
+        if r.get("skipped"):
+            click.echo(f"  – {r.get('employee', '?')}: {r.get('error', 'skipped')}")
+            continue
+
+        total_gross += r["gross"]
+        total_net += r["net"]
+        total_er += r["total_employer_taxes"]
+        imported += 1
+
+        click.echo(f"  {r['date']}  {r['employee']:<25s}  "
+                    f"Gross: ${r['gross']:>8,.2f}  "
+                    f"Net: ${r['net']:>8,.2f}  "
+                    f"ER taxes: ${r['total_employer_taxes']:>6,.2f}")
+
+    click.echo()
+    click.echo(f"  Imported: {imported} pay period(s)")
+    click.echo(f"  Total gross pay:       ${total_gross:>10,.2f}")
+    click.echo(f"  Total net pay:         ${total_net:>10,.2f}")
+    click.echo(f"  Total employer taxes:  ${total_er:>10,.2f}")
+
+    if preview and imported > 0:
+        click.echo()
+        click.echo("(Preview — run without --preview to import)")
+
+    if errors:
+        click.echo(f"  Errors: {errors}")
+
+
+@payroll.command("disburse")
+@click.option("--date", "-d", required=True, help="Disbursement date (YYYY-MM-DD)")
+@click.option("--amount", "-a", required=True, type=float, help="Net pay amount to disburse")
+@click.option("--bank", default=None, help="Bank account (default: from config)")
+@click.option("--preview", is_flag=True, help="Preview only")
+@_pass_config
+def payroll_disburse(ctx, date, amount, bank, preview):
+    """Record the net pay disbursement from business bank to owner.
+
+    After importing a payroll run with 'llc payroll import', the net
+    pay accumulates in Liabilities:PayrollPayable. This command records
+    the actual transfer of net pay from your business account to the
+    owner.
+
+    Example:
+        llc payroll disburse --date 2026-01-31 --amount 3461.54
+    """
+    cfg = ctx["cfg"]
+    ledger = ctx["ledger"]
+
+    try:
+        from .payroll import PayrollImporter
+    except ImportError:
+        click.echo("⚠  Payroll module not available.")
+        return
+
+    importer = PayrollImporter(cfg, ledger)
+
+    try:
+        pay_date = datetime.date.fromisoformat(date)
+    except ValueError:
+        click.echo(f"⚠  Invalid date: {date}. Use YYYY-MM-DD format.")
+        return
+
+    result = importer.payroll_disburse(
+        pay_date=pay_date,
+        net_pay=Decimal(str(amount)),
+        bank_account=bank,
+        preview=preview,
+    )
+
+    click.echo(f"Payroll disbursement: ${result['net_pay']:,.2f}")
+    click.echo(f"  Bank account:  {result['bank_account']}")
+    click.echo(f"  Date:          {result['date']}")
+
+    if preview:
+        click.echo("(Preview — run without --preview to record)")
+    else:
+        click.echo("✓ Recorded in ledger.")
+
+
 # ── reconciliation ─────────────────────────────────────────────────────────
 
 
@@ -1169,6 +1416,8 @@ def doctor(ctx):
     has_ein = cfg.ein != "XX-XXXXXXX"
     has_phone = cfg.phone != "+1 307-555-XXXX"
     click.echo(f"  {'✅' if biz_name != 'Your LLC Name Here' else '⚠️'}  Business:     {biz_name}")
+    ent_type = getattr(cfg, 'entity_type', 'smllc')
+    click.echo(f"  {'✅' if ent_type in ('smllc','scorp') else '⚠️'}  Entity type:  {ent_type}")
     click.echo(f"  {'✅' if has_ein else '⚠️'}  EIN:          {cfg.ein if has_ein else 'Not set'}")
     click.echo(f"  {'✅' if cfg.state_code else '⚠️'}  State:        {cfg.state_code}")
     click.echo()
@@ -1233,7 +1482,7 @@ def doctor(ctx):
     click.echo(f"  {'💰' if net > 0 else '💸'}  Net profit:   ${net:>8,.2f}")
     click.echo()
     click.echo(f"  ▸  Docs:       https://github.com/dilljens/sololedger#readme")
-    click.echo(f"  ▸  Cloud:      https://sololedger.app")
+    click.echo(f"  ▸  Cloud:      https://sololedger.ferrumeng.com")
 
 
 def shutil_which(cmd):

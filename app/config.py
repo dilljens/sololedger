@@ -2,6 +2,7 @@
 
 import os
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 try:
@@ -71,6 +72,18 @@ class Config:
 
         # Tax state (default: WY)
         self.state_code = raw.get("tax", {}).get("state", "WY").upper()
+
+        # Entity type: smllc (Schedule C, default) or scorp (1120-S)
+        ent = raw.get("entity", {})
+        raw_type = ent.get("entity_type", "smllc")
+        if raw_type not in ("smllc", "scorp"):
+            import warnings
+            warnings.warn(f"Unknown entity_type '{raw_type}', falling back to 'smllc'")
+            raw_type = "smllc"
+        self.entity_type = raw_type
+        # S-Corp salary & payroll frequency (no-ops in SMLLC mode)
+        self.reasonable_salary = Decimal(str(ent.get("reasonable_salary", 0)))
+        self.payroll_frequency = ent.get("payroll_frequency", "monthly")
 
         # Payments
         pmts = raw.get("payments", {})

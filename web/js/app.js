@@ -17,6 +17,7 @@ import { renderHealth } from './pages/health.js';
 import { renderReports } from './pages/reports.js';
 import { renderSettings } from './pages/settings.js';
 import { renderRecon } from './pages/reports.js';
+import { renderPayroll } from './pages/payroll.js';
 import { checkOnboarding } from './pages/onboarding.js';
 import { showSetup } from './pages/setup.js';
 
@@ -68,6 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'health': () => renderHealth(content),
         'reports': () => renderReports(content),
         'settings': () => renderSettings(content),
+        'payroll': () => renderPayroll(content),
         'recon': () => renderRecon(content),
         'capture': () => renderCaptureContent(content),
       };

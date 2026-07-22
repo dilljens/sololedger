@@ -2,24 +2,63 @@ import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, getAuthTo
 
 export async function renderTax(content) {
   const tax = await apiGet('/tax/estimate');
+  const isScorp = tax.entity_type === 'scorp';
+  const formLabel = isScorp ? 'S-Corp (1120-S)' : 'Single-Member LLC (Schedule C)';
+
+  let federalSection = '';
+  if (isScorp) {
+    federalSection = `
+      <div class="card">
+        <h2>Payroll (FICA)</h2>
+        <table>
+          <tr><td>Officer Salary</td><td class="amount">${money(tax.fica.salary)}</td></tr>
+          <tr><td>Employee FICA (withheld)</td><td class="amount">${money(tax.fica.employee_total)}</td></tr>
+          <tr><td>Employer FICA (expense)</td><td class="amount">${money(tax.fica.employer_total)}</td></tr>
+          <tr><td style="font-weight:600;">Total FICA</td><td class="amount" style="font-weight:600;">${money(tax.fica.total_fica)}</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2>1120-S Income</h2>
+        <table>
+          <tr><td>Ordinary Business Income</td><td class="amount">${money(tax.form_1120s.ordinary_income)}</td></tr>
+          <tr><td style="padding-left:24px;color:#666;">↳ Officer salary deduction</td><td class="amount" style="color:#666;">${money(tax.form_1120s.officer_salary)}</td></tr>
+          <tr><td style="padding-left:24px;color:#666;">↳ Employer payroll taxes</td><td class="amount" style="color:#666;">${money(tax.form_1120s.employer_payroll_taxes)}</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Federal Income Tax</h2>
+        <table>
+          <tr><td>Taxable income (W-2 + K-1)</td><td class="amount">${money(tax.federal_income_tax.taxable_income)}</td></tr>
+          <tr><td>Federal Income Tax</td><td class="amount">${money(tax.federal_income_tax.total)}</td></tr>
+        </table>
+      </div>`;
+  } else {
+    federalSection = `
+      <div class="card">
+        <h2>Federal</h2>
+        <table>
+          <tr><td>Self-Employment Tax (15.3%)</td><td class="amount">${money(tax.self_employment_tax.total)}</td></tr>
+          <tr><td style="padding-left:24px;color:#666;">↳ Deductible half (AGI)</td><td class="amount" style="color:#666;">${money(tax.self_employment_tax.deductible_half)}</td></tr>
+          <tr><td>Federal Income Tax</td><td class="amount">${money(tax.federal_income_tax.total)}</td></tr>
+          <tr><td style="padding-left:24px;color:#666;">↳ Taxable income</td><td class="amount" style="color:#666;">${money(tax.federal_income_tax.taxable_income)}</td></tr>
+        </table>
+      </div>`;
+  }
+
+  const downloadButton = isScorp
+    ? `<button class="btn btn-outline" onclick="apiDownload('/tax/form-1120s', 'form-1120s.json')">📋 1120-S Data</button>`
+    : `<button class="btn btn-outline" onclick="apiDownload('/tax/schedule-c', 'schedule-c.json')">📋 Schedule C Data</button>`;
+
   content.innerHTML = `
     <div class="page-header">
       <h1>Tax Estimate</h1>
-      <p>Single-Member LLC — Federal + State</p>
+      <p>${formLabel} — Federal + State</p>
       <div class="meta">
         <span>YTD Net: ${money(tax.ytd_net_profit)}</span>
         <span>Projected: ${money(tax.projected_annual_net)}</span>
       </div>
     </div>
-    <div class="card">
-      <h2>Federal</h2>
-      <table>
-        <tr><td>Self-Employment Tax (15.3%)</td><td class="amount">${money(tax.self_employment_tax.total)}</td></tr>
-        <tr><td style="padding-left:24px;color:#666;">↳ Deductible half (AGI)</td><td class="amount" style="color:#666;">${money(tax.self_employment_tax.deductible_half)}</td></tr>
-        <tr><td>Federal Income Tax</td><td class="amount">${money(tax.federal_income_tax.total)}</td></tr>
-        <tr><td style="padding-left:24px;color:#666;">↳ Taxable income</td><td class="amount" style="color:#666;">${money(tax.federal_income_tax.taxable_income)}</td></tr>
-      </table>
-    </div>
+    ${federalSection}
     <div class="card summary-card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <h2 style="margin:0;">Total Estimated Tax</h2>
@@ -39,7 +78,7 @@ export async function renderTax(content) {
     <div style="display:flex;gap:12px;margin-top:8px;">
       <button class="btn btn-primary" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">💳 Pay $${fmt(tax.suggested_next_payment)} via IRS Direct Pay</button>
       <button class="btn btn-outline" onclick="markTaxPaid(${tax.suggested_next_payment})">✅ Mark as Paid</button>
-      <button class="btn btn-outline" onclick="apiDownload('/tax/schedule-c', 'schedule-c.json')">📋 Schedule C Data</button>
+      ${downloadButton}
     </div>`;
 }
 

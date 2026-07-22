@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
+import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm } from '../api.js';
 
 function sparkline(v1, v2, v3, color = '#3b82f6') {
   const min = Math.min(v1, v2, v3);
@@ -43,10 +43,11 @@ export async function render(content) {
       </div>`;
   }
 
+  const entityLabel = d.entity_label || 'SMLLC (Schedule C)';
   content.innerHTML = `
     <div class="page-header">
       <h1>Dashboard</h1>
-      <p>Your business at a glance</p>
+      <p>${entityLabel}</p>
     </div>
     ${attentionHtml}
     <div class="card-row">
@@ -143,14 +144,15 @@ export async function render(content) {
 }
 
 window.markTaxPaid = async function(amount) {
-  if (!amount || amount <= 0) { alert('No tax payment amount to record.'); return; }
+  if (!amount || amount <= 0) { showToast('No tax payment amount to record.', 'warning'); return; }
   const q = getCurrentQuarter();
-  if (!confirm(`Record estimated tax payment of $${fmt(amount)} for ${q}?`)) return;
+  const confirmed = await showConfirm('Record Tax Payment', `Record estimated tax payment of $${fmt(amount)} for ${q}?`);
+  if (!confirmed) return;
   try {
     const result = await apiPost('/tax/pay', { amount, quarter: q, year: new Date().getFullYear() });
-    alert(`✅ Recorded $${fmt(result.amount)} as paid.\nTotal paid YTD: $${fmt(result.already_paid)}\nRemaining: $${fmt(result.remaining)}`);
+    showToast(`✅ Recorded $${fmt(result.amount)} as paid. Total paid YTD: $${fmt(result.already_paid)}`, 'success');
     window.loadPage('dashboard');
-  } catch (err) { alert('❌ Error recording payment: ' + escapeHtml(err.message)); }
+  } catch (err) { showToast('Error recording payment: ' + err.message, 'error'); }
 }
 
 function getCurrentQuarter() {

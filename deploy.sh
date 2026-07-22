@@ -5,8 +5,8 @@ set -euo pipefail
 # SoloLedger — One-command deploy script
 # ──────────────────────────────────────────────────────────────────────────
 # Usage:
-#   curl -fsSL https://sololedger.app/deploy.sh | bash
-#   curl -fsSL https://sololedger.app/deploy.sh | bash -s -- --port 8100
+#   curl -fsSL https://sololedger.ferrumeng.com/deploy.sh | bash
+#   curl -fsSL https://sololedger.ferrumeng.com/deploy.sh | bash -s -- --port 8100
 # ──────────────────────────────────────────────────────────────────────────
 
 REPO="https://github.com/dilljens/sololedger.git"

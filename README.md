@@ -113,7 +113,7 @@ Set up daily/weekly/monthly cron jobs:
 
 ## Cloud
 
-Hosted version coming soon at [sololedger.app](https://sololedger.app). Includes API hosting, mobile web app, and automated daily syncs.
+Hosted version available at [sololedger.ferrumeng.com](https://sololedger.ferrumeng.com). Includes API hosting, mobile web app, and automated daily syncs.
 
 ## Built With
 

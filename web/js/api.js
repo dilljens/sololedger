@@ -233,11 +233,102 @@ export function money(n) {
 }
 
 export function showToast(msg, type = 'info') {
-  const existing = document.querySelector('.toast');
-  if (existing) existing.remove();
+  let container = document.querySelector('.toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+
+  const label = document.createElement('span');
+  label.textContent = msg;
+
+  const close = document.createElement('button');
+  close.className = 'toast-close';
+  close.textContent = '✕';
+  close.onclick = () => { toast.remove(); };
+
+  toast.appendChild(label);
+  toast.appendChild(close);
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+export function showConfirm(title, message, options = {}) {
+  const { confirmText = 'Confirm', cancelText = 'Cancel', danger = false } = options;
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'confirm-modal';
+
+    modal.innerHTML = `
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(message)}</p>
+      <div class="confirm-actions">
+        <button class="btn btn-outline" id="confirm-cancel">${escapeHtml(cancelText)}</button>
+        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="confirm-ok">${escapeHtml(confirmText)}</button>
+      </div>`;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    const close = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+
+    overlay.querySelector('#confirm-cancel').onclick = () => close(false);
+    overlay.querySelector('#confirm-ok').onclick = () => close(true);
+    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+    overlay.querySelector('#confirm-ok').focus();
+  });
+}
+
+// ── Dark mode ────────────────────────────────────────────
+
+export function getTheme() {
+  return localStorage.getItem('sololedger_theme') || 'system';
+}
+
+export function setTheme(theme) {
+  localStorage.setItem('sololedger_theme', theme);
+  applyTheme(theme);
+}
+
+function applyTheme(theme) {
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = theme === 'dark' || (theme === 'system' && prefersDark);
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  const toggle = document.getElementById('theme-toggle-icon');
+  if (toggle) toggle.textContent = isDark ? '☀️' : '🌙';
+}
+
+window.toggleTheme = toggleTheme;
+
+// Initialize theme on load
+(function initTheme() {
+  const saved = getTheme();
+  applyTheme(saved);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (getTheme() === 'system') applyTheme('system');
+  });
+})();
+
+export function toggleTheme() {
+  const current = getTheme();
+  const cycle = { system: 'light', light: 'dark', dark: 'system' };
+  const next = cycle[current] || 'system';
+  setTheme(next);
+  const label = { system: 'System', light: 'Light', dark: 'Dark' };
+  showToast(`Theme: ${label[next]}`, 'info');
 }

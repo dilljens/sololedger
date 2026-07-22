@@ -67,6 +67,9 @@ async def get_status():
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 
+    entity_type = getattr(cfg, 'entity_type', 'smllc')
+    entity_label = "S-Corp (1120-S)" if entity_type == "scorp" else "SMLLC (Schedule C)"
+
     cash = _decimal_to_float(ledger.cash_balance())
     revenue = _decimal_to_float(ledger.gross_revenue())
     expenses = _decimal_to_float(ledger.total_expenses())
@@ -89,6 +92,8 @@ async def get_status():
     errors = ledger.check()
 
     return _ok({
+        "entity_type": entity_type,
+        "entity_label": entity_label,
         "cash": cash,
         "gross_revenue": revenue,
         "total_expenses": expenses,
@@ -111,6 +116,9 @@ async def get_dashboard():
         ledger = Ledger(cfg)
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
+
+    entity_type = getattr(cfg, 'entity_type', 'smllc')
+    entity_label = "S-Corp (1120-S)" if entity_type == "scorp" else "SMLLC (Schedule C)"
 
     cash = _decimal_to_float(ledger.cash_balance())
     revenue = _decimal_to_float(ledger.gross_revenue())
@@ -135,7 +143,6 @@ async def get_dashboard():
     errors = ledger.check()
 
     txns = []
-    for entry in ledger.entries:
         if not hasattr(entry, "date") or not hasattr(entry, "postings"):
             continue
         for posting in entry.postings:
@@ -149,6 +156,8 @@ async def get_dashboard():
     txns.sort(key=lambda x: (x["date"], x["account"]), reverse=True)
 
     return _ok({
+        "entity_type": entity_type,
+        "entity_label": entity_label,
         "cash": cash,
         "gross_revenue": revenue,
         "total_expenses": expenses,

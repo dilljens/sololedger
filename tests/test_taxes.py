@@ -253,3 +253,127 @@ class TestStateTax:
 
         assert result["total_state_tax"] == Decimal("0")
         assert result["income_tax"] == {"tax": Decimal("0"), "type": "none"}
+
+
+class TestFicaTax:
+    """S-Corp FICA tax computation."""
+
+    def test_fica_below_ss_wage_base(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.fica_tax(Decimal("50000"))
+
+        # Employee: 6.2% SS + 1.45% Medicare = 7.65% (no additional Medicare below $200K)
+        assert result["employee"]["social_security"] == Decimal("3100.00")
+        assert result["employee"]["medicare"] == Decimal("725.00")
+        assert result["employee"]["additional_medicare"] == Decimal("0.00")
+
+        # Employer: 6.2% SS + 1.45% Medicare = 7.65%
+        assert result["employer"]["social_security"] == Decimal("3100.00")
+        assert result["employer"]["medicare"] == Decimal("725.00")
+
+        # Total FICA = 15.3% of salary = $7,650
+        assert result["total_fica"] == Decimal("7650.00")
+        assert result["salary"] == Decimal("50000")
+
+    def test_fica_above_ss_wage_base(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.fica_tax(Decimal("250000"))
+
+        # SS capped at wage base (184800 * 0.062 = 11457.60)
+        assert result["employee"]["social_security"] == Decimal("11457.60")
+        assert result["employee"]["medicare"] == Decimal("3625.00")
+        # Additional Medicare: (250000 - 200000) * 0.009 = 450
+        assert result["employee"]["additional_medicare"] == Decimal("450.00")
+
+        # Employer SS also capped
+        assert result["employer"]["social_security"] == Decimal("11457.60")
+        assert result["employer"]["medicare"] == Decimal("3625.00")
+
+        assert result["total_fica"] > Decimal("0")
+
+    def test_fica_zero_salary(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.fica_tax(Decimal("0"))
+
+        assert result["total_fica"] == Decimal("0")
+        for side in ("employee", "employer"):
+            assert result[side]["total"] == Decimal("0")
+
+
+class TestForm1120S:
+    """1120-S ordinary income computation."""
+
+    def test_ordinary_income(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        fica = te.fica_tax(Decimal("50000"))
+        result = te.form_1120s_income(Decimal("100000"), fica)
+
+        # Ordinary income = 100000 - 50000 - employer_fica(3825) = 46175
+        assert result["ordinary_income"] == Decimal("46175.00")
+        assert result["officer_salary"] == Decimal("50000")
+        assert result["employer_payroll_taxes"] == Decimal("3825.00")
+
+
+class TestScorpTotalProjectedTax:
+    """S-Corp total_projected_tax branching."""
+
+    def test_entity_type_in_result(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.total_projected_tax(Decimal("100000"))
+
+        assert result["entity_type"] == "scorp"
+        assert "fica" in result
+        assert "form_1120s" in result
+
+    def test_smllc_path_unchanged(self, sample_config, clean_ledger):
+        """SMLLC config still returns SMLLC path."""
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(sample_config, clean_ledger)
+        result = te.total_projected_tax(Decimal("4800"))
+
+        assert result["entity_type"] == "smllc"
+        assert "self_employment_tax" in result
+        assert "fica" not in result
+
+
+class TestForm1120SExport:
+    """Form 1120-S data export."""
+
+    def test_export_has_expected_keys(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.form_1120s_export(Decimal("100000"))
+
+        assert result["form"] == "1120-S"
+        assert "income" in result
+        assert "expense_detail" in result
+        assert "balance_sheet" in result
+        assert "shareholder" in result
+
+        income = result["income"]
+        assert "gross_receipts" in income
+        assert "officer_compensation" in income
+        assert "employer_payroll_taxes" in income
+        assert "ordinary_income" in income
+
+    def test_ordinary_income_formula(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.form_1120s_export(Decimal("100000"))
+
+        # ordinary_income = net_profit - salary - employer_fica
+        # 100000 - 50000 - 3825 = 46175
+        assert result["income"]["ordinary_income"] == Decimal("46175.00")
+
+    def test_shareholder_info(self, scorp_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(scorp_config, clean_ledger)
+        result = te.form_1120s_export(Decimal("100000"))
+
+        assert result["shareholder"]["ownership_pct"] == 100
+        assert result["shareholder"]["ordinary_income"] == result["income"]["ordinary_income"]

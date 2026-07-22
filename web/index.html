@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SoloLedger</title>
+  <link rel="icon" type="image/svg+xml" href="/app/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAMZJREFUWEft1rENwjAQBdD/FYyAWIAJYAQKOkZgBEZgBDo2YAQKoogSJHznsyVCEuX8d77Ycr/fH/f7vYiI5T3vGyKy5B+ABygF4A8HhPmHcgF8Q/0A2oEOBQhTKgNoB+K8B2gH4g8A7UC8A0Q78I0C0K6MAsqBmgHkVGoKkFPpBQA5lZ4AkFPpBQA5lZ4AkFNpBwA5ld4AkFPpAQA5lV4AkFNpBwA5lV4AkFNpBwA5lV4AkFNpA4CcSh8AkFPpA4CcSi8AyKmUBgD41T4AQE6lHwCu2T6nuk9r2gAAAABJRU5ErkJggg==">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/app/css/style.css">
@@ -25,8 +27,14 @@
       <a href="#" data-page="mileage" data-label="Mileage"><span>🚗</span> <span>Mileage</span></a>
       <a href="#" data-page="health" data-label="Health"><span>🔍</span> <span>Health</span></a>
       <a href="#" data-page="reports" data-label="Reports"><span>📊</span> <span>Reports</span></a>
+      <a href="#" data-page="payroll" data-label="Payroll"><span>💰</span> <span>Payroll</span></a>
       <a href="#" data-page="settings" data-label="Settings"><span>⚙️</span> <span>Settings</span></a>
     </nav>
+    <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;">
+      <button class="theme-toggle" onclick="window.toggleTheme()" title="Toggle theme" style="margin:0 auto;">
+        <span id="theme-toggle-icon">🌙</span>
+      </button>
+    </div>
     <div class="sidebar-user" id="sidebar-user">
       <div class="sidebar-user-info" id="sidebar-user-info" style="display:none;">
         <img id="user-avatar" class="user-avatar" src="" alt="">
@@ -134,6 +142,7 @@
         <a href="#" data-page="mileage" class="mobile-drawer-item"><span>🚗</span> Mileage</a>
         <a href="#" data-page="health" class="mobile-drawer-item"><span>🔍</span> Health</a>
         <a href="#" data-page="reports" class="mobile-drawer-item"><span>📊</span> Reports</a>
+        <a href="#" data-page="payroll" class="mobile-drawer-item"><span>💰</span> Payroll</a>
         <a href="#" data-page="settings" class="mobile-drawer-item"><span>⚙️</span> Settings</a>
       </div>
     </div>

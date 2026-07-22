@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, setSessionToken, setUserInfo, getUserInfo, isAuthenticated, apiSignIn, apiSignUp, apiSignInWithGoogle, apiLogout } from '../api.js';
+import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm, setSessionToken, setUserInfo, getUserInfo, isAuthenticated, apiSignIn, apiSignUp, apiSignInWithGoogle, apiLogout } from '../api.js';
 
 let _authMode = 'signin';
 
@@ -115,7 +115,8 @@ export async function handleGoogleCredential(response) {
 window.handleGoogleCredential = handleGoogleCredential;
 
 export async function handleLogout() {
-  if (!confirm('Sign out?')) return;
+  const confirmed = await showConfirm('Sign Out', 'Are you sure you want to sign out?', { confirmText: 'Sign Out' });
+  if (!confirmed) return;
   await apiLogout();
   updateSidebarAuth();
   const active = document.querySelector('[data-page].active');

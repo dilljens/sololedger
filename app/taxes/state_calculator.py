@@ -244,7 +244,62 @@ class StateTaxCalculator:
         """Annual LLC report / registered agent fee."""
         return Decimal(str(self.data.get("annual_llc_fee", 0)))
 
-    def calculate_all(self, net_profit: Decimal, total_revenue: Decimal, adjusted_net: Optional[Decimal] = None) -> dict:
+    def scorp_tax(self, net_profit: Decimal) -> dict:
+        """Compute state-level S-Corp specific taxes.
+
+        Some states impose additional taxes on S-Corps (e.g., CA 1.5% on
+        net income, NY graduated filing fee).
+
+        Args:
+            net_profit: Net profit (1120-S ordinary income before state tax)
+
+        Returns:
+            dict with tax and details
+        """
+        scorp_config = self.data.get("scorp_tax")
+        if scorp_config is None:
+            return {"tax": Decimal("0"), "type": "none"}
+
+        stype = scorp_config.get("type")
+
+        if stype == "rate_on_net_income":
+            # e.g., California: 1.5% of net income, minimum $800
+            rate = Decimal(str(scorp_config.get("rate", 0)))
+            min_tax = Decimal(str(scorp_config.get("min_tax", 0)))
+            computed = (net_profit * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            tax = max(computed, min_tax)
+            return {
+                "tax": tax,
+                "type": "rate_on_net_income",
+                "rate": float(rate),
+                "min_tax": float(min_tax),
+                "computed": float(computed),
+                "notes": scorp_config.get("notes", ""),
+            }
+
+        elif stype == "graduated_filing_fee":
+            # e.g., New York: $25-$4,500 based on income
+            tiers = sorted(scorp_config.get("tiers", []),
+                           key=lambda t: t["income_floor"], reverse=True)
+            for tier in tiers:
+                if net_profit >= Decimal(str(tier["income_floor"])):
+                    fee = Decimal(str(tier["fee"]))
+                    return {
+                        "tax": fee,
+                        "type": "graduated_filing_fee",
+                        "fee": float(fee),
+                        "income_threshold": tier["income_floor"],
+                        "notes": scorp_config.get("notes", ""),
+                    }
+            return {"tax": Decimal("0"), "type": "graduated_filing_fee",
+                    "note": "Below minimum income threshold"}
+
+        else:
+            return {"tax": Decimal("0"), "type": "unknown"}
+
+    def calculate_all(self, net_profit: Decimal, total_revenue: Decimal,
+                      adjusted_net: Optional[Decimal] = None,
+                      entity_type: str = "smllc") -> dict:
         """Compute all state-level taxes for an LLC.
 
         Args:
@@ -252,6 +307,7 @@ class StateTaxCalculator:
             total_revenue: Total gross revenue for the year
             adjusted_net: Net profit after SE deduction (federal AGI).
                            If None, computed as net_profit.
+            entity_type: "smllc" (default) or "scorp"
 
         Returns:
             dict with complete state tax breakdown
@@ -274,7 +330,10 @@ class StateTaxCalculator:
         # 5. Annual LLC fee
         annual_fee = self.annual_llc_fee()
 
-        total = income["tax"] + franchise["tax"] + gross_receipts["tax"] + local["tax"] + annual_fee
+        # 6. S-Corp specific tax (only for scorp)
+        scorp = self.scorp_tax(net_profit) if entity_type == "scorp" else {"tax": Decimal("0"), "type": "none"}
+
+        total = income["tax"] + franchise["tax"] + gross_receipts["tax"] + local["tax"] + annual_fee + scorp["tax"]
 
         return {
             "state_code": self.state_code,
@@ -285,6 +344,7 @@ class StateTaxCalculator:
             "gross_receipts_tax": gross_receipts,
             "local_income_tax": local,
             "annual_llc_fee": float(annual_fee),
+            "scorp_tax": scorp,
             "estimated_tax_info": self.data.get("estimated_tax"),
         }
 

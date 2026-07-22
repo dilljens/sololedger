@@ -1,0 +1,30 @@
+# Ferrum Engineering — reverse proxy config
+# Replace placeholder VPS IP below with your actual IP for internal Caddy adjusments
+
+sololedger.ferrumeng.com {
+    handle_path /api/* {
+        reverse_proxy sololedger-api:8100
+    }
+
+    handle_path /docs {
+        reverse_proxy sololedger-api:8100
+    }
+
+    handle {
+        reverse_proxy sololedger-api:8100
+    }
+
+    log {
+        output file /data/sololedger-access.log
+    }
+}
+
+poolsplat.ferrumeng.com {
+    handle {
+        reverse_proxy poolsplat:3138
+    }
+
+    log {
+        output file /data/poolsplat-access.log
+    }
+}

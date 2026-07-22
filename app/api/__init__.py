@@ -32,7 +32,7 @@ app.middleware("http")(deps.tenant_middleware)
 from . import health, auth, invoices, taxes, banking, time_tracking
 from . import retainers, notifications, receipts, reports, expenses
 from . import mileage, accounts, reconciliation, attention, onboarding
-from . import subscriptions, settings
+from . import subscriptions, settings, payroll
 
 app.include_router(health.router)
 app.include_router(auth.router)
@@ -52,6 +52,7 @@ app.include_router(attention.router)
 app.include_router(onboarding.router)
 app.include_router(subscriptions.router)
 app.include_router(settings.router)
+app.include_router(payroll.router)
 
 
 if __name__ == "__main__":

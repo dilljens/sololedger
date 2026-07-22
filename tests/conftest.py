@@ -135,3 +135,62 @@ def clean_ledger(sample_ledger):
     """A ledger guaranteed fresh (reload forces re-parse)."""
     sample_ledger.reload(force=True)
     return sample_ledger
+
+
+@pytest.fixture
+def scorp_config(sample_beancount, tmp_path):
+    """Create a Config with entity_type='scorp' for S-Corp tests."""
+    from app.config import Config
+
+    config_path = tmp_path / "config_scorp.toml"
+    config_path.write_text(f"""\
+[business]
+name = "S Corp LLC"
+owner = "Owner"
+state = "WY"
+ein = "XX-XXXXXXX"
+address = "123 Test St"
+phone = "+1 555-555-5555"
+email = "test@scorpllc.com"
+
+[entity]
+entity_type = "scorp"
+reasonable_salary = 50000
+payroll_frequency = "monthly"
+
+[ledger]
+path = "{sample_beancount / 'main.beancount'}"
+
+[accounts]
+checking = "Assets:Bank:BusinessChecking"
+ar = "Assets:AccountsReceivable"
+income = "Income:Consulting"
+owner_draws = "Equity:OwnerDraws"
+
+[tax]
+state = "WY"
+standard_deduction = 14600
+
+[[tax.brackets]]
+rate = 0.10
+floor = 0
+ceiling = 11925
+
+[[tax.brackets]]
+rate = 0.12
+floor = 11926
+ceiling = 48475
+
+[tax.self_employment]
+rate_social_security = 0.124
+rate_medicare = 0.029
+ss_wage_base = 184800
+deduction_ratio = 0.9235
+
+[tax.quarter_dates]
+q1 = [4, 15]
+q2 = [6, 15]
+q3 = [9, 15]
+q4 = [1, 15]
+""")
+    return Config(str(config_path))

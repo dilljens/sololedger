@@ -32,7 +32,7 @@ INSTANCES_DIR = Path(os.environ.get("SL_INSTANCES_DIR", "/opt/sololedger/instanc
 # Registry of all provisioned customers
 REGISTRY_PATH = Path(os.environ.get("SL_REGISTRY_PATH", "/opt/sololedger/registry.json"))
 # The domain/IP where instances are served
-HOST_DOMAIN = os.environ.get("SL_HOST_DOMAIN", "cloud.sololedger.app")
+HOST_DOMAIN = os.environ.get("SL_HOST_DOMAIN", "sololedger.ferrumeng.com")
 # Docker image tag for the API
 DOCKER_IMAGE = os.environ.get("SL_DOCKER_IMAGE", "sololedger-api:latest")
 # SMTP config for welcome emails
@@ -40,7 +40,7 @@ SMTP_HOST = os.environ.get("SL_SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("SL_SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SL_SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SL_SMTP_PASSWORD", "")
-SMTP_FROM = os.environ.get("SL_SMTP_FROM", "cloud@sololedger.app")
+SMTP_FROM = os.environ.get("SL_SMTP_FROM", "dillon@ferrumengineeringllc.com")
 
 
 def generate_api_key() -> str:
@@ -320,7 +320,7 @@ Need help? Reply to this email.
 
 —
 SoloLedger Cloud
-https://sololedger.app
+https://sololedger.ferrumeng.com
 """
 
     msg = MIMEText(body)
