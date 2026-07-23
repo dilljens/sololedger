@@ -27,13 +27,12 @@ if _web_dir.exists():
     import os
 
     class NoCacheStaticFiles(StaticFiles):
-        """StaticFiles that adds no-cache headers for JS modules and HTML."""
+        """StaticFiles that adds CDN-friendly no-cache headers for all assets."""
         async def get_response(self, path: str, scope):
             resp = await super().get_response(path, scope)
-            if path.endswith('.js') or path.endswith('.html'):
-                resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            elif path.endswith(('.css', '.json', '.svg')):
-                resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+            # Cloudflare respects CDN-Cache-Control over Cache-Control for edge caching
+            resp.headers['CDN-Cache-Control'] = 'no-cache'
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
             return resp
 
     app.mount("/app", NoCacheStaticFiles(directory=str(_web_dir), html=True), name="web")
