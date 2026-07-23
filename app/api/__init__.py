@@ -18,24 +18,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount web UI with cache control
+# ── Web UI static files ──
 _web_dir = Path(__file__).resolve().parent.parent.parent / "web"
+
+# Dynamic JS serving through API route — prevents CDN caching
+from fastapi.responses import FileResponse as FR
+
+_js_dir = _web_dir / "js"
+
+@app.get("/api/v1/static/js/{rest_of_path:path}")
+async def serve_js(rest_of_path: str):
+    """Serve JS files through API path so Cloudflare treats them as dynamic."""
+    file_path = (_js_dir / rest_of_path).resolve()
+    _js_root = _js_dir.resolve()
+    if not str(file_path).startswith(str(_js_root)):
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("Forbidden", status_code=403)
+    if not file_path.exists() or not file_path.is_file():
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse("Not Found", status_code=404)
+    resp = FR(file_path)
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return resp
+
+# Mount web UI (for HTML, CSS, images — non-JS static assets)
 if _web_dir.exists():
     from fastapi.staticfiles import StaticFiles
-    from starlette.responses import FileResponse
-    from starlette.routing import Mount
-    import os
-
-    class NoCacheStaticFiles(StaticFiles):
-        """StaticFiles that adds CDN-friendly no-cache headers for all assets."""
-        async def get_response(self, path: str, scope):
-            resp = await super().get_response(path, scope)
-            # Cloudflare respects CDN-Cache-Control over Cache-Control for edge caching
-            resp.headers['CDN-Cache-Control'] = 'no-cache'
-            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            return resp
-
-    app.mount("/app", NoCacheStaticFiles(directory=str(_web_dir), html=True), name="web")
+    app.mount("/app", StaticFiles(directory=str(_web_dir), html=True), name="web")
 
 # Register tenant middleware
 from . import deps
