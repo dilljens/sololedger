@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse as FR
 
 _js_dir = _web_dir / "js"
 
-@app.get("/api/v1/static/js/{rest_of_path:path}")
+@app.get("/api/v1/_js/{rest_of_path:path}")
 async def serve_js(rest_of_path: str):
     """Serve JS files through API path so Cloudflare treats them as dynamic."""
     file_path = (_js_dir / rest_of_path).resolve()
