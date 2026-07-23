@@ -13,7 +13,7 @@ function sparkline(v1, v2, v3, color = '#3b82f6') {
   </svg>`;
 }
 
-export async function render(content) {
+export async function renderDashboard(content) {
   const [d, attention] = await Promise.all([
     apiGet('/dashboard'),
     apiGet('/attention').catch(() => ({ items: [] })),
@@ -143,7 +143,7 @@ export async function render(content) {
     </div>`;
 }
 
-window.markTaxPaid = async function(amount) {
+export async function markTaxPaid(amount) {
   if (!amount || amount <= 0) { showToast('No tax payment amount to record.', 'warning'); return; }
   const q = getCurrentQuarter();
   const confirmed = await showConfirm('Record Tax Payment', `Record estimated tax payment of $${fmt(amount)} for ${q}?`);
@@ -155,7 +155,7 @@ window.markTaxPaid = async function(amount) {
   } catch (err) { showToast('Error recording payment: ' + err.message, 'error'); }
 }
 
-function getCurrentQuarter() {
+export function getCurrentQuarter() {
   const m = new Date().getMonth();
   return 'Q' + (Math.floor(m / 3) + 1);
 }

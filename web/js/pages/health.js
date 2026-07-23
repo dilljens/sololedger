@@ -1,6 +1,6 @@
 import { apiFetch, escapeHtml } from '../api.js';
 
-export async function render(content) {
+export async function renderHealth(content) {
   content.innerHTML = `
       <div class="page-header">
         <h1>🔍 Ledger Health</h1>

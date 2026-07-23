@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
 
-export async function render(content) {
+export async function renderAccounts(content) {
   let accts = { checking: '', income: '', cards: [], balances: {} };
   try { accts = await apiGet('/accounts'); } catch (e) { /* offline */ }
 

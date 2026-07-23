@@ -1,6 +1,6 @@
 import { apiGet, money, fmt } from '../api.js';
 
-export async function render(content) {
+export async function renderReports(content) {
   const [expenses, pl] = await Promise.all([
     apiGet('/reports/expenses'),
     apiGet('/reports/profit-loss'),

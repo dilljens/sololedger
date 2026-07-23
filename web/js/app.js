@@ -1,8 +1,6 @@
 // SoloLedger web app — main entry point (ES Module)
-import {
-  apiGetPublicStatus, updateGoogleClientId,
-  updateSidebarAuth
-} from './api.js';
+import { apiGetPublicStatus } from './api.js';
+import { updateGoogleClientId, updateSidebarAuth } from './pages/auth.js';
 
 import { renderDashboard, markTaxPaid, getCurrentQuarter } from './pages/dashboard.js';
 import { renderAccounts } from './pages/accounts.js';

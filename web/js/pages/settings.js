@@ -1,6 +1,6 @@
 import { apiFetch, apiPost, escapeHtml, showToast, getUserInfo, isAuthenticated, getAuthToken, getLlmApiKey, getLlmBackend, getLlmModel, setLlmApiKey, setLlmBackend, setLlmModel, apiSaveLlmConfig } from '../api.js';
 
-export async function render(content) {
+export async function renderSettings(content) {
   const user = getUserInfo();
 
   let authSection = '';

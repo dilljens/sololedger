@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
 
-export async function render(content) {
+export async function renderTransactions(content) {
   const d = await apiGet('/dashboard');
   content.innerHTML = `
     <div class="page-header">

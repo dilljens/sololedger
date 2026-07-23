@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
 
-export async function render(content) {
+export async function renderMileage(content) {
   let trips = [];
   let report = null;
   try {

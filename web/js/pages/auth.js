@@ -189,3 +189,6 @@ export function updateGoogleClientId(retries = 5) {
     .catch(() => {});
 }
 window.updateGoogleClientId = updateGoogleClientId;
+
+// Re-export for dynamic imports from app.js catch block
+export { escapeHtml } from '../api.js';

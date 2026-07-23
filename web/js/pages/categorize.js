@@ -1,6 +1,6 @@
 import { apiFetch, apiGet, escapeHtml } from '../api.js';
 
-export async function render(content) {
+export async function renderCategorize(content) {
   content.innerHTML = `
       <div class="page-header">
         <h1>🏷️ Categorization</h1>

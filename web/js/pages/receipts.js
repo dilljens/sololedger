@@ -1,6 +1,6 @@
 import { apiFetch, escapeHtml, showToast, fmt } from '../api.js';
 
-export async function render(content) {
+export async function renderReceipts(content) {
   content.innerHTML = `
       <div class="page-header">
         <h1>🧾 Receipts</h1>
@@ -48,7 +48,7 @@ export async function render(content) {
   }
 }
 
-function renderCaptureContent(content) {
+export function renderCaptureContent(content) {
   content.innerHTML = `
     <div class="page-header">
       <h1>📸 Capture Receipt</h1>

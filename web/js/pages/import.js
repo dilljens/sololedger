@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, showToast } from '../api.js';
 
-export async function render(content) {
+export async function renderImport(content) {
   content.innerHTML = `
       <div class="page-header">
         <h1>📥 Import Transactions</h1>
