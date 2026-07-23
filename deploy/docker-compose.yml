@@ -21,8 +21,8 @@ services:
       dockerfile: Dockerfile.api
     container_name: sololedger-api
     restart: unless-stopped
-    expose:
-      - "8100"
+    ports:
+      - "8100:8100"
     volumes:
       - ledger_data:/app/ledger
       - /opt/sololedger/config.toml:/app/config.toml:ro
