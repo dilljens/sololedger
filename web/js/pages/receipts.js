@@ -129,7 +129,7 @@ window.handleReceiptUpload = async function(input) {
     formData.append('preview', 'true');
     const res = await apiFetch('/receipts/scan', { method: 'POST', body: formData });
     const json = await res.json();
-    if (!json.success) throw new Error(escapeHtml(escapeHtml(json.error)) || 'Scan failed');
+    if (!json.success) throw new Error(escapeHtml(json.error || "") || 'Scan failed');
     const data = json.data;
 
     previewDiv.innerHTML = `
@@ -200,7 +200,7 @@ window.handleReceiptUpload = async function(input) {
 window.confirmReceipt = async function() {
   const data = window._receiptData;
   const file = window._receiptFile;
-  if (!data || !data.total) { alert('No receipt data to save.'); return; }
+  if (!data || !data.total) { showToast('No receipt data to save.', 'warning'); return; }
   const account = document.getElementById('receipt-account')?.value || 'Expenses:Miscellaneous';
   try {
     const formData = new FormData();
@@ -221,7 +221,7 @@ window.confirmReceipt = async function() {
       });
     }
     window._receiptBusy = false;
-  } catch (err) { alert('❌ Error: ' + escapeHtml(err.message)); window._receiptBusy = false; }
+  } catch (err) { showToast('Error: ' + escapeHtml(err.message), 'error'); window._receiptBusy = false; }
 };
 
 window.learnCategory = async function() {
@@ -233,7 +233,7 @@ window.learnCategory = async function() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchant: receiptData.merchant, account: receiptAccount, correct: true }),
     });
-    alert('✅ Category learned for ' + receiptData.merchant);
+    showToast('✅ Category learned for ' + receiptData.merchant, 'success');
     return;
   }
 
@@ -249,7 +249,7 @@ window.learnCategory = async function() {
     document.getElementById('cat-suggestion').innerHTML =
       '<p style="color:#2b8a3e;">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
   } catch (err) {
-    alert('❌ Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + escapeHtml(err.message), 'error');
   }
 };
 

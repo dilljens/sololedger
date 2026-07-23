@@ -4,17 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>SoloLedger</title>
+  <meta name="theme-color" content="#3b82f6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="/app/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/app/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAMZJREFUWEft1rENwjAQBdD/FYyAWIAJYAQKOkZgBEZgBDo2YAQKoogSJHznsyVCEuX8d77Ycr/fH/f7vYiI5T3vGyKy5B+ABygF4A8HhPmHcgF8Q/0A2oEOBQhTKgNoB+K8B2gH4g8A7UC8A0Q78I0C0K6MAsqBmgHkVGoKkFPpBQA5lZ4AkFPpBQA5lZ4AkFNpBwA5ld4AkFPpAQA5lV4AkFNpBwA5lV4AkFNpBwA5lV4AkFNpA4CcSh8AkFPpA4CcSi8AyKmUBgD41T4AQE6lHwCu2T6nuk9r2gAAAABJRU5ErkJggg==">
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAMZJREFUWEft1rENwjAQBdD/FYyAWIAJYAQKOkZgBEZgBDo2YAQKoogSJHznsyVCEuX8d77Ycr/fH/f7vYiI5T3vGyKy5B+ABygF4A8HhPmHcgF8Q/0A2oEOBQhTKgNoB+K8B2gH4g8A7UC8A0Q78I0C0K6MAsqBmgHkVGoKkFPpBQA5lZ4AkFPpBQA5lZ4AkFNpBwA5ld4AkFPpAQA5V4AkFNpBwA5lV4AkFNpBwA5lV4AkFNpA4CcSh8AkFPpA4CcSi8AyKmUBgD41T4AQE6lHwCu2T6nuk9r2gAAAABJRU5ErkJggg==">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/app/css/style.css">
 </head>
 <body>
+  <div id="loading-bar" class="loading-bar"></div>
   <aside class="sidebar">
     <div class="logo">Solo<span>Ledger</span></div>
-    <nav>
-      <a href="#" data-page="dashboard" data-label="Dashboard" class="active"><span>📊</span> <span>Dashboard</span></a>
+    <nav aria-label="Main navigation">
+      <a href="#" data-page="dashboard" data-label="Dashboard" class="active"><span aria-hidden="true">📊</span> <span>Dashboard</span></a>
       <a href="#" data-page="accounts" data-label="Accounts"><span>🏦</span> <span>Accounts</span></a>
       <a href="#" data-page="import" data-label="Import"><span>📥</span> <span>Import</span></a>
       <a href="#" data-page="invoices" data-label="Invoices"><span>📄</span> <span>Invoices</span></a>
@@ -31,8 +35,8 @@
       <a href="#" data-page="settings" data-label="Settings"><span>⚙️</span> <span>Settings</span></a>
     </nav>
     <div style="padding:8px 16px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;">
-      <button class="theme-toggle" onclick="window.toggleTheme()" title="Toggle theme" style="margin:0 auto;">
-        <span id="theme-toggle-icon">🌙</span>
+      <button class="theme-toggle" onclick="window.toggleTheme()" title="Toggle theme" aria-label="Toggle dark mode" style="margin:0 auto;">
+        <span id="theme-toggle-icon" aria-hidden="true">🌙</span>
       </button>
     </div>
     <div class="sidebar-user" id="sidebar-user">

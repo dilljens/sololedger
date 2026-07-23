@@ -127,7 +127,7 @@ window.connectBank = async function() {
     if (escapeHtml(e.message) === 'Authentication required') {
       window.showAuthModal();
     } else {
-      alert('Failed to connect bank: ' + escapeHtml(e.message));
+      showToast('Failed to connect bank: ' + e.message, 'error');
     }
   }
 };
@@ -171,7 +171,7 @@ window.handleOfxUpload = async function(input) {
         </div>`;
       window._ofxFile = file;
     } else {
-      div.innerHTML = `<div class="error">⚠ Import failed: ${escapeHtml(escapeHtml(json.error)) || 'Unknown error'}</div>`;
+      div.innerHTML = `<div class="error">⚠ Import failed: ${escapeHtml(json.error || "") || 'Unknown error'}</div>`;
     }
   } catch (err) {
     div.innerHTML = `<div class="error">⚠ ${escapeHtml(err.message)}</div>`;
@@ -217,7 +217,7 @@ window.handleCsvUpload = async function(input) {
     if (json.success) {
       div.innerHTML = `<span style="color:#2b8a3e;">✅ CSV uploaded. ${json.data.imported || 0} transactions found.</span>`;
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed'}</span>`;
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
     }
   } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };
@@ -236,7 +236,7 @@ window.handleQboUpload = async function(input) {
     if (json.success) {
       div.innerHTML = `<span style="color:#2b8a3e;">✅ QBO uploaded. ${json.data.imported || 0} transactions found.</span>`;
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed'}</span>`;
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
     }
   } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
 };

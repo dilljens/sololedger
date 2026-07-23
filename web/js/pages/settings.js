@@ -1,4 +1,4 @@
-import { apiFetch, apiPost, escapeHtml, showToast, getUserInfo, isAuthenticated, getAuthToken, getLlmApiKey, getLlmBackend, getLlmModel, setLlmApiKey, setLlmBackend, setLlmModel, apiSaveLlmConfig } from '../api.js';
+import { apiFetch, apiPost, escapeHtml, showToast, showConfirm, getUserInfo, isAuthenticated, getAuthToken, getLlmApiKey, getLlmBackend, getLlmModel, setLlmApiKey, setLlmBackend, setLlmModel, apiSaveLlmConfig } from '../api.js';
 
 export async function renderSettings(content) {
   const user = getUserInfo();
@@ -188,7 +188,8 @@ async function loadSubscriptionInfo() {
 }
 
 window.startUpgrade = async function(plan) {
-  if (!confirm(`Upgrade to ${plan} plan? You'll be redirected to Stripe.`)) return;
+  const upgradeConfirmed = await showConfirm('Upgrade Plan', `Upgrade to ${plan} plan? You'll be redirected to Stripe.`, { confirmText: 'Upgrade' });
+  if (!upgradeConfirmed) return;
   try {
     const data = await apiPost('/subscription/create-checkout', {
       plan: plan,
@@ -198,7 +199,7 @@ window.startUpgrade = async function(plan) {
     });
     window.location.href = data.url;
   } catch (e) {
-    alert('Failed to start upgrade: ' + escapeHtml(e.message));
+    showToast('Failed to start upgrade: ' + e.message, 'error');
   }
 };
 
@@ -207,30 +208,10 @@ window.manageBilling = async function() {
     const data = await apiPost('/subscription/portal', {});
     window.location.href = data.url;
   } catch (e) {
-    alert('Failed to open billing portal: ' + escapeHtml(e.message));
+    showToast('Failed to open billing portal: ' + e.message, 'error');
   }
 };
 
-window.apiDownload = async function(path, filename) {
-  try {
-    const token = getAuthToken();
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`/api/v1${path}`, { headers });
-    if (!res.ok) throw new Error('Download failed');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || path.split('/').pop() || 'download';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    alert('Download failed: ' + escapeHtml(e.message));
-  }
-};
 
 window.saveLlmConfig = function() {
   const key = document.getElementById('llm-api-key').value.trim();
@@ -254,8 +235,9 @@ window.saveLlmConfig = function() {
   if (active) window.loadPage(active.dataset.page);
 };
 
-window.clearLlmConfig = function() {
-  if (!confirm('Remove LLM API key?')) return;
+window.clearLlmConfig = async function() {
+  const removeKeyConfirmed = await showConfirm('Remove API Key', 'Remove LLM API key?', { confirmText: 'Remove', danger: true });
+  if (!removeKeyConfirmed) return;
   setLlmApiKey(null);
   setLlmBackend('openai');
   setLlmModel('gpt-4o-mini');

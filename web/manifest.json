@@ -1,0 +1,31 @@
+{
+  "name": "SoloLedger",
+  "short_name": "SoloLedger",
+  "description": "Open-source accounting, invoicing, and tax tools for your consulting LLC",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f9fafb",
+  "theme_color": "#3b82f6",
+  "categories": ["finance", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/app/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAAXNSR0IArs4c6QAAAsRJREFUeJztnL1KA0EUheNfYmkj+AaCiKCobZRCsBCfwCI+gpVY2Nn4HlY+gRZWgoWNIFiIiBZWWvkCO3v3wWUZ3U122Ds7eyb3B4fNbmZn7rc3O3d3ZxKJRCKRSCQSieCSJElV+w7H4/E7Y4wx9oV9q+sKwF6pVNqNx+MXjLGR9h2OIPbX63UYAKWq6kHXdU9ETarV6lPb7Xa07/AGhNlsBp7nQYqiYBgGZFkWDMN4gSIROvT7fej1ehBFEURRBKIowXA4fAciESK6rss5Qq11sVjcqtVqZ8y/z2I+n0Or1YJOpwNBEECpVJIhBEEASZKs33Q6hW63C57nQZ7ncJqmMBwOoVQqyRCCIAhIkgSiKII0Tdceq2232xBFERQKBZi2WCzAMIw/QyRJkjWn63q43+8vf7VarYAQAr7vyzmDwYBhGIumKIr4+zgXHz+OiYIQAgghYQghEAQBNE2DKIpwHwgh4LouZFkGx+Px2+92u1+eEEJwHhCiHrmLbrfL1qvT6YjfF0VB4r0KhYJ4HyGkdAghoGkaxHEMmqZBo9EA3/e/vJZlAeccRFEEnudBEARQq9UgDENIkgR832eP9/v9H8dxOBzGjoEiCCFq3dA0DWzbBtu2gXMOvu8DpRQcx4GmacA5h1qtBkEQwGQyAdM0n3lekiTS+zjnYvv4vs+ev5AvSPM89oH8RYVCoSBy3z3CspYTjDFhLiFExLlQWq/XhXVEUYSiULINBFSrVdbaqqrCZrOBVqsFQRCwdlYUBdbrNVBKYTabCeu1Wi1221BVFYr9ghQKBdbaAKAoCvi+D5xz6Pf7zP5wHBeK9qs0TZm6BwBQSuE4Htlr4+8bY4zN9j2O4/F4FwC26r9omqbNnfd9X7gBiiAI/0dRVFkHx3G4AeI4TqzzKpVKJYqiHSFFUZQtURRlSxRF2Qgh37sPfAMJ+RuJQ+kAAAAASUVORK5CYII=",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAAXNSR0IArs4c6QAAA0xJREFUeJztnT1LG1EUht0P0EIRFPwHf0H7gYqCgqLgr/gH3BzcxUFEUEGwEHQQJ4O7gyCCuAmCg4u4mB9wEcdFsH2h53CuM5lk7ty59567L3hgSTZz87z3w5m5t5eGIAiCIAiCILg0m80OASxb1/UGAPB8/+7+sm3bB3R+5/M5OI4DcRzDcDgE3/cBAJqmASEE4jgGYwyEEIQgCKgdhBAIggDG4zE4jgPtdhvSNIXZbAbD4RAAQFEUmEwmYIwBx3HAMAzG4/HF60tCiNVqBcYYcBwH8jyHXq8HSZJAkiTQbDZ/FJIkySnnSqfTgW63CwCw2+18n88BANrtNthMRiOR3zKbzQ7T6RREgk2n0z/RkG63C4QQ6Pf7MBqNIJIkCIIAirEQBEHZ/Vmr1XpyPB7fLZfLn1QiKQpCkpRiNABAVVW4ubmBbrf75UVCVCKJhBBCSqMhhEDTNOh0OuA4DiRJ8mlrYjAYQJKkYNs2CCHgeR7MZjNot9tPcRwDISSYz+eQZRmkafq0kqIoQXVrCCEwGo1Y/eaPruvQarVYa4iQJMmvOoQQYIxBFEWQJAn4vg+GYUCWZSCEQKvVYu29LMuCMAZFUZ5Efv78+evb21uwbRsIIWAYBnieB7PZDHq9XnCBU0h0XWftDRhjMAyD/XohBEIIpGkK/X4fbNuGNM2g2+3+2I/jOKDb7ULXDet0OjAej0tlpRACNE2DJEkgjmNIkgRs2wYAYIwBGw2JROjp6QloJBIhQggbCeMfKCml9C8mDQUASJIEgiBg15C06yUhhP06IQQMw4DNZgOGYYDv+9But0vXvV4vrCGEkBLRSJIkqKxBCIF+v18ad6qqBr1eD1zXhX6//6VknueQZdnTKLNsG/q+H5JUGq7rQhiGoKoqRFEEURQBISSo/F5CCCzLKq05nle6R0cIqSxhGG7DMISbYRiG4fu+Xxp3SilRFEUIggBUVQUhBDo7pZQQQkBVVYGEcRwLz/NgOBz+EiGEsN1ut4UQYgshhBCyTSllq0nQNA2UUpZS5oQQSKm2UkohBMN+JpPJNsuybZIk232c53lQVCmlrMrfx9m2/ReZ6aLR6XQ6nU6n0+l0Op1Op9N9TH8BmCijM4NqcXwAAAAASUVORK5CYII=",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

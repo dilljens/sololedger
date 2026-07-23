@@ -83,7 +83,7 @@ window.logMileage = async function() {
         `<span style="color:#2b8a3e;">✅ Logged: ${purpose} — ${miles} mi ($${(miles * 0.70).toFixed(2)} deduction)</span>`;
       window.loadPage('mileage');
     } else {
-      document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed'}</span>`;
+      document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
     }
   } catch (err) {
     document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`;

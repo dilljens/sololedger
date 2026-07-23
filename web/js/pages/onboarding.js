@@ -131,7 +131,7 @@ export async function handleOnboardingOfx(input) {
     if (json.success) {
       div.innerHTML = `<span style="color:var(--success);">✅ ${json.data.imported} transactions imported!</span>`;
     } else {
-      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Import failed'}</span>`;
+      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(json.error || "") || 'Import failed'}</span>`;
     }
   } catch (e) {
     div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(e.message)}</span>`;
@@ -154,7 +154,7 @@ export async function handleOnboardingCsv(input) {
     if (json.success) {
       div.innerHTML = `<span style="color:var(--success);">✅ ${json.data.imported} transactions imported!</span>`;
     } else {
-      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Import failed'}</span>`;
+      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(json.error || "") || 'Import failed'}</span>`;
     }
   } catch (e) {
     div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(e.message)}</span>`;

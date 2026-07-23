@@ -91,12 +91,20 @@ export async function apiFetch(path, options = {}) {
     setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), FETCH_TIMEOUT);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-    signal: options.signal || (controller ? controller.signal : undefined),
-  });
-  return res;
+  // Show loading bar (skip for public/non-critical endpoints)
+  const skipLoading = options.skipLoading || path.includes('/health');
+  if (!skipLoading) showLoading();
+
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || (controller ? controller.signal : undefined),
+    });
+    return res;
+  } finally {
+    if (!skipLoading) hideLoading();
+  }
 }
 
 export async function apiGet(path) {
@@ -213,6 +221,28 @@ export async function apiGetLlmConfig() {
   }
 }
 
+// ── Loading Bar ───────────────────────────────────────────
+
+let loadingTimer = null;
+
+export function showLoading() {
+  const bar = document.getElementById('loading-bar');
+  if (!bar) return;
+  clearTimeout(loadingTimer);
+  bar.className = 'loading-bar active';
+}
+
+export function hideLoading() {
+  const bar = document.getElementById('loading-bar');
+  if (!bar) return;
+  clearTimeout(loadingTimer);
+  bar.className = 'loading-bar done';
+  loadingTimer = setTimeout(() => {
+    bar.className = 'loading-bar fade-out';
+    setTimeout(() => { bar.className = 'loading-bar'; }, 300);
+  }, 150);
+}
+
 // ── Security / formatting helpers ─────────────────────────
 
 /** Escape a string for safe insertion into innerHTML. */
@@ -237,6 +267,8 @@ export function showToast(msg, type = 'info') {
   if (!container) {
     container = document.createElement('div');
     container.className = 'toast-container';
+    container.setAttribute('role', 'status');
+    container.setAttribute('aria-live', 'polite');
     document.body.appendChild(container);
   }
 
@@ -249,6 +281,7 @@ export function showToast(msg, type = 'info') {
   const close = document.createElement('button');
   close.className = 'toast-close';
   close.textContent = '✕';
+  close.setAttribute('aria-label', 'Dismiss notification');
   close.onclick = () => { toast.remove(); };
 
   toast.appendChild(label);
@@ -323,6 +356,30 @@ window.toggleTheme = toggleTheme;
     if (getTheme() === 'system') applyTheme('system');
   });
 })();
+
+// ── File download helper ─────────────────────────────────
+
+export async function apiDownload(path, filename) {
+  try {
+    const token = getAuthToken();
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}${path}`, { headers });
+    if (!res.ok) throw new Error('Download failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || path.split('/').pop() || 'download';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showToast('Download failed: ' + e.message, 'error');
+  }
+}
+window.apiDownload = apiDownload;
 
 export function toggleTheme() {
   const current = getTheme();

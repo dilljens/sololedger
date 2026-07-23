@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
+import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm } from '../api.js';
 
 export async function renderNewInvoice(content) {
   content.innerHTML = `
@@ -72,7 +72,7 @@ window.createInvoice = async function() {
           ${d.payment_link ? `<p><a href="${d.payment_link}" target="_blank" class="btn btn-primary btn-sm">💳 Payment Link</a></p>` : ''}
         </div>`;
     } else {
-      resultDiv.innerHTML = `<div class="error">⚠ ${escapeHtml(escapeHtml(json.error)) || 'Failed to create invoice'}</div>`;
+      resultDiv.innerHTML = `<div class="error">⚠ ${escapeHtml(json.error || "") || 'Failed to create invoice'}</div>`;
     }
   } catch (err) {
     resultDiv.innerHTML = `<div class="error">⚠ ${escapeHtml(err.message)}</div>`;
@@ -122,7 +122,8 @@ export async function renderInvoices(content) {
 }
 
 window.markInvoicePaid = async function(invNum, amount) {
-  if (!confirm(`Mark invoice ${invNum} as paid for $${fmt(amount)}?`)) return;
+  const confirmed = await showConfirm('Mark as Paid', `Mark invoice ${invNum} as paid for $${fmt(amount)}?`, { confirmText: 'Mark Paid' });
+  if (!confirmed) return;
   try {
     const data = await apiPost(`/invoices/${encodeURIComponent(invNum)}/pay`, {
       amount: amount,
@@ -130,6 +131,6 @@ window.markInvoicePaid = async function(invNum, amount) {
     showToast(`✅ ${data.invoice} marked as paid — $${fmt(data.amount)}`, 'success');
     window.loadPage('invoices');
   } catch (e) {
-    alert('Failed to mark paid: ' + escapeHtml(e.message));
+    showToast('Failed to mark paid: ' + e.message, 'error');
   }
 };

@@ -1,4 +1,4 @@
-import { apiFetch, apiGet, escapeHtml } from '../api.js';
+import { apiFetch, apiGet, escapeHtml, showToast } from '../api.js';
 
 export async function renderCategorize(content) {
   content.innerHTML = `
@@ -87,7 +87,7 @@ window.learnCategory = async function() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchant: receiptData.merchant, account: receiptAccount, correct: true }),
     });
-    alert('✅ Category learned for ' + receiptData.merchant);
+    showToast('✅ Category learned for ' + receiptData.merchant, 'success');
     return;
   }
 
@@ -103,6 +103,6 @@ window.learnCategory = async function() {
     document.getElementById('cat-suggestion').innerHTML =
       '<p style="color:#2b8a3e;">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
   } catch (err) {
-    alert('❌ Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + escapeHtml(err.message), 'error');
   }
 };

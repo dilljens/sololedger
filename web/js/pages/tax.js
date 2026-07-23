@@ -107,23 +107,4 @@ export async function renderDeadlines(content) {
     </div>`;
 }
 
-window.apiDownload = async function(path, filename) {
-  try {
-    const token = getAuthToken();
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`/api/v1${path}`, { headers });
-    if (!res.ok) throw new Error('Download failed');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || path.split('/').pop() || 'download';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    alert('Download failed: ' + escapeHtml(e.message));
-  }
-};
+
