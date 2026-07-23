@@ -18,11 +18,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount web UI
+# Mount web UI with cache control
 _web_dir = Path(__file__).resolve().parent.parent.parent / "web"
 if _web_dir.exists():
     from fastapi.staticfiles import StaticFiles
-    app.mount("/app", StaticFiles(directory=str(_web_dir), html=True), name="web")
+    from starlette.responses import FileResponse
+    from starlette.routing import Mount
+    import os
+
+    class NoCacheStaticFiles(StaticFiles):
+        """StaticFiles that adds no-cache headers for JS modules and HTML."""
+        async def get_response(self, path: str, scope):
+            resp = await super().get_response(path, scope)
+            if path.endswith('.js') or path.endswith('.html'):
+                resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            elif path.endswith(('.css', '.json', '.svg')):
+                resp.headers['Cache-Control'] = 'no-cache, must-revalidate'
+            return resp
+
+    app.mount("/app", NoCacheStaticFiles(directory=str(_web_dir), html=True), name="web")
 
 # Register tenant middleware
 from . import deps
