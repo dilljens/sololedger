@@ -143,7 +143,7 @@ async def get_dashboard():
     errors = ledger.check()
 
     txns = []
-    for entry in ledger.entries():
+    for entry in ledger.entries:
         if not hasattr(entry, "date") or not hasattr(entry, "postings"):
             continue
         for posting in entry.postings:
