@@ -35,123 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateGoogleClientId();
   }
 
-  // ── Navigation ──────────────────────────────────────────────
-  navLinks.forEach(link => {
-    link.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const page = link.dataset.page;
-      history.pushState({ page }, '', `#/${page}`);
-      navLinks.forEach(l => l.classList.remove('active'));
-      link.classList.add('active');
-      await loadPage(page);
-    });
-  });
-
-  // Handle browser back/forward
-  window.addEventListener('popstate', (e) => {
-    const page = (e.state && e.state.page) || getPageFromHash() || 'dashboard';
-    navLinks.forEach(l => l.classList.remove('active'));
-    const activeLink = document.querySelector(`[data-page="${page}"]`);
-    if (activeLink) activeLink.classList.add('active');
-    loadPage(page, { replace: true });
-  });
-
-  // Determine initial page from URL hash
-  const initialPage = getPageFromHash() || 'dashboard';
-  const activeLink = document.querySelector(`[data-page="${initialPage}"]`);
-  if (activeLink) activeLink.classList.add('active');
-  loadPage(initialPage);
-
-  // Check onboarding after initial page load
-  setTimeout(() => checkOnboarding(), 500);
-
-  // ── Keyboard shortcuts ─────────────────────────────────
-  let keyBuffer = '';
-  let bufferTimeout = null;
-
-  document.addEventListener('keydown', (e) => {
-    // Don't trigger shortcuts when typing in inputs
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-
-    if (e.key === '?') {
-      e.preventDefault();
-      showShortcutHelp();
-      return;
-    }
-
-    keyBuffer += e.key.toLowerCase();
-    clearTimeout(bufferTimeout);
-    bufferTimeout = setTimeout(() => { keyBuffer = ''; }, 800);
-
-    const shortcuts = {
-      'gd': 'dashboard',
-      'gt': 'tax',
-      'gi': 'invoices',
-      'gs': 'settings',
-      'gh': 'health',
-      'gr': 'reports',
-      'gc': 'categorize',
-      'gm': 'mileage',
-      'gp': 'payroll',
-      'ga': 'accounts',
-      'gn': 'deadlines',
-    };
-
-    if (shortcuts[keyBuffer]) {
-      e.preventDefault();
-      keyBuffer = '';
-      const page = shortcuts[keyBuffer];
-      history.pushState({ page }, '', `#/${page}`);
-      navLinks.forEach(l => l.classList.remove('active'));
-      const link = document.querySelector(`[data-page="${page}"]`);
-      if (link) link.classList.add('active');
-      loadPage(page);
-    }
-  });
-
-  function showShortcutHelp() {
-    const shortcuts = [
-      ['g + d', 'Dashboard'],
-      ['g + t', 'Tax Estimate'],
-      ['g + i', 'Invoices'],
-      ['g + a', 'Accounts'],
-      ['g + p', 'Payroll'],
-      ['g + c', 'Categorize'],
-      ['g + m', 'Mileage'],
-      ['g + h', 'Health'],
-      ['g + r', 'Reports'],
-      ['g + s', 'Settings'],
-      ['g + n', 'Deadlines'],
-      ['?', 'Show this help'],
-    ];
-    const html = `
-      <div class="confirm-overlay" onclick="if(event.target===this)this.remove()">
-        <div class="confirm-modal" style="max-width:420px;">
-          <h3>⌨️ Keyboard Shortcuts</h3>
-          <p style="margin-bottom:16px;">Press <code>g</code> then another key to navigate:</p>
-          <table style="width:100%;font-size:0.875rem;">
-            ${shortcuts.map(([key, desc]) => `
-              <tr><td style="padding:6px 12px;border:none;"><code>${key}</code></td><td style="padding:6px 12px;border:none;color:var(--gray-500);">${desc}</td></tr>
-            `).join('')}
-          </table>
-          <div class="confirm-actions" style="margin-top:12px;">
-            <button class="btn btn-outline" onclick="this.closest('.confirm-overlay').remove()">Close</button>
-          </div>
-        </div>
-      </div>`;
-    const el = document.createElement('div');
-    el.innerHTML = html;
-    document.body.appendChild(el.firstElementChild);
-  }
-
-  function getPageFromHash() {
-    const hash = location.hash.replace('#/', '');
-    const valid = ['dashboard','accounts','import','invoices','new-invoice','transactions',
-                   'receipts','categorize','tax','deadlines','mileage','health',
-                   'reports','settings','payroll','recon','capture'];
-    return valid.includes(hash) ? hash : null;
-  }
-
+  // ── LoadPage — define BEFORE any calls to it ─────────────
   window.loadPage = async function(page, opts = {}) {
     content.innerHTML = '<div class="skeleton"><div class="skeleton-line w-1/3 h-6"></div><div class="skeleton-line w-1/2"></div><div class="skeleton-card"><div class="skeleton-line w-1/4 h-4"></div><div class="skeleton-line w-full h-8 mt-3"></div><div class="skeleton-line w-2/3 mt-3"></div></div><div class="skeleton-card"><div class="skeleton-line w-1/4 h-4"></div><div class="skeleton-line w-full h-8 mt-3"></div><div class="skeleton-line w-1/2 mt-3"></div></div></div>';
     try {
@@ -196,5 +80,97 @@ document.addEventListener('DOMContentLoaded', async () => {
         content.innerHTML = `<div class="error"><h3>⚠ Error</h3><p>${escapeHtml(err.message)}</p></div>`;
       }
     }
+  }
+
+  // ── Navigation ──────────────────────────────────────────────
+  navLinks.forEach(link => {
+    link.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const page = link.dataset.page;
+      history.pushState({ page }, '', `#/${page}`);
+      navLinks.forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      await loadPage(page);
+    });
+  });
+
+  // Handle browser back/forward
+  window.addEventListener('popstate', (e) => {
+    const page = (e.state && e.state.page) || getPageFromHash() || 'dashboard';
+    navLinks.forEach(l => l.classList.remove('active'));
+    const activeLink = document.querySelector(`[data-page="${page}"]`);
+    if (activeLink) activeLink.classList.add('active');
+    loadPage(page, { replace: true });
+  });
+
+  // Determine initial page from URL hash
+  const initialPage = getPageFromHash() || 'dashboard';
+  const activeLink = document.querySelector(`[data-page="${initialPage}"]`);
+  if (activeLink) activeLink.classList.add('active');
+  loadPage(initialPage);
+
+  // Check onboarding after initial page load
+  setTimeout(() => checkOnboarding(), 500);
+
+  // ── Keyboard shortcuts ─────────────────────────────────
+  let keyBuffer = '';
+  let bufferTimeout = null;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if (e.key === '?') {
+      e.preventDefault();
+      showShortcutHelp();
+      return;
+    }
+    keyBuffer += e.key.toLowerCase();
+    clearTimeout(bufferTimeout);
+    bufferTimeout = setTimeout(() => { keyBuffer = ''; }, 800);
+    const shortcuts = {
+      'gd': 'dashboard', 'gt': 'tax', 'gi': 'invoices', 'gs': 'settings',
+      'gh': 'health', 'gr': 'reports', 'gc': 'categorize', 'gm': 'mileage',
+      'gp': 'payroll', 'ga': 'accounts', 'gn': 'deadlines',
+    };
+    if (shortcuts[keyBuffer]) {
+      e.preventDefault();
+      keyBuffer = '';
+      const page = shortcuts[keyBuffer];
+      history.pushState({ page }, '', `#/${page}`);
+      navLinks.forEach(l => l.classList.remove('active'));
+      const link = document.querySelector(`[data-page="${page}"]`);
+      if (link) link.classList.add('active');
+      loadPage(page);
+    }
+  });
+
+  function showShortcutHelp() {
+    const shortcuts = [
+      ['g + d', 'Dashboard'], ['g + t', 'Tax Estimate'], ['g + i', 'Invoices'],
+      ['g + a', 'Accounts'], ['g + p', 'Payroll'], ['g + c', 'Categorize'],
+      ['g + m', 'Mileage'], ['g + h', 'Health'], ['g + r', 'Reports'],
+      ['g + s', 'Settings'], ['g + n', 'Deadlines'], ['?', 'Show this help'],
+    ];
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <div class="confirm-overlay" onclick="if(event.target===this)this.remove()">
+        <div class="confirm-modal" style="max-width:420px;">
+          <h3>⌨️ Keyboard Shortcuts</h3>
+          <p style="margin-bottom:16px;">Press <code>g</code> then another key to navigate:</p>
+          <table style="width:100%;font-size:0.875rem;">
+            ${shortcuts.map(([k, d]) => `<tr><td style="padding:6px 12px;border:none;"><code>${k}</code></td><td style="padding:6px 12px;border:none;color:var(--gray-500);">${d}</td></tr>`).join('')}
+          </table>
+          <div class="confirm-actions" style="margin-top:12px;">
+            <button class="btn btn-outline" onclick="this.closest('.confirm-overlay').remove()">Close</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(el.firstElementChild);
+  }
+  function getPageFromHash() {
+    const hash = location.hash.replace('#/', '');
+    const valid = ['dashboard','accounts','import','invoices','new-invoice','transactions',
+                   'receipts','categorize','tax','deadlines','mileage','health',
+                   'reports','settings','payroll','recon','capture'];
+    return valid.includes(hash) ? hash : null;
   }
 });
