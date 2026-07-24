@@ -32,12 +32,16 @@ services:
       - API_PORT=8100
       - API_CONFIG=/app/config.toml
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM=${RESEND_FROM:-SoloLedger <welcome@sololedger.ferrumeng.com>}
       - PLAID_CLIENT_ID=${PLAID_CLIENT_ID:-}
       - PLAID_SECRET=${PLAID_SECRET:-}
       - PLAID_ACCESS_TOKEN=${PLAID_ACCESS_TOKEN:-}
       - PLAID_ENV=${PLAID_ENV:-sandbox}
       - TOGGL_API_TOKEN=${TOGGL_API_TOKEN:-}
       - NOTIFY_SMTP_PASSWORD=${NOTIFY_SMTP_PASSWORD:-}
+      - SL_HOST_DOMAIN=${SL_HOST_DOMAIN:-sololedger.ferrumeng.com}
 
   # ── PoolSplat 3D viewer + AI photo editor ────────────────────────
   poolsplat:

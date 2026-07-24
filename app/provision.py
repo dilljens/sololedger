@@ -17,11 +17,9 @@ import json
 import os
 import secrets
 import subprocess
-import smtplib
 import string
 import sys
 from datetime import datetime
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Optional
 
@@ -35,12 +33,9 @@ REGISTRY_PATH = Path(os.environ.get("SL_REGISTRY_PATH", "/opt/sololedger/registr
 HOST_DOMAIN = os.environ.get("SL_HOST_DOMAIN", "sololedger.ferrumeng.com")
 # Docker image tag for the API
 DOCKER_IMAGE = os.environ.get("SL_DOCKER_IMAGE", "sololedger-api:latest")
-# SMTP config for welcome emails
-SMTP_HOST = os.environ.get("SL_SMTP_HOST", "")
-SMTP_PORT = int(os.environ.get("SL_SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SL_SMTP_USER", "")
-SMTP_PASSWORD = os.environ.get("SL_SMTP_PASSWORD", "")
-SMTP_FROM = os.environ.get("SL_SMTP_FROM", "dillon@ferrumengineeringllc.com")
+# Resend API key for welcome emails — get at https://resend.com/api-keys
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM = os.environ.get("RESEND_FROM", "SoloLedger <welcome@sololedger.ferrumeng.com>")
 
 
 def generate_api_key() -> str:
@@ -294,9 +289,9 @@ WantedBy=multi-user.target
 
 
 def _send_welcome_email(email: str, inst_name: str, api_key: str, port: int):
-    """Send a welcome email with connection details."""
-    if not SMTP_HOST:
-        print(f"  ⚠ SMTP not configured; skipping welcome email for {email}")
+    """Send a welcome email with connection details via Resend."""
+    if not RESEND_API_KEY:
+        print(f"  ⚠ RESEND_API_KEY not configured; skipping welcome email for {email}")
         return
 
     body = f"""Welcome to SoloLedger Cloud!
@@ -323,18 +318,16 @@ SoloLedger Cloud
 https://sololedger.ferrumeng.com
 """
 
-    msg = MIMEText(body)
-    msg["Subject"] = "Welcome to SoloLedger Cloud — Your Instance Is Ready"
-    msg["From"] = SMTP_FROM
-    msg["To"] = email
-
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            if SMTP_USER and SMTP_PASSWORD:
-                server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
-        print(f"  ✓ Welcome email sent to {email}")
+        import resend
+        resend.api_key = RESEND_API_KEY
+        r = resend.Emails.send({
+            "from": RESEND_FROM,
+            "to": [email],
+            "subject": "Welcome to SoloLedger Cloud — Your Instance Is Ready",
+            "text": body,
+        })
+        print(f"  ✓ Welcome email sent to {email} (id: {r.get('id', '?')})")
     except Exception as e:
         print(f"  ⚠ Failed to send welcome email: {e}")
 
