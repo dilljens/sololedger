@@ -46,8 +46,8 @@ services:
       dockerfile: Dockerfile
     container_name: poolsplat
     restart: unless-stopped
-    expose:
-      - "3138"
+    ports:
+      - "127.0.0.1:3138:3138"
     volumes:
       - poolsplat_scenes:/root/.poolsplat/scenes
     environment:
@@ -60,9 +60,9 @@ services:
     image: caddy:2-alpine
     container_name: ferrum-caddy
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./sites:/etc/caddy/sites:ro
