@@ -1,4 +1,13 @@
 # Ferrum Engineering — reverse proxy config
+#
+# ⚠️ SHARED CADDY — This Caddyfile serves ALL *.ferrumeng.com projects:
+#   - sololedger.ferrumeng.com
+#   - poolsplat.ferrumeng.com
+#   - scriptureengine.org (+ www)
+#   - livrotalk.ferrumeng.com
+#
+# If you add a new project block, COMMIT the change so it survives deploys.
+# Never edit directly on the server without committing back to git.
 # Replace placeholder VPS IP below with your actual IP for internal Caddy adjusments
 
 sololedger.ferrumeng.com {
@@ -39,5 +48,84 @@ poolsplat.ferrumeng.com {
 
     log {
         output file /data/poolsplat-access.log
+    }
+}
+
+scriptureengine.org www.scriptureengine.org {
+    # File server for SPA (bind mount: /var/www/scripture/frontend/dist → /var/www/scripture)
+    root * /var/www/scripture
+
+    # API — reverse proxy to FastAPI on port 8000 (host network)
+    @api {
+        path /api/*
+    }
+    handle @api {
+        reverse_proxy localhost:8000 {
+            # Long timeout for DeepSeek thinking mode (10 min)
+            flush_interval -1
+        }
+    }
+
+    # API docs
+    @docs {
+        path /docs
+        path /openapi.json
+    }
+    handle @docs {
+        reverse_proxy localhost:8000
+    }
+
+    # Everything else — serve SPA with fallback
+    handle {
+        file_server
+        try_files {path} /index.html
+    }
+
+    log {
+        output file /data/scripture-access.log
+    }
+}
+
+livrotalk.ferrumeng.com {
+    # API proxy to FastAPI on host
+    @api {
+        path /api/*
+    }
+    handle @api {
+        reverse_proxy localhost:8001
+    }
+
+    # Audio streaming (no buffering for real-time playback)
+    @audio {
+        path /audio/*
+    }
+    handle @audio {
+        reverse_proxy localhost:8001
+    }
+
+    # File downloads
+    @files {
+        path /files/*
+    }
+    handle @files {
+        reverse_proxy localhost:8001
+    }
+
+    # Health endpoint
+    @health {
+        path /health
+    }
+    handle @health {
+        reverse_proxy localhost:8001
+    }
+
+    # Everything else — SPA
+    handle {
+        file_server
+        try_files {path} /index.html
+    }
+
+    log {
+        output file /data/livrotalk-access.log
     }
 }
