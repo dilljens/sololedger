@@ -69,8 +69,8 @@ class OfxParser:
             raw_amount = self._extract(block, r"<TRNAMT>(.*?)</TRNAMT>", "0")
             try:
                 ofx_amount = Decimal(raw_amount.strip())
-        except (ValueError, TypeError):
-            ofx_amount = Decimal("0")
+            except (ValueError, TypeError):
+                ofx_amount = Decimal("0")
 
             # Negate: OFX positive inflow → our negative (credit)
             # OFX negative outflow → our positive (debit)
