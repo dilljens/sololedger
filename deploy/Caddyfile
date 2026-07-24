@@ -19,7 +19,7 @@ sololedger.ferrumeng.com {
         path /api/*
     }
     handle @api {
-        reverse_proxy sololedger-api:8100
+        reverse_proxy localhost:8100
     }
 
     # Docs
@@ -28,12 +28,12 @@ sololedger.ferrumeng.com {
         path /openapi.json
     }
     handle @docs {
-        reverse_proxy sololedger-api:8100
+        reverse_proxy localhost:8100
     }
 
     # Everything else — SPA served by FastAPI
     handle {
-        reverse_proxy sololedger-api:8100
+        reverse_proxy localhost:8100
     }
 
     log {
@@ -43,7 +43,7 @@ sololedger.ferrumeng.com {
 
 poolsplat.ferrumeng.com {
     handle {
-        reverse_proxy poolsplat:3138
+        reverse_proxy localhost:3138
     }
 
     log {
