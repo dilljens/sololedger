@@ -66,6 +66,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./sites:/etc/caddy/sites:ro
+      - /var/www/scripture/frontend/dist:/var/www/scripture:ro
+      - /var/www/livrotalk/frontend/dist:/var/www/livrotalk:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
