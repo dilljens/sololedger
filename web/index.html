@@ -6,12 +6,19 @@
   <title>SoloLedger</title>
   <meta name="theme-color" content="#3b82f6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/app/manifest.json">
   <link rel="icon" type="image/svg+xml" href="/app/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAMZJREFUWEft1rENwjAQBdD/FYyAWIAJYAQKOkZgBEZgBDo2YAQKoogSJHznsyVCEuX8d77Ycr/fH/f7vYiI5T3vGyKy5B+ABygF4A8HhPmHcgF8Q/0A2oEOBQhTKgNoB+K8B2gH4g8A7UC8A0Q78I0C0K6MAsqBmgHkVGoKkFPpBQA5lZ4AkFPpBQA5lZ4AkFNpBwA5ld4AkFPpAQA5V4AkFNpBwA5lV4AkFNpBwA5lV4AkFNpA4CcSh8AkFPpA4CcSi8AyKmUBgD41T4AQE6lHwCu2T6nuk9r2gAAAABJRU5ErkJggg==">
+  <link rel="apple-touch-icon" sizes="152x152" href="/app/icon-152.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/app/css/style.css?v=2">
+  <meta name="description" content="Open-source accounting, invoicing, and tax tools for your consulting LLC">
+  <meta property="og:title" content="SoloLedger">
+  <meta property="og:description" content="Open-source accounting, invoicing, and tax tools for your consulting LLC">
+  <meta property="og:type" content="website">
 </head>
 <body>
   <div id="loading-bar" class="loading-bar"></div>
@@ -43,7 +50,7 @@
       <div class="sidebar-user-info" id="sidebar-user-info" style="display:none;">
         <img id="user-avatar" class="user-avatar" src="" alt="">
         <span id="user-name" class="user-name"></span>
-        <button class="btn btn-ghost btn-sm" onclick="handleLogout()" title="Sign out">🚪</button>
+        <button class="btn btn-ghost btn-sm" onclick="handleLogout()" aria-label="Sign out">🚪</button>
       </div>
       <button class="btn btn-primary btn-sm sidebar-signin" id="sidebar-signin" onclick="showAuthModal()" style="width:100%;justify-content:center;">
         🔑 Sign In
@@ -57,7 +64,7 @@
   </main>
 
   <!-- Auth modal -->
-  <div id="auth-modal-overlay" class="modal-overlay" style="display:none;" onclick="closeAuthModal(event)">
+  <div id="auth-modal-overlay" class="modal-overlay" style="display:none;" onclick="closeAuthModal(event)" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
     <div class="modal" onclick="event.stopPropagation()">
       <button class="modal-close" onclick="closeAuthModal()">✕</button>
       <div class="modal-body">
@@ -68,30 +75,29 @@
         </div>
 
         <!-- Email / Password form -->
-        <div id="local-auth-form">
+        <form id="local-auth-form" onsubmit="submitSignIn();return false">
           <div style="display:flex;flex-direction:column;gap:10px;">
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:3px;">Email</label>
+              <label for="auth-email" style="font-size:0.8rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:3px;">Email</label>
               <input type="email" id="auth-email" placeholder="you@example.com"
-                class="form-input" style="width:100%;"
-                autocomplete="email">
+                class="form-input" style="width:100%;width:100%;"
+                autocomplete="email" required>
             </div>
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:3px;">Password</label>
+              <label for="auth-password" style="font-size:0.8rem;font-weight:600;color:var(--gray-700);display:block;margin-bottom:3px;">Password</label>
               <input type="password" id="auth-password" placeholder="Password"
                 class="form-input" style="width:100%;font-family:var(--font-mono);"
-                autocomplete="current-password"
-                onkeydown="if(event.key==='Enter') submitSignIn()">
+                autocomplete="current-password" required>
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="btn btn-primary" onclick="submitSignIn()" style="flex:1;justify-content:center;" id="auth-submit-btn">Sign In</button>
+              <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center;" id="auth-submit-btn">Sign In</button>
             </div>
             <p style="font-size:0.8rem;color:var(--gray-500);text-align:center;margin:0;">
               <span id="auth-toggle-text">Don't have an account?</span>
               <a href="#" id="auth-toggle-link" onclick="toggleAuthMode()" style="font-weight:600;">Sign Up</a>
             </p>
           </div>
-        </div>
+        </form>
 
         <!-- Divider -->
         <div id="auth-divider-local" class="auth-divider"><span>or continue with</span></div>
@@ -106,7 +112,7 @@
           </p>
         </div>
 
-        <div id="auth-error" class="text-danger text-sm mt-3" style="display:none;"></div>
+        <div id="auth-error" class="text-danger text-sm mt-3" style="display:none;" role="alert"></div>
       </div>
     </div>
   </div>
@@ -117,7 +123,7 @@
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 
   <!-- Mobile bottom navigation -->
-  <nav class="mobile-nav">
+  <nav class="mobile-nav" aria-label="Mobile navigation">
     <a href="#" data-page="dashboard" class="active"><span class="icon">📊</span><span class="nav-label">Home</span></a>
     <a href="#" data-page="import" data-label="Import"><span class="icon">📥</span><span class="nav-label">Import</span></a>
     <a href="#" data-page="transactions" data-label="Transactions"><span class="icon">📋</span><span class="nav-label">Txns</span></a>
@@ -126,7 +132,7 @@
   </nav>
 
   <!-- Mobile drawer (hidden by default) -->
-  <div id="mobile-drawer-overlay" class="modal-overlay" style="display:none;z-index:60;" onclick="closeMobileDrawer(event)">
+  <div id="mobile-drawer-overlay" class="modal-overlay" style="display:none;z-index:60;" onclick="closeMobileDrawer(event)" role="dialog" aria-modal="true" aria-label="All pages">
     <div style="position:fixed;top:0;right:0;width:260px;height:100vh;background:#fff;box-shadow:var(--shadow-xl);padding:16px;overflow-y:auto;" onclick="event.stopPropagation()">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <strong style="font-size:1rem;">All Pages</strong>

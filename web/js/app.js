@@ -1,5 +1,5 @@
 // SoloLedger web app — main entry point (ES Module)
-import { apiGetPublicStatus } from './api.js';
+import { apiGetPublicStatus, trapFocus, releaseFocus } from './api.js';
 import { updateGoogleClientId, updateSidebarAuth } from './pages/auth.js';
 
 import { renderDashboard, markTaxPaid, getCurrentQuarter } from './pages/dashboard.js';
@@ -88,8 +88,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       const page = link.dataset.page;
       history.pushState({ page }, '', `#/${page}`);
-      navLinks.forEach(l => l.classList.remove('active'));
+      navLinks.forEach(l => { l.classList.remove('active'); l.removeAttribute('aria-current'); });
       link.classList.add('active');
+      link.setAttribute('aria-current', 'page');
       await loadPage(page);
     });
   });
@@ -173,4 +174,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                    'reports','settings','payroll','recon','capture'];
     return valid.includes(hash) ? hash : null;
   }
+
+  // Mobile drawer toggle
+  const moreBtn = document.getElementById('mobile-more-btn');
+  if (moreBtn) moreBtn.onclick = (e) => { e.preventDefault(); toggleMobileDrawer(); };
 });
+
+window.toggleMobileDrawer = function() {
+  const overlay = document.getElementById('mobile-drawer-overlay');
+  if (!overlay) return;
+  const shown = overlay.style.display !== 'none';
+  overlay.style.display = shown ? 'none' : 'flex';
+  if (!shown) { trapFocus(overlay); }
+  else { releaseFocus(overlay); }
+};
+
+window.closeMobileDrawer = function(e) {
+  if (e && e.target !== e.currentTarget) return;
+  const overlay = document.getElementById('mobile-drawer-overlay');
+  if (overlay) { overlay.style.display = 'none'; releaseFocus(overlay); }
+};

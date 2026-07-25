@@ -1,10 +1,25 @@
-import { apiGet, money, fmt } from '../api.js';
+import { apiGet, money, fmt, escapeHtml } from '../api.js';
 
 export async function renderReports(content) {
-  const [expenses, pl] = await Promise.all([
-    apiGet('/reports/expenses'),
-    apiGet('/reports/profit-loss'),
-  ]);
+  let expenses, pl;
+  try {
+    const res = await Promise.all([
+      apiGet('/reports/expenses'),
+      apiGet('/reports/profit-loss'),
+    ]);
+    expenses = res[0];
+    pl = res[1];
+  } catch (e) {
+    content.innerHTML = `
+      <div class="page-header"><h1>Reports</h1><p>Financial summaries and exports</p></div>
+      <div class="error text-center" style="padding:40px;">
+        <div style="font-size:2rem;margin-bottom:8px;">⚠️</div>
+        <p>Failed to load reports.</p>
+        <p style="color:var(--gray-500);font-size:0.85rem;">${escapeHtml(e.message)}</p>
+        <button class="btn btn-primary mt-3" onclick="loadPage('reports')" style="margin:12px auto 0;">🔄 Retry</button>
+      </div>`;
+    return;
+  }
   content.innerHTML = `
       <div class="page-header">
         <h1>📊 Reports</h1>
@@ -20,18 +35,23 @@ export async function renderReports(content) {
       </div>
       <div class="card">
         <h2>Expenses by Category — $${fmt(expenses.total)} total</h2>
+        ${expenses.categories && expenses.categories.length > 0 ? `
         <table>
           <thead><tr><th>Category</th><th class="amount">Amount</th><th class="amount">Transactions</th></tr></thead>
           <tbody>
-            ${(expenses.categories || []).map(c => `
+            ${expenses.categories.map(c => `
               <tr>
                 <td>${(c.category || '').replace('Expenses:', '')}</td>
-                <td class="amount">${money(c.amount)}</td>
-                <td class="amount">${c.count}</td>
+                <td class="amount">${money(c.amount || 0)}</td>
+                <td class="amount">${c.count || 0}</td>
               </tr>
             `).join('')}
           </tbody>
-        </table>
+        </table>` : `
+        <div class="text-center" style="padding:24px;color:var(--gray-500);">
+          <div style="font-size:2rem;margin-bottom:8px;">📊</div>
+          <p>No expense transactions yet. Import your bank statements to see expense breakdowns.</p>
+        </div>`}
       </div>
       <div style="display:flex;gap:12px;">
         <a href="${'/api/v1/reports/expenses?format=csv'}" target="_blank" class="btn btn-primary">📥 Download CSV</a>
@@ -39,10 +59,25 @@ export async function renderReports(content) {
 }
 
 export async function renderRecon(content) {
-  const [status, dashboard] = await Promise.all([
-    apiGet('/status'),
-    apiGet('/dashboard'),
-  ]);
+  let status, dashboard;
+  try {
+    const res = await Promise.all([
+      apiGet('/status'),
+      apiGet('/dashboard'),
+    ]);
+    status = res[0];
+    dashboard = res[1];
+  } catch (e) {
+    content.innerHTML = `
+      <div class="page-header"><h1>Reconciliation</h1><p>Match your ledger against bank statements</p></div>
+      <div class="error text-center" style="padding:40px;">
+        <div style="font-size:2rem;margin-bottom:8px;">⚠️</div>
+        <p>Failed to load reconciliation data.</p>
+        <p style="color:var(--gray-500);font-size:0.85rem;">${escapeHtml(e.message)}</p>
+        <button class="btn btn-primary mt-3" onclick="loadPage('recon')" style="margin:12px auto 0;">🔄 Retry</button>
+      </div>`;
+    return;
+  }
   content.innerHTML = `
       <div class="page-header">
         <h1>🔄 Reconciliation</h1>

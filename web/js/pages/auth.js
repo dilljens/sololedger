@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm, setSessionToken, setUserInfo, getUserInfo, isAuthenticated, apiSignIn, apiSignUp, apiSignInWithGoogle, apiLogout } from '../api.js';
+import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm, setSessionToken, setUserInfo, getUserInfo, isAuthenticated, apiSignIn, apiSignUp, apiSignInWithGoogle, apiLogout, trapFocus, releaseFocus } from '../api.js';
 
 let _authMode = 'signin';
 
@@ -16,7 +16,7 @@ export function showAuthModal() {
   document.getElementById('auth-submit-btn').textContent = 'Sign In';
   document.getElementById('auth-toggle-text').textContent = "Don't have an account?";
   document.getElementById('auth-toggle-link').textContent = 'Sign Up';
-  if (email) setTimeout(() => email.focus(), 150);
+  if (overlay) trapFocus(overlay);
   updateGoogleClientId();
 }
 window.showAuthModal = showAuthModal;
@@ -90,7 +90,7 @@ window.submitSignIn = submitSignIn;
 export function closeAuthModal(e) {
   if (e && e.target !== e.currentTarget) return;
   const overlay = document.getElementById('auth-modal-overlay');
-  if (overlay) overlay.style.display = 'none';
+  if (overlay) { overlay.style.display = 'none'; releaseFocus(overlay); }
   const err = document.getElementById('auth-error');
   if (err) err.style.display = 'none';
 }

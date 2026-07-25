@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 kind: plan
 area: testing, frontend
 author: AI

@@ -74,6 +74,41 @@ export function getLlmConfig() {
   };
 }
 
+// ── Focus trap utility for modals ─────────────────────────
+
+const _focustrap_elements = new WeakMap();
+
+export function trapFocus(container) {
+  const focusable = container.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  const handler = (e) => {
+    if (e.key !== 'Tab') return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  container.addEventListener('keydown', handler);
+  first.focus();
+  _focustrap_elements.set(container, handler);
+}
+
+export function releaseFocus(container) {
+  const handler = _focustrap_elements.get(container);
+  if (handler) {
+    container.removeEventListener('keydown', handler);
+    _focustrap_elements.delete(container);
+  }
+}
+
 // ── Core fetch ────────────────────────────────────────────
 
 export async function apiFetch(path, options = {}) {
@@ -316,6 +351,7 @@ export function showConfirm(title, message, options = {}) {
     document.body.appendChild(overlay);
 
     const close = (result) => {
+      releaseFocus(overlay);
       overlay.remove();
       resolve(result);
     };
@@ -324,6 +360,7 @@ export function showConfirm(title, message, options = {}) {
     overlay.querySelector('#confirm-ok').onclick = () => close(true);
     overlay.onclick = (e) => { if (e.target === overlay) close(false); };
     overlay.querySelector('#confirm-ok').focus();
+    trapFocus(overlay);
   });
 }
 

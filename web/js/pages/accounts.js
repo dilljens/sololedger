@@ -15,11 +15,15 @@ export async function renderAccounts(content) {
     <div class="card-row" style="margin-bottom:16px;">
       <div class="stat"><div class="label">Business Checking</div>
         <div class="value blue">${money(balances[accts.checking] || 0)}</div></div>
-      ${cards.map(c => `
+      ${cards.length > 0 ? cards.map(c => `
         <div class="stat"><div class="label">${c.name} <span style="font-weight:400;color:#888;">${c.type}</span></div>
           <div class="value ${c.balance > 0 ? 'red' : 'green'}">${money(c.balance)}</div>
           ${c.last_four ? `<div style="font-size:0.75rem;color:#888;">•••• ${c.last_four}</div>` : ''}
-        </div>`).join('')}
+        </div>`).join('') : `
+        <div class="stat" style="opacity:0.6;">
+          <div class="label">Cards</div>
+          <div style="font-size:0.85rem;color:#888;padding:8px 0;">No cards configured. Add them in <code>config.toml</code> under <code>[[accounts.cards]]</code>.</div>
+        </div>`}
       <div class="stat"><div class="label">Personal Checking</div>
         <div class="value">${money(balances['Assets:Bank:Personal'] || 0)}</div></div>
       <div class="stat"><div class="label">Reimbursements Owed</div>

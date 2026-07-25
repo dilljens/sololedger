@@ -1,7 +1,21 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
 
 export async function renderTransactions(content) {
-  const d = await apiGet('/dashboard');
+  let d;
+  try {
+    d = await apiGet('/dashboard');
+  } catch (e) {
+    content.innerHTML = `
+      <div class="page-header"><h1>Transactions</h1><p>Ledger entries</p></div>
+      <div class="error text-center" style="padding:40px;">
+        <div style="font-size:2rem;margin-bottom:8px;">⚠️</div>
+        <p>Failed to load transactions.</p>
+        <p style="color:var(--gray-500);font-size:0.85rem;">${escapeHtml(e.message)}</p>
+        <button class="btn btn-primary mt-3" onclick="loadPage('transactions')" style="margin:12px auto 0;">🔄 Retry</button>
+      </div>`;
+    return;
+  }
+  d = d || { gross_revenue: 0, total_expenses: 0, net_profit: 0, recent_transactions: [] };
   content.innerHTML = `
     <div class="page-header">
       <h1>Transactions</h1>

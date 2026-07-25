@@ -340,7 +340,9 @@ tr:hover td { background: var(--gray-50); }
   white-space: nowrap;
   line-height: 1.4;
 }
-.btn:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: no-preference) {
+  .btn:active { transform: scale(0.97); }
+}
 .btn:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;

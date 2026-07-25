@@ -6,6 +6,9 @@ export async function renderImport(content) {
         <h1>📥 Import Transactions</h1>
         <p>Upload bank statements, connect your bank, or import expense files</p>
       </div>
+      <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.85rem;color:var(--gray-500);">
+        💡 <strong>Get started:</strong> Upload an OFX/QFX bank statement, a CSV file from your bank, or connect via Plaid for automated syncing.
+      </div>
 
       <!-- Plaid / Auto Bank Sync -->
       <div class="card" id="plaid-card">

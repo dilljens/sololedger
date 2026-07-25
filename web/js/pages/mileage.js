@@ -4,16 +4,17 @@ export async function renderMileage(content) {
   let trips = [];
   let report = null;
   try {
-    const res = await apiFetch('/mileage/trips?limit=20');
-    const json = await res.json();
-    if (json.success) trips = json.data.trips || [];
-  } catch (e) { /* API may not support mileage yet */ }
-
-  try {
-    const res2 = await apiFetch('/mileage/report');
+    const [res1, res2] = await Promise.all([
+      apiFetch('/mileage/trips?limit=20'),
+      apiFetch('/mileage/report'),
+    ]);
+    const json = await res1.json();
     const json2 = await res2.json();
+    if (json.success) trips = json.data.trips || [];
     if (json2.success) report = json2.data;
-  } catch (e) { /* not available */ }
+  } catch (e) {
+    if (typeof console !== 'undefined') console.debug('Mileage API unavailable:', e.message);
+  }
 
   const totalMiles = trips.reduce((s, t) => s + t.miles, 0);
   const totalDeduction = trips.reduce((s, t) => s + (t.deduction || 0), 0);
