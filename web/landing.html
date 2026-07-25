@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SoloLedger — Open-Source Accounting for Your Consulting LLC</title>
+  <meta name="description" content="Free, open-source accounting, invoicing, and tax tools for freelance developers and consultants. Self-hosted, plain-text Beancount format.">
+  <link rel="icon" type="image/svg+xml" href="/app/favicon.svg">
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --gray-50: #f8fafc;
+      --gray-100: #f1f5f9;
+      --gray-200: #e2e8f0;
+      --gray-400: #94a3b8;
+      --gray-500: #64748b;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1e293b;
+      --gray-900: #0f172a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; color: var(--gray-800); background: #fff; line-height: 1.6; }
+    .container { max-width: 1024px; margin: 0 auto; padding: 0 24px; }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--gray-200); }
+    .logo { font-size: 1.3rem; font-weight: 800; color: var(--gray-900); }
+    .logo span { color: var(--primary); }
+    .nav-links { display: flex; gap: 24px; align-items: center; }
+    .nav-links a { color: var(--gray-600); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+    .nav-links a:hover { color: var(--primary); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-decoration: none; cursor: pointer; border: none; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline { border: 1.5px solid var(--gray-200); color: var(--gray-700); background: transparent; }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-lg { padding: 14px 28px; font-size: 1rem; }
+    .hero { text-align: center; padding: 80px 0 60px; }
+    .hero h1 { font-size: 2.8rem; font-weight: 800; line-height: 1.15; margin-bottom: 20px; color: var(--gray-900); }
+    .hero h1 span { color: var(--primary); }
+    .hero p { font-size: 1.15rem; color: var(--gray-500); max-width: 640px; margin: 0 auto 32px; }
+    .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .features { padding: 80px 0; background: var(--gray-50); }
+    .features h2 { text-align: center; font-size: 1.8rem; margin-bottom: 48px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+    .card { background: #fff; border-radius: 12px; padding: 28px; border: 1px solid var(--gray-200); }
+    .card .icon { font-size: 1.8rem; margin-bottom: 12px; }
+    .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+    .card p { font-size: 0.9rem; color: var(--gray-500); }
+    .code-block { background: var(--gray-900); color: #e2e8f0; border-radius: 8px; padding: 16px 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; overflow-x: auto; margin: 12px 0; }
+    .code-block .comment { color: #64748b; }
+    .how { padding: 80px 0; }
+    .steps { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; counter-reset: step; }
+    .step { text-align: center; flex: 1; min-width: 200px; max-width: 280px; }
+    .step-num { width: 40px; height: 40px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-bottom: 12px; }
+    .step h3 { margin-bottom: 8px; }
+    .step p { font-size: 0.9rem; color: var(--gray-500); }
+    .cta { text-align: center; padding: 80px 0; background: var(--gray-900); color: #fff; }
+    .cta h2 { font-size: 1.8rem; margin-bottom: 12px; }
+    .cta p { color: #94a3b8; margin-bottom: 28px; }
+    .cta .btn-primary { background: #fff; color: var(--gray-900); }
+    .cta .btn-primary:hover { background: var(--gray-100); }
+    .cta .btn-outline { border-color: #475569; color: #e2e8f0; }
+    .cta .btn-outline:hover { border-color: #fff; color: #fff; }
+    footer { text-align: center; padding: 32px 0; font-size: 0.8rem; color: var(--gray-400); }
+    footer a { color: var(--gray-500); text-decoration: none; }
+    footer a:hover { color: var(--primary); }
+    .badge { display: inline-block; background: #dbeafe; color: #1d4ed8; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-bottom: 16px; }
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 1.8rem; }
+      .nav-links .desktop-only { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="container">
+    <div class="logo">Solo<span>Ledger</span></div>
+    <div class="nav-links">
+      <a href="#features" class="desktop-only">Features</a>
+      <a href="#how" class="desktop-only">How It Works</a>
+      <a href="https://github.com/dilljens/sololedger" target="_blank">GitHub</a>
+      <a href="/app/" class="btn btn-primary">Launch App →</a>
+    </div>
+  </nav>
+
+  <section class="hero container">
+    <div class="badge">✨ Open source · MIT · Self-hosted</div>
+    <h1>Accounting for <span>your consulting LLC</span><br>without the subscription.</h1>
+    <p>Free, open-source invoicing, tax estimation, receipt scanning, and bank reconciliation — built for technical founders who want their data in plain text.</p>
+    <div class="hero-actions">
+      <a href="/app/" class="btn btn-primary btn-lg">🚀 Launch SoloLedger</a>
+      <a href="https://github.com/dilljens/sololedger" target="_blank" class="btn btn-outline btn-lg">📖 View on GitHub</a>
+    </div>
+    <div class="code-block" style="margin-top:32px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto;">
+      <span class="comment"># One-command deploy</span><br>
+      curl -fsSL https://sololedger.ferrumeng.com/deploy.sh | bash
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="container">
+      <h2>Everything your LLC needs</h2>
+      <div class="grid">
+        <div class="card"><div class="icon">📄</div><h3>Invoicing</h3><p>Create invoices with PDF generation and Stripe payment links. Recurring retainers supported.</p></div>
+        <div class="card"><div class="icon">💰</div><h3>Tax Estimation</h3><p>Quarterly estimated tax for all 50 states. Schedule C and 1120-S support. Multi-state calculations.</p></div>
+        <div class="card"><div class="icon">🏦</div><h3>Bank Reconciliation</h3><p>Import OFX, QFX, CSV. Automated bank sync via Plaid. Match receipts to transactions.</p></div>
+        <div class="card"><div class="icon">🧾</div><h3>Receipt Scanning</h3><p>Snap a photo or upload a PDF. OCR extracts merchant, date, and total. AI-powered categorization.</p></div>
+        <div class="card"><div class="icon">🚗</div><h3>Mileage Tracking</h3><p>Log business trips at $0.70/mi. Auto-calculates your IRS deduction.</p></div>
+        <div class="card"><div class="icon">📊</div><h3>Reports</h3><p>Profit & Loss, expense breakdowns, Schedule C summary. Export to CSV.</p></div>
+        <div class="card"><div class="icon">⏱️</div><h3>Time Tracking</h3><p>Fetch billable hours from Toggl or Clockify. Auto-generate invoices from tracked time.</p></div>
+        <div class="card"><div class="icon">🤖</div><h3>AI Categorization</h3><p>OpenAI, Anthropic, or local Ollama. Auto-categorize transactions as they're imported.</p></div>
+        <div class="card"><div class="icon">🔒</div><h3>Plain Text Data</h3><p>Your data lives in Beancount files. Git-versioned. Zero lock-in. Self-hosted on your own infrastructure.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how container" id="how">
+    <h2 style="text-align:center;font-size:1.8rem;margin-bottom:48px;">How It Works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Deploy</h3>
+        <p>Run one command to deploy on your VPS, Docker, Fly.io, or Railway. Or run locally.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Configure</h3>
+        <p>Fill in your business details through the web setup wizard. Connect your bank or Stripe account.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Manage</h3>
+        <p>Create invoices, scan receipts, import bank statements, estimate taxes — all from the web UI or CLI.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="container">
+      <h2>Ready to own your financial data?</h2>
+      <p>Free. Open source. Self-hosted. No subscription. No vendor lock-in.</p>
+      <div class="hero-actions">
+        <a href="/app/" class="btn btn-primary btn-lg">🚀 Launch SoloLedger</a>
+        <a href="https://github.com/dilljens/sololedger" target="_blank" class="btn btn-outline btn-lg">⭐ Star on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="container">
+    <p>SoloLedger — MIT License · Built on <a href="https://beancount.github.io/">Beancount</a> · <a href="https://github.com/dilljens/sololedger">GitHub</a> · v0.3.0</p>
+  </footer>
+</body>
+</html>

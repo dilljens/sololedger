@@ -1,71 +1,153 @@
-# Deploy Ferrum Engineering Services on your VPS
+# SoloLedger Deployment Guide
 
-Sets up `sololedger.ferrumeng.com` and `poolsplat.ferrumeng.com` with Docker Compose + Caddy (auto TLS).
+## Quick Deploy Options
 
-## 1. DNS
+| Platform | How | Time |
+|----------|-----|------|
+| **VPS (Ubuntu)** | `curl -fsSL https://sololedger.ferrumeng.com/deploy.sh \| bash` | 5 min |
+| **Docker compose** | `docker compose up -d` | 2 min |
+| **Fly.io** | `fly launch --copy-config --no-deploy && fly deploy` | 5 min |
+| **Railway** | Fork repo → Connect → Deploy | 2 min |
+| **Local dev** | `pip install -r requirements.txt && uvicorn app.api:app` | 1 min |
 
-Add A records at your DNS provider:
+---
 
-| Type | Name | Value |
-|------|------|-------|
-| A | `sololedger` | `<your-vps-ip>` |
-| A | `poolsplat` | `<your-vps-ip>` |
-
-## 2. On the VPS
+## 1. VPS / Bare Metal (Ubuntu)
 
 ```bash
-# Install Docker if needed
-curl -fsSL https://get.docker.com | sh
+curl -fsSL https://sololedger.ferrumeng.com/deploy.sh | bash
+```
 
-# Clone the repos
-git clone https://github.com/dilljens/sololedger /opt/sololedger
-git clone https://github.com/dilljens/poolsplat /opt/poolsplat
+This installs Python, clones the repo, creates a systemd service, and starts the API on port 8100.
 
-# Configure SoloLedger
-cp /opt/sololedger/config.toml /opt/sololedger/config.toml
-nano /opt/sololedger/config.toml
-#   → set business name, EIN, address, etc.
-mkdir -p /opt/sololedger/{ledger,output,imports}
+**Manual install:**
+```bash
+git clone https://github.com/dilljens/sololedger.git
+cd sololedger
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.api:app --host 0.0.0.0 --port 8100
+```
 
-# Set up secrets
-cp /opt/sololedger/deploy/.env.example /opt/sololedger/deploy/.env
-nano /opt/sololedger/deploy/.env
-#   → add Stripe, Plaid, Toggl, FAL_KEY as needed
+Open `http://your-server:8100/app/` in your browser.
 
-# Start everything
-cd /opt/sololedger/deploy
+---
+
+## 2. Docker Compose
+
+```bash
+git clone https://github.com/dilljens/sololedger.git
+cd sololedger
 docker compose up -d
 ```
 
-## 3. Verify
+This starts:
+- `sololedger-api` — FastAPI + SPA on port 8100
+- `fava` — Beancount web UI on port 5000
 
-### SoloLedger
-- `https://sololedger.ferrumeng.com/app/` → SoloLedger dashboard
-- `https://sololedger.ferrumeng.com/docs` → API docs
-- `https://sololedger.ferrumeng.com/api/v1/health` → API health check
+Open `http://localhost:8100/app/`.
 
-### PoolSplat
-- `https://poolsplat.ferrumeng.com/` → 3D viewer
-
-### First-run SoloLedger setup
+**Production stack** (with Caddy reverse proxy + auto TLS):
 ```bash
-docker exec sololedger-api python3 -m app.main init
-docker exec sololedger-api python3 -m app.main demo
-docker exec sololedger-api python3 -m app.main doctor
+cd deploy
+cp .env.example .env
+# Edit .env with your secrets
+docker compose -f docker-compose.yml up -d
 ```
 
-## 4. Maintenance
+---
+
+## 3. Fly.io
 
 ```bash
-# Update all services
-cd /opt/sololedger && git pull
-cd /opt/poolsplat && git pull
-docker compose -f /opt/sololedger/deploy/docker-compose.yml up -d --build
+# Install flyctl first: https://fly.io/docs/hands-on/install-flyctl/
+fly launch --copy-config --no-deploy
+# Set any environment variables needed
+fly secrets set STRIPE_SECRET_KEY=sk_live_...
+fly secrets set GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+# Deploy
+fly deploy
+```
 
-# View logs
-docker compose -f /opt/sololedger/deploy/docker-compose.yml logs -f sololedger-api
-docker compose -f /opt/sololedger/deploy/docker-compose.yml logs -f poolsplat
+The included `fly.toml` handles the rest. Opens on `https://your-app.fly.dev/app/`.
 
-# Stop
-docker compose -f /opt/sololedger/deploy/docker-compose.yml down
+---
+
+## 4. Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/sololedger)
+
+1. Fork the repo at https://github.com/dilljens/sololedger
+2. Create a new Railway project → Deploy from GitHub repo
+3. Railway auto-detects the Dockerfile
+4. Add env vars as needed:
+   - `GOOGLE_CLIENT_ID`
+   - `STRIPE_SECRET_KEY`
+   - `API_KEYS`
+
+---
+
+## 5. Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `API_PORT` | No | Port (default: 8100) |
+| `API_CONFIG` | No | Path to config.toml (auto-detected) |
+| `API_KEYS` | No | Comma-separated API keys for auth |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
+| `STRIPE_SECRET_KEY` | No | Stripe secret key for payment links |
+| `PLAID_CLIENT_ID` | No | Plaid client ID for bank feeds |
+| `PLAID_SECRET` | No | Plaid secret |
+| `PLAID_ACCESS_TOKEN` | No | Plaid access token |
+| `TOGGL_API_TOKEN` | No | Toggl API token for time tracking |
+
+---
+
+## 6. Configuration
+
+Edit `config.toml` to set your business details:
+
+```toml
+[business]
+name = "Your LLC"
+owner = "Your Name"
+state = "WY"  # Two-letter state code
+
+[entity]
+entity_type = "smllc"  # or "scorp" for S-Corp
+
+[ledger]
+path = "ledger/main.beancount"
+```
+
+---
+
+## 7. First Run
+
+On first load, the web app shows a setup wizard. Fill in your business details and click "Complete Setup."
+
+To load demo data:
+```bash
+llc demo
+```
+
+Or just start adding transactions through the web UI.
+
+---
+
+## 8. Updating
+
+```bash
+# Docker
+git pull && docker compose up -d --build
+
+# VPS
+./deploy/deploy.sh  # or systemctl restart sololedger
+
+# Fly.io
+fly deploy
+
+# Railway
+git push  # auto-deploys
 ```

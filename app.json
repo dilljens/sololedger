@@ -1,0 +1,31 @@
+{
+  "name": "SoloLedger",
+  "description": "Open-source accounting, invoicing, and tax tools for your consulting LLC",
+  "keywords": ["accounting", "invoicing", "tax", "beancount", "freelance", "llc"],
+  "website": "https://sololedger.ferrumeng.com",
+  "repository": "https://github.com/dilljens/sololedger",
+  "logo": "/web/favicon.svg",
+  "success_url": "/app/",
+  "env": {
+    "API_CONFIG": {
+      "description": "Path to config file",
+      "value": "/app/config.toml"
+    },
+    "API_PORT": {
+      "description": "Port for the API server",
+      "value": "8100"
+    },
+    "GOOGLE_CLIENT_ID": {
+      "description": "Google OAuth client ID for sign-in (optional)",
+      "required": false
+    },
+    "STRIPE_SECRET_KEY": {
+      "description": "Stripe secret key for payment links (optional)",
+      "required": false
+    }
+  },
+  "buildpacks": [
+    { "url": "heroku/python" }
+  ],
+  "stack": "container"
+}
