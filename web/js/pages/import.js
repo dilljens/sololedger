@@ -189,9 +189,10 @@ window.handleOfxUpload = async function(input) {
 
 window.confirmOfxImport = async function() {
   const file = window._ofxFile;
-  if (!file) return;
+  if (!file) { showToast('No file to import. Upload one first.', 'warning'); return; }
   const div = document.getElementById('ofx-result');
   div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing...</div>';
+  showToast('Importing...', 'info');
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -199,11 +200,19 @@ window.confirmOfxImport = async function() {
     const res = await apiFetch('/ofx/import', { method: 'POST', body: formData });
     const json = await res.json();
     if (json.success) {
-      div.innerHTML = `<span style="color:#2b8a3e;">✅ ${json.data.imported} transactions imported to ledger.</span>`;
+      const msg = `✅ ${json.data.imported} transactions imported to ledger.`;
+      div.innerHTML = `<span style="color:#2b8a3e;">${msg}</span>`;
+      showToast(msg, 'success');
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error)}</span>`;
+      const err = json.error || 'Import failed';
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err)}</span>`;
+      showToast(err, 'error');
     }
-  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
+  } catch (err) {
+    const msg = err.message || 'Import failed';
+    div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(msg)}</span>`;
+    showToast(msg, 'error');
+  }
 };
 
 window.resetImport = function() {
@@ -214,9 +223,10 @@ window.resetImport = function() {
 
 window.handleCsvUpload = async function(input) {
   const file = input.files[0];
-  if (!file) return;
+  if (!file) { showToast('No file selected', 'warning'); return; }
   const div = document.getElementById('csv-result');
   div.innerHTML = '<div class="loading"><div class="spinner"></div>Processing CSV...</div>';
+  showToast('Processing CSV file...', 'info');
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -224,18 +234,27 @@ window.handleCsvUpload = async function(input) {
     const res = await apiFetch('/expenses/import', { method: 'POST', body: formData });
     const json = await res.json();
     if (json.success) {
-      div.innerHTML = `<span style="color:#2b8a3e;">✅ CSV uploaded. ${json.data.imported || 0} transactions found.</span>`;
+      const msg = `✅ CSV uploaded. ${json.data.imported || 0} transactions found.`;
+      div.innerHTML = `<span style="color:#2b8a3e;">${msg}</span>`;
+      showToast(msg, 'success');
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
+      const err = json.error || 'Import failed';
+      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err)}</span>`;
+      showToast(err, 'error');
     }
-  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
+  } catch (err) {
+    const msg = err.message || 'Import failed';
+    div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(msg)}</span>`;
+    showToast(msg, 'error');
+  }
 };
 
 window.handleQboUpload = async function(input) {
   const file = input.files[0];
-  if (!file) return;
+  if (!file) { showToast('No file selected', 'warning'); return; }
   const div = document.getElementById('qbo-result');
   div.innerHTML = '<div class="loading"><div class="spinner"></div>Processing QBO file...</div>';
+  showToast('Processing QBO file...', 'info');
   try {
     const formData = new FormData();
     formData.append('file', file);
