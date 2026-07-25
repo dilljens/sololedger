@@ -58,6 +58,12 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient"]
+
+# Playwright settings — always run headless on CI/server
+[tool.pytest-playwright]
+# Run headless by default
+launch_options = { headless = true }
 
 [project.urls]
 Homepage = "https://sololedger.ferrumeng.com"
