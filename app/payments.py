@@ -17,7 +17,12 @@ import sys
 from decimal import Decimal
 from typing import Optional
 
-import stripe
+try:
+    import stripe
+    HAS_STRIPE = True
+except ImportError:
+    stripe = None
+    HAS_STRIPE = False
 
 
 class StripePayments:
@@ -25,7 +30,7 @@ class StripePayments:
 
     def __init__(self):
         self.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
-        if not self.api_key:
+        if not self.api_key or not HAS_STRIPE:
             self._enabled = False
         else:
             stripe.api_key = self.api_key
@@ -108,9 +113,11 @@ class StripePayments:
                 "id": payment_link.id,
             }
 
-        except stripe.error.StripeError as e:
-            print(f"⚠  Stripe error: {e}", file=sys.stderr)
-            return {"enabled": True, "url": None, "id": None, "error": str(e)}
+        except Exception as e:
+            if HAS_STRIPE and isinstance(e, stripe.error.StripeError):
+                print(f"⚠  Stripe error: {e}", file=sys.stderr)
+                return {"enabled": True, "url": None, "id": None, "error": str(e)}
+            raise
 
     def create_recurring_link(
         self,
@@ -161,9 +168,11 @@ class StripePayments:
 
             return {"enabled": True, "url": payment_link.url, "id": payment_link.id}
 
-        except stripe.error.StripeError as e:
-            print(f"⚠  Stripe error: {e}", file=sys.stderr)
-            return {"enabled": True, "url": None, "id": None, "error": str(e)}
+        except Exception as e:
+            if HAS_STRIPE and isinstance(e, stripe.error.StripeError):
+                print(f"⚠  Stripe error: {e}", file=sys.stderr)
+                return {"enabled": True, "url": None, "id": None, "error": str(e)}
+            raise
 
     def check_payment_status(self, payment_link_id: str) -> dict:
         """Check how many times a payment link has been completed.
@@ -184,5 +193,7 @@ class StripePayments:
                 "total_completed": len(completed),
                 "total_revenue_cents": sum(s.amount_total or 0 for s in completed),
             }
-        except stripe.error.StripeError as e:
-            return {"enabled": True, "error": str(e)}
+        except Exception as e:
+            if HAS_STRIPE and isinstance(e, stripe.error.StripeError):
+                return {"enabled": True, "error": str(e)}
+            raise
