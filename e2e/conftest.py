@@ -41,7 +41,7 @@ def server_base_url():
     """
     port = _find_free_port()
     base_url = f"http://127.0.0.1:{port}"
-    project_root = Path(__file__).resolve().parent.parent.parent
+    project_root = Path(__file__).resolve().parent.parent
 
     env = os.environ.copy()
     env["API_PORT"] = str(port)
