@@ -8,5 +8,6 @@ uvicorn>=0.29
 python-multipart>=0.0.9
 pydantic>=2
 requests>=2
+stripe>=15
 httpx
 pytest
