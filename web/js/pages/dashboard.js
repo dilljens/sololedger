@@ -1,5 +1,6 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm } from '../api.js';
 import { renderTransactionTable } from './shared.js';
+import { loadDemoData } from './onboarding.js';
 
 function sparkline(v1, v2, v3, color = '#3b82f6') {
   const min = Math.min(v1, v2, v3);
@@ -49,7 +50,18 @@ export async function renderDashboard(content) {
   const deadlines = d.deadlines || [];
   const sp = taxInfo.suggested_payment || 0;
 
+  const isEmpty = !d.cash && !d.gross_revenue && !d.net_profit && !(d.recent_transactions && d.recent_transactions.length);
+  const demoBanner = isEmpty ? `
+    <div style="background:linear-gradient(135deg,#dbeafe,#ede9fe);border:1px solid #c7d2fe;border-radius:12px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div style="font-weight:700;font-size:1rem;color:#4338ca;">🚀 Welcome to SoloLedger!</div>
+        <div style="font-size:0.85rem;color:#6366f1;margin-top:4px;">Your ledger is empty. Load sample data to explore the features.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="demoBannerLoad()" style="white-space:nowrap;">🎲 Load Demo Data</button>
+    </div>` : '';
+
   content.innerHTML = `
+    ${demoBanner}
     <div class="page-header">
       <h1>Dashboard</h1>
       <p>${entityLabel}</p>
@@ -151,3 +163,17 @@ export function getCurrentQuarter() {
   return 'Q' + (Math.floor(m / 3) + 1);
 }
 window.getCurrentQuarter = getCurrentQuarter;
+
+// Demo data banner button (called from inline onclick)
+window.demoBannerLoad = async function() {
+  const btn = document.querySelector('[onclick*="demoBannerLoad"]');
+  if (btn) { btn.textContent = '⏳ Loading...'; btn.disabled = true; }
+  try {
+    const data = await apiPost('/onboarding/demo', {});
+    showToast(data.message || 'Demo data loaded!', 'success');
+    window.loadPage('dashboard');
+  } catch (e) {
+    showToast('Failed to load demo: ' + e.message, 'error');
+    if (btn) { btn.textContent = '🎲 Load Demo Data'; btn.disabled = false; }
+  }
+};

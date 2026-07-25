@@ -5,6 +5,7 @@ let _onboardingStep = 1;
 let _plaidAvailable = false;
 
 export async function checkOnboarding() {
+  // In open mode, onboarding is handled by the dashboard demo banner
   if (!isAuthenticated()) return;
   try {
     const data = await apiGet('/onboarding/status');
