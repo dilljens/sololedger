@@ -38,7 +38,8 @@ _project_root = Path(__file__).resolve().parent.parent.parent
 @app.get("/deploy.sh")
 async def deploy_script():
     """Serve the one-command deploy script."""
-    deploy_sh = _project_root / "deploy.sh"
+    # Serve from web/ directory (inside Docker container at /app/web/)
+    deploy_sh = _web_dir / "deploy.sh"
     if deploy_sh.exists():
         resp = FR(str(deploy_sh), media_type="text/x-shellscript")
         resp.headers["Content-Type"] = "text/x-shellscript"
