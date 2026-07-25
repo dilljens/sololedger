@@ -11,13 +11,13 @@ class TestInvoicer:
     def test_list_invoices(self, clean_ledger, sample_config):
         from app.invoice import Invoicer
         invoicer = Invoicer(sample_config, clean_ledger)
-        invoices = invoicer.list()
+        invoices = invoicer.list_invoices()
         assert isinstance(invoices, list)
 
     def test_list_invoices_by_year(self, clean_ledger, sample_config):
         from app.invoice import Invoicer
         invoicer = Invoicer(sample_config, clean_ledger)
-        invoices = invoicer.list(year=1970)
+        invoices = invoicer.list_invoices(year=1970)
         assert isinstance(invoices, list)
 
     def test_ar_check(self, clean_ledger, sample_config):

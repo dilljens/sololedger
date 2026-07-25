@@ -232,7 +232,7 @@ def invoice_list(ctx, year, ar_only):
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
 
-    invoices = invoicer.list(year, ar_only=ar_only)
+    invoices = invoicer.list_invoices(year, ar_only=ar_only)
 
     if not invoices:
         click.echo("No invoices found.")

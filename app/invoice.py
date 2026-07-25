@@ -202,7 +202,7 @@ class Invoicer:
 
         return pdf_path
 
-    def list(self, year: int | None = None, ar_only: bool = False) -> list[dict]:
+    def list_invoices(self, year: int | None = None, ar_only: bool = False) -> list[dict]:
         """List all invoices for a given year (or all time).
 
         Args:
@@ -448,7 +448,7 @@ class Invoicer:
 
         # Look up amount if not provided
         if amount is None:
-            invoices = self.list()
+            invoices = self.list_invoices()
             for inv in invoices:
                 inv_num = inv.get("date", "") + "-" + inv.get("client", "")
                 if inv.get("_number") == invoice_number or invoice_number in inv.get("_key", ""):

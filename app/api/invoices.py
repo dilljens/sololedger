@@ -78,7 +78,7 @@ async def list_invoices(year: Optional[int] = Query(None), ar_only: bool = Query
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 
-    invoices = invoicer.list(year=year, ar_only=ar_only)
+    invoices = invoicer.list_invoices(year=year, ar_only=ar_only)
     return _ok({
         "invoices": [
             {
