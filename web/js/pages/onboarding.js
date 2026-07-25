@@ -2,11 +2,14 @@ import { apiGet, apiPost, apiFetch, escapeHtml, isAuthenticated, showToast } fro
 
 let _onboardingStep = 1;
 
+let _plaidAvailable = false;
+
 export async function checkOnboarding() {
   if (!isAuthenticated()) return;
   try {
     const data = await apiGet('/onboarding/status');
-    if (data.needs_onboarding) showOnboarding();
+    _plaidAvailable = data.plaid_available || false;
+    if (data.needs_onboarding && !data.has_ledger_data) showOnboarding();
   } catch { /* ignore */ }
 }
 window.checkOnboarding = checkOnboarding;
@@ -34,11 +37,14 @@ export function renderOnboarding() {
             Your ledger is ready. Let's get your first data in — or skip straight to the dashboard.
           </p>
           <div style="display:flex;flex-direction:column;gap:12px;max-width:300px;margin:0 auto;">
-            <button class="btn btn-primary btn-lg" onclick="_onboardingNext(2)" style="justify-content:center;">
+            ${_plaidAvailable ? `<button class="btn btn-outline btn-lg" onclick="_onboardingNext(2)" style="justify-content:center;">
               🏦 Connect My Bank
-            </button>
-            <button class="btn btn-outline btn-lg" onclick="_onboardingNext(3)" style="justify-content:center;">
+            </button>` : ''}
+            <button class="btn btn-primary btn-lg" onclick="_onboardingNext(3)" style="justify-content:center;">
               📤 Import a File
+            </button>
+            <button class="btn btn-outline btn-lg" onclick="loadDemoData()" style="justify-content:center;">
+              🎲 Load Demo Data
             </button>
             <button class="btn btn-ghost" onclick="finishOnboarding()" style="justify-content:center;color:var(--gray-500);">
               Skip — take me to the dashboard
@@ -50,6 +56,13 @@ export function renderOnboarding() {
         </div>
       </div>`;
   } else if (step === 2) {
+    const bankHtml = _plaidAvailable ? `
+      <div id="plaid-onboarding-status">
+        <button class="btn btn-primary btn-lg" onclick="connectBank()" style="justify-content:center;">
+          🔗 Connect Bank
+        </button>
+      </div>` :
+      `<p style="color:var(--gray-500);font-size:0.9rem;">Bank sync requires Plaid API keys. Upload a CSV or OFX file instead, or set up Plaid in Settings.</p>`;
     content.innerHTML = `
       <div style="max-width:560px;margin:40px auto;padding:0 16px;">
         <div class="card" style="padding:32px;text-align:center;">
@@ -59,11 +72,7 @@ export function renderOnboarding() {
             Automatically import transactions from your business bank account.
             <strong>Professional plan feature.</strong>
           </p>
-          <div id="plaid-onboarding-status">
-            <button class="btn btn-primary btn-lg" onclick="connectBank()" style="justify-content:center;">
-              🔗 Connect Bank
-            </button>
-          </div>
+          ${bankHtml}
           <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;">
             <button class="btn btn-outline" onclick="_onboardingNext(3)">Skip — next step</button>
           </div>
@@ -106,6 +115,22 @@ export function renderOnboarding() {
   render();
 }
 window.renderOnboarding = renderOnboarding;
+
+export async function loadDemoData() {
+  const btn = document.querySelector('.btn-outline[onclick*="loadDemoData"]');
+  if (btn) { btn.textContent = '⏳ Loading...'; btn.disabled = true; }
+  showToast('Loading demo data...', 'info');
+  try {
+    const data = await apiPost('/onboarding/demo', {});
+    showToast(data.message || 'Demo data loaded!', 'success');
+    // Skip onboarding and go to dashboard
+    await finishOnboarding();
+  } catch (e) {
+    showToast('Failed to load demo: ' + e.message, 'error');
+    if (btn) { btn.textContent = '🎲 Load Demo Data'; btn.disabled = false; }
+  }
+}
+window.loadDemoData = loadDemoData;
 
 export async function finishOnboarding() {
   try {

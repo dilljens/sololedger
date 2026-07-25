@@ -1,20 +1,28 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, showToast } from '../api.js';
 
 export async function renderImport(content) {
+  // Check if Plaid is available
+  let plaidAvailable = false;
+  try {
+    const status = await apiGet('/onboarding/status');
+    plaidAvailable = status.plaid_available || false;
+  } catch { /* ignore */ }
+
   content.innerHTML = `
       <div class="page-header">
         <h1>📥 Import Transactions</h1>
         <p>Upload bank statements, connect your bank, or import expense files</p>
       </div>
       <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.85rem;color:var(--gray-500);">
-        💡 <strong>Get started:</strong> Upload an OFX/QFX bank statement, a CSV file from your bank, or connect via Plaid for automated syncing.
+        💡 <strong>Get started:</strong> Upload an OFX/QFX bank statement, a CSV file from your bank${plaidAvailable ? ', or connect via Plaid for automated syncing' : ''}.
       </div>
 
+      ${plaidAvailable ? `
       <!-- Plaid / Auto Bank Sync -->
       <div class="card" id="plaid-card">
         <h2>🏦 Automated Bank Sync</h2>
         <div id="plaid-status">Checking bank connection...</div>
-      </div>
+      </div>` : ''}
 
       <div class="card">
         <h2>📄 OFX/QFX Bank Statement</h2>
