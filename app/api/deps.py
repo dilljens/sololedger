@@ -27,7 +27,44 @@ security = HTTPBearer(auto_error=False)
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
+_SESSIONS_PATH = _DATA_DIR / "sessions.json"
+
 _sessions: dict[str, dict] = {}
+
+
+def _load_sessions() -> dict[str, dict]:
+    """Load sessions from disk. Called once at module init."""
+    if _SESSIONS_PATH.exists():
+        try:
+            data: dict = json.loads(_SESSIONS_PATH.read_text())
+            # Only keep sessions under 30 days old
+            now = datetime.datetime.now(datetime.timezone.utc)
+            cutoff = now - datetime.timedelta(days=30)
+            fresh = {}
+            for token, info in data.items():
+                created = info.get("created", "")
+                if created:
+                    try:
+                        ct = datetime.datetime.fromisoformat(created)
+                        if ct < cutoff:
+                            continue  # expired
+                    except (ValueError, TypeError):
+                        pass
+                fresh[token] = info
+            return fresh
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def _save_sessions():
+    """Persist sessions to disk."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _SESSIONS_PATH.write_text(json.dumps(_sessions, indent=2))
+
+
+# Load persisted sessions on startup
+_sessions = _load_sessions()
 
 _api_keys_env = os.environ.get("API_KEYS", "")
 _valid_api_keys = [k.strip() for k in _api_keys_env.split(",") if k.strip()] if _api_keys_env else []

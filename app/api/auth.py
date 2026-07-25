@@ -11,6 +11,7 @@ from .deps import (
     _err,
     _ok,
     _sessions,
+    _save_sessions,
     GOOGLE_CLIENT_ID,
     _valid_api_keys,
     _load_users,
@@ -57,7 +58,9 @@ async def auth_google(req: GoogleAuthRequest):
             "email": email,
             "name": info.get("name", email),
             "picture": info.get("picture", ""),
+            "created": datetime.now(datetime.timezone.utc).isoformat(),
         }
+        _save_sessions()
 
         return _ok({
             "token": token,
@@ -134,7 +137,9 @@ async def auth_signup(req: SignupRequest):
         "name": name,
         "picture": "",
         "method": "local",
+        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
+    _save_sessions()
 
     return _ok({
         "token": token,
@@ -168,7 +173,9 @@ async def auth_signin(req: SigninRequest):
         "name": user.get("name", email.split("@")[0]),
         "picture": "",
         "method": "local",
+        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
+    _save_sessions()
 
     return _ok({
         "token": token,
@@ -188,4 +195,5 @@ async def auth_logout(request: Request):
         token = auth_header[7:]
         if token in _sessions:
             del _sessions[token]
+            _save_sessions()
     return _ok({"logged_out": True})
