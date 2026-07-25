@@ -24,7 +24,6 @@ services:
     ports:
       - "8100:8100"
     volumes:
-      - ledger_data:/app/ledger
       - /opt/sololedger/config.toml:/app/config.toml:ro
       - output_data:/app/output
       - imports_data:/app/imports
@@ -107,7 +106,6 @@ services:
       - 1.1.1.1
 
 volumes:
-  ledger_data:
   output_data:
   imports_data:
   poolsplat_scenes:
