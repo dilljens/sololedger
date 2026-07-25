@@ -40,8 +40,16 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/ -v --tb=long -x 2>&1 | tee /tmp/test-output.txt
+          python -m pytest tests/ -v --tb=long -x --paste=mypaste 2>&1 | tee /tmp/test-output.txt
           exit ${PIPESTATUS[0]}
+
+      - name: Show failure in summary
+        if: failure()
+        run: |
+          echo "## Test Failure (${{ matrix.python-version }})" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/test-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload test output
         if: failure()

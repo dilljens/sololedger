@@ -22,12 +22,19 @@ async def onboarding_status():
         return _ok({"needs_onboarding": True})
 
     complete = tenant.get("onboarding_complete", False)
-    has_ledger_data = (tenant.get("ledger_dir") and Path(tenant["ledger_dir"]).exists() and
-                       any(Path(tenant["ledger_dir"]).iterdir())) if tenant.get("ledger_dir") else False
+    # Check for actual transactions in the ledger, not just template files
+    has_transactions = False
+    tdir = Path(tenant["ledger_dir"]) if tenant.get("ledger_dir") else None
+    if tdir and tdir.exists():
+        txn_file = tdir / "transactions.beancount"
+        if txn_file.exists():
+            content = txn_file.read_text().strip()
+            # Has real transactions if there are posting entries (not just empty file)
+            has_transactions = len(content) > 100 or "  " in content
 
     return _ok({
-        "needs_onboarding": not complete and not has_ledger_data,
-        "has_ledger_data": has_ledger_data,
+        "needs_onboarding": not complete and not has_transactions,
+        "has_transactions": has_transactions,
         "plaid_available": bool(os.environ.get("PLAID_CLIENT_ID") and os.environ.get("PLAID_SECRET")),
     })
 

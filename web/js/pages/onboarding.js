@@ -9,7 +9,7 @@ export async function checkOnboarding() {
   try {
     const data = await apiGet('/onboarding/status');
     _plaidAvailable = data.plaid_available || false;
-    if (data.needs_onboarding && !data.has_ledger_data) showOnboarding();
+    if (data.needs_onboarding) showOnboarding();
   } catch { /* ignore */ }
 }
 window.checkOnboarding = checkOnboarding;
