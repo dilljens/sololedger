@@ -159,5 +159,11 @@
   </div>
 
   <script type="module" src="/api/v1/_js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/app/sw.js')
+        .catch(err => console.debug('SW registration skipped:', err.message));
+    }
+  </script>
 </body>
 </html>
