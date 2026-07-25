@@ -79,7 +79,8 @@ async function cacheFirst(request) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    // Only cache GET requests — POST/PUT/DELETE have side effects
+    if (response.ok && request.method === 'GET') {
       const cache = await caches.open(CACHE);
       cache.put(request, response.clone());
     }
@@ -87,7 +88,6 @@ async function networkFirst(request) {
   } catch (err) {
     const cached = await caches.match(request);
     if (cached) return cached;
-    // Return a minimal JSON error for API calls
     return new Response(
       JSON.stringify({ success: false, error: 'You are offline. Data will load when you reconnect.' }),
       { status: 503, headers: { 'Content-Type': 'application/json' } }

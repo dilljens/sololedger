@@ -143,11 +143,20 @@ export function updateSidebarAuth() {
 }
 window.updateSidebarAuth = updateSidebarAuth;
 
+let _gsiInitialized = false;
+
 export function updateGoogleClientId(retries = 5) {
   const container = document.getElementById('google-signin-container');
   const notConfigured = document.getElementById('google-not-configured');
   const divider = document.getElementById('auth-divider-local');
   if (!container) return;
+  if (_gsiInitialized) {
+    // Already initialized — just show the button
+    container.style.display = '';
+    if (notConfigured) notConfigured.style.display = 'none';
+    if (divider) divider.style.display = 'flex';
+    return;
+  }
   fetch('/api/v1/auth/google/config')
     .then(r => r.json())
     .then(data => {
@@ -161,11 +170,14 @@ export function updateGoogleClientId(retries = 5) {
       function render() {
         if (window.google && window.google.accounts) {
           try {
-            window.google.accounts.id.initialize({
-              client_id: cid,
-              callback: window.handleGoogleCredential,
-              auto_prompt: false,
-            });
+            if (!_gsiInitialized) {
+              window.google.accounts.id.initialize({
+                client_id: cid,
+                callback: window.handleGoogleCredential,
+                auto_prompt: false,
+              });
+              _gsiInitialized = true;
+            }
             window.google.accounts.id.renderButton(container, {
               type: 'standard',
               shape: 'rectangular',
