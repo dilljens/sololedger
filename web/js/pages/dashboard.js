@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm } from '../api.js';
+import { renderTransactionTable } from './shared.js';
 
 function sparkline(v1, v2, v3, color = '#3b82f6') {
   const min = Math.min(v1, v2, v3);
@@ -130,21 +131,7 @@ export async function renderDashboard(content) {
     </div>
     <div class="card">
       <h2>Recent Transactions</h2>
-      ${d.recent_transactions && d.recent_transactions.length ? `
-      <div class="table-wrap"><table>
-        <thead><tr><th>Date</th><th>Payee</th><th>Account</th><th class="amount">Amount</th></tr></thead>
-        <tbody>
-          ${d.recent_transactions.slice(0,8).map(t => `
-            <tr>
-              <td>${t.date || ''}</td>
-              <td>${t.payee || ''}</td>
-              <td><span class="tag ${(t.amount || 0) > 0 ? 'tag-red' : 'tag-green'}">${(t.account || '').split(':').pop()}</span></td>
-              <td class="amount ${(t.amount || 0) > 0 ? 'red' : 'green'}">${money(t.amount || 0)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table></div>` : '<p class="text-muted text-center" style="padding:20px;">No transactions yet.</p>'}
-    </div>`;
+      ${renderTransactionTable(d.recent_transactions, { limit: 8 })}</div>`;
 }
 
 export async function markTaxPaid(amount) {

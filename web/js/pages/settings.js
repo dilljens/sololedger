@@ -46,7 +46,7 @@ export async function renderSettings(content) {
           receipt scanning, and content generation.
           <strong>Not used for authentication.</strong>
         </p>
-        ${llmKey ? `<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">Current key: <code style="font-size:0.8rem;">${maskedLlmKey}</code></p>` : ''}
+        ${llmKey ? `<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">Current key: <code style="font-size:0.8rem;">${maskedLlmKey}</code> <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llm-api-key').value='';document.getElementById('llm-api-key').focus()" style="font-size:0.75rem;">✏️ Change</button></p>` : '<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">No key configured.</p>'}
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <select id="llm-backend" class="form-select" style="width:140px;">
@@ -58,11 +58,12 @@ export async function renderSettings(content) {
               class="form-input" style="flex:1;min-width:140px;font-family:var(--font-mono);font-size:0.85rem;">
           </div>
           <div style="display:flex;gap:8px;">
-            <input type="password" id="llm-api-key" placeholder="sk-..." value="${llmKey}"
+            <input type="password" id="llm-api-key" placeholder="${llmKey ? 'Leave empty to keep current key' : 'sk-...'}" value=""
               class="form-input" style="flex:1;font-family:var(--font-mono);font-size:0.85rem;">
             <button class="btn btn-primary" onclick="saveLlmConfig()">Save</button>
             ${llmKey ? '<button class="btn btn-outline" onclick="clearLlmConfig()">Remove</button>' : ''}
           </div>
+          <p style="font-size:0.75rem;color:var(--gray-500);margin:0;">Key is stored in your browser (localStorage) and synced to the server. Use a dedicated API key with minimal permissions.</p>
         </div>
       </div>
       <div class="card">
@@ -214,9 +215,13 @@ window.manageBilling = async function() {
 
 
 window.saveLlmConfig = function() {
-  const key = document.getElementById('llm-api-key').value.trim();
+  const rawKey = document.getElementById('llm-api-key').value;
   const backend = document.getElementById('llm-backend').value;
   const model = document.getElementById('llm-model').value.trim();
+
+  // If input is empty and we already have a key, keep existing key
+  const existingKey = getLlmApiKey();
+  const key = rawKey.trim() || existingKey || '';
 
   setLlmApiKey(key);
   setLlmBackend(backend);
