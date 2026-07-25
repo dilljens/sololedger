@@ -40,7 +40,7 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/ --ignore=tests/e2e -v --tb=short
+          python -m pytest tests/ -v --tb=short
 
       - name: Verify ledger integrity
         run: |
@@ -75,7 +75,7 @@ jobs:
 
       - name: Run E2E tests
         run: |
-          PLAYWRIGHT_HEADLESS=1 python -m pytest tests/e2e/ -v --tb=short
+          PLAYWRIGHT_HEADLESS=1 python -m pytest e2e/ -v --tb=short
 
       - name: Upload test results
         if: always()

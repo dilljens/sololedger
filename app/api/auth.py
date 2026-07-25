@@ -58,7 +58,7 @@ async def auth_google(req: GoogleAuthRequest):
             "email": email,
             "name": info.get("name", email),
             "picture": info.get("picture", ""),
-            "created": datetime.now(datetime.timezone.utc).isoformat(),
+            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
         _save_sessions()
 
