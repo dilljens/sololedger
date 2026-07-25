@@ -21,32 +21,8 @@ app.add_middleware(
 # ── Web UI static files ──
 _web_dir = Path(__file__).resolve().parent.parent.parent / "web"
 
-# Landing page at root
-from fastapi.responses import FileResponse as FR, HTMLResponse
-
-_landing_html = _web_dir / "landing.html"
-
-@app.get("/")
-async def landing_page():
-    """Serve the landing page."""
-    if _landing_html.exists():
-        return FR(str(_landing_html))
-    return HTMLResponse("<h1>SoloLedger</h1><p><a href='/app/'>Launch App</a></p>")
-
-_project_root = Path(__file__).resolve().parent.parent.parent
-
-@app.get("/deploy.sh")
-async def deploy_script():
-    """Serve the one-command deploy script."""
-    # Serve from web/ directory (inside Docker container at /app/web/)
-    deploy_sh = _web_dir / "deploy.sh"
-    if deploy_sh.exists():
-        resp = FR(str(deploy_sh), media_type="text/x-shellscript")
-        resp.headers["Content-Type"] = "text/x-shellscript"
-        return resp
-    return HTMLResponse("deploy.sh not found", status_code=404)
-
 # Dynamic JS serving through API route — prevents CDN caching
+from fastapi.responses import FileResponse
 _js_dir = _web_dir / "js"
 
 @app.get("/api/v1/_js/{rest_of_path:path}")
@@ -60,7 +36,7 @@ async def serve_js(rest_of_path: str):
     if not file_path.exists() or not file_path.is_file():
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse("Not Found", status_code=404)
-    resp = FR(file_path)
+    resp = FileResponse(file_path)
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
