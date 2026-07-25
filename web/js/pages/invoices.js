@@ -100,8 +100,8 @@ export async function renderInvoices(content) {
       <div class="table-wrap"><table>
         <thead><tr><th>Date</th><th>Client</th><th>Description</th><th class="amount">Amount</th><th>Status</th><th></th></tr></thead>
         <tbody>
-          ${invData.invoices.map((i, idx) => {
-            const invNum = 'INV-' + (i.date ? i.date.slice(0,4) : '2026') + '-' + String(idx+1).padStart(3,'0');
+          ${(invData.invoices || []).map((i, idx) => {
+            const invNum = 'INV-' + ((i.date || '').slice(0,4) || '2026') + '-' + String(idx+1).padStart(3,'0');
             const paid = i.paid === true;
             return `<tr>
               <td>${i.date}</td>

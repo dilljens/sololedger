@@ -99,10 +99,11 @@ window.importPayroll = async function() {
     }
 
     let html = '';
+    const rows = data.rows || [];
     if (data.imported > 0) {
       html += `<p style="color:#28a745;">✅ ${preview ? 'Parsed' : 'Imported'} ${data.imported} pay period(s)</p>`;
       html += `<table><tr><th>Date</th><th>Employee</th><th class="amount">Gross</th><th class="amount">Net</th></tr>`;
-      for (const row of data.rows) {
+      for (const row of rows) {
         if (row.skipped) continue;
         html += `<tr><td>${row.date || ''}</td><td>${escapeHtml(row.employee || '')}</td><td class="amount">${money(row.gross || 0)}</td><td class="amount">${money(row.net || 0)}</td></tr>`;
       }

@@ -201,6 +201,7 @@ def create_tenant(email: str, name: str = "") -> dict:
     config_toml = _generate_tenant_config(email, display_name)
     (tdir / "config.toml").write_text(config_toml.strip())
 
+    trial_end = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=14)
     tenant = {
         "user_id": user_id,
         "email": email,
@@ -211,7 +212,7 @@ def create_tenant(email: str, name: str = "") -> dict:
         "stripe_subscription_id": "",
         "ledger_dir": str(tdir),
         "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "trial_ends": "",
+        "trial_ends": trial_end.isoformat(),
         "onboarding_complete": False,
         "plaid_access_token": "",
     }
@@ -287,6 +288,7 @@ def require_plan(min_plan: str):
     """Dependency: require a minimum plan level to access an endpoint.
 
     Plans (in order): free < professional < business
+    Users with an active trial period get the professional plan level.
     """
     PLAN_ORDER = {"free": 0, "professional": 1, "business": 2}
     min_level = PLAN_ORDER.get(min_plan, 0)
@@ -296,10 +298,35 @@ def require_plan(min_plan: str):
         if not tenant:
             return  # open mode — allow all
         user_plan = tenant.get("plan", "free")
-        if PLAN_ORDER.get(user_plan, 0) < min_level:
+        effective_level = PLAN_ORDER.get(user_plan, 0)
+
+        # Active trial grants professional-level access
+        if effective_level < 1:
+            trial_ends = tenant.get("trial_ends", "")
+            if trial_ends:
+                try:
+                    ends = datetime.datetime.fromisoformat(trial_ends)
+                    if ends > datetime.datetime.now(datetime.timezone.utc):
+                        effective_level = 1  # trial = professional access
+                except (ValueError, TypeError):
+                    pass
+
+        if effective_level < min_level:
+            days_left = ""
+            if user_plan == "free":
+                trial_ends = tenant.get("trial_ends", "")
+                if trial_ends:
+                    try:
+                        ends = datetime.datetime.fromisoformat(trial_ends)
+                        remaining = (ends - datetime.datetime.now(datetime.timezone.utc)).days
+                        if remaining > 0:
+                            days_left = f" ({remaining} days left in trial)"
+                    except (ValueError, TypeError):
+                        pass
+
             raise HTTPException(
                 status_code=402,
-                detail=f"Upgrade to {min_plan} plan required",
+                detail=f"Upgrade to {min_plan} plan required{days_left}",
             )
     return _check
 

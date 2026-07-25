@@ -36,7 +36,7 @@ export async function renderReceipts(content) {
               <tr>
                 <td>${d.date}</td>
                 <td><span class="tag tag-blue">${d.account}</span></td>
-                <td><code style="font-size:0.75rem;">${d.path.split('/').pop()}</code></td>
+                <td><code style="font-size:0.75rem;">${(d.path || '').split('/').pop()}</code></td>
               </tr>
             `).join('')}
           </tbody>
@@ -182,7 +182,7 @@ window.handleReceiptUpload = async function(input) {
           <label style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #ddd;border-radius:6px;margin:4px 0;cursor:pointer;">
             <input type="radio" name="receipt-match" value='${JSON.stringify(m).replace(/'/g, "&#39;")}'>
             <span>${m.date} — <strong>${m.description}</strong> — $${fmt(m.amount)}</span>
-            <span class="tag ${m.match_score > 0.95 ? 'tag-green' : 'tag-blue'}">${(m.match_score * 100).toFixed(0)}% match</span>
+            <span class="tag ${(m.match_score || 0) > 0.95 ? 'tag-green' : 'tag-blue'}">${((m.match_score || 0) * 100).toFixed(0)}% match</span>
           </label>
         `).join('');
       }

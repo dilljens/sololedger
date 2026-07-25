@@ -1,4 +1,5 @@
 """Subscription / SaaS routes."""
+import datetime
 import json
 import os
 
@@ -11,8 +12,8 @@ router = APIRouter(prefix="/api/v1")
 
 PLANS = {
     "free": {"name": "Free", "price_monthly": 0, "price_annual": 0},
-    "professional": {"name": "Professional", "price_monthly": 2400, "price_annual": 24000},
-    "business": {"name": "Business", "price_monthly": 5900, "price_annual": 59000},
+    "professional": {"name": "Professional", "price_monthly": 1500, "price_annual": 15000},
+    "business": {"name": "Business", "price_monthly": 2900, "price_annual": 29000},
 }
 
 
@@ -44,9 +45,21 @@ async def subscription_status():
     if not tenant:
         return _err("Not authenticated", 401)
 
+    trial_ends = tenant.get("trial_ends", "")
+    trial_active = False
+    if trial_ends and tenant.get("plan") == "free":
+        try:
+            ends = datetime.datetime.fromisoformat(trial_ends)
+            trial_active = ends > datetime.datetime.now(datetime.timezone.utc)
+        except (ValueError, TypeError):
+            pass
+
     return _ok({
         "plan": tenant.get("plan", "free"),
         "status": tenant.get("status", "active"),
+        "trial_ends": trial_ends,
+        "trial_active": trial_active,
+        "trial_days_remaining": (ends - datetime.datetime.now(datetime.timezone.utc)).days if trial_active and trial_ends else 0,
         "stripe_customer_id": bool(tenant.get("stripe_customer_id")),
         "stripe_subscription_id": tenant.get("stripe_subscription_id", ""),
         "email": tenant.get("email", ""),

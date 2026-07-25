@@ -44,6 +44,10 @@ export async function renderDashboard(content) {
   }
 
   const entityLabel = d.entity_label || 'SMLLC (Schedule C)';
+  const taxInfo = d.tax || {};
+  const deadlines = d.deadlines || [];
+  const sp = taxInfo.suggested_payment || 0;
+
   content.innerHTML = `
     <div class="page-header">
       <h1>Dashboard</h1>
@@ -52,31 +56,31 @@ export async function renderDashboard(content) {
     ${attentionHtml}
     <div class="card-row">
       <div class="stat-card">
-        ${sparkline(d.cash * 0.95, d.cash * 1.02, d.cash, '#22c55e')}
+        ${sparkline((d.cash || 0) * 0.95, (d.cash || 0) * 1.02, d.cash || 0, '#22c55e')}
         <div class="label">Cash</div>
-        <div class="value green">${money(d.cash)}</div>
+        <div class="value green">${money(d.cash || 0)}</div>
         <span class="delta up">↑ 2.3%</span>
       </div>
       <div class="stat-card">
-        ${sparkline(d.gross_revenue * 0.8, d.gross_revenue * 0.95, d.gross_revenue, '#3b82f6')}
+        ${sparkline((d.gross_revenue || 0) * 0.8, (d.gross_revenue || 0) * 0.95, d.gross_revenue || 0, '#3b82f6')}
         <div class="label">Revenue YTD</div>
-        <div class="value blue">${money(d.gross_revenue)}</div>
+        <div class="value blue">${money(d.gross_revenue || 0)}</div>
       </div>
       <div class="stat-card">
-        ${sparkline(d.total_expenses * 0.9, d.total_expenses * 1.1, d.total_expenses, '#ef4444')}
+        ${sparkline((d.total_expenses || 0) * 0.9, (d.total_expenses || 0) * 1.1, d.total_expenses || 0, '#ef4444')}
         <div class="label">Expenses YTD</div>
-        <div class="value red">${money(d.total_expenses)}</div>
-        <span class="delta up">↑ ${((d.total_expenses / (d.gross_revenue || 1)) * 100).toFixed(0)}% of revenue</span>
+        <div class="value red">${money(d.total_expenses || 0)}</div>
+        <span class="delta up">↑ ${((d.total_expenses || 0) / (d.gross_revenue || 1)) * 100}% of revenue</span>
       </div>
       <div class="stat-card">
-        ${sparkline(d.net_profit * 0.85, d.net_profit * 0.98, d.net_profit, '#22c55e')}
+        ${sparkline((d.net_profit || 0) * 0.85, (d.net_profit || 0) * 0.98, d.net_profit || 0, '#22c55e')}
         <div class="label">Net Profit YTD</div>
-        <div class="value green">${money(d.net_profit)}</div>
-        <span class="delta up">${((d.net_profit / (d.gross_revenue || 1)) * 100).toFixed(0)}% margin</span>
+        <div class="value green">${money(d.net_profit || 0)}</div>
+        <span class="delta up">${((d.net_profit || 0) / (d.gross_revenue || 1)) * 100}% margin</span>
       </div>
       <div class="stat-card">
         <div class="label">AR Outstanding</div>
-        <div class="value blue">${money(d.ar)}</div>
+        <div class="value blue">${money(d.ar || 0)}</div>
       </div>
     </div>
     <div class="trust-panel">
@@ -90,34 +94,34 @@ export async function renderDashboard(content) {
         <div class="card-row">
           <div class="stat" style="border:none;padding:8px 0;">
             <div class="label">Annual Tax</div>
-            <div class="value blue" style="font-size:1.3rem;">${money(d.tax.annual_total_tax)}</div>
+            <div class="value blue" style="font-size:1.3rem;">${money(taxInfo.annual_total_tax || 0)}</div>
           </div>
           <div class="stat" style="border:none;padding:8px 0;">
             <div class="label">Already Paid</div>
-            <div class="value green" style="font-size:1.3rem;">${money(d.tax.already_paid)}</div>
+            <div class="value green" style="font-size:1.3rem;">${money(taxInfo.already_paid || 0)}</div>
           </div>
           <div class="stat" style="border:none;padding:8px 0;">
             <div class="label">Suggested Next</div>
-            <div class="value" style="font-size:1.3rem;">${money(d.tax.suggested_payment)}</div>
+            <div class="value" style="font-size:1.3rem;">${money(sp)}</div>
           </div>
         </div>
-        <p style="color:#666;font-size:0.85rem;margin:8px 0;">${d.tax.note}</p>
+        <p style="color:#666;font-size:0.85rem;margin:8px 0;">${taxInfo.note || ''}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
           <button class="btn btn-primary btn-sm" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">💳 Pay Now (IRS Direct Pay)</button>
-          <button class="btn btn-outline btn-sm" onclick="markTaxPaid(${d.tax.suggested_payment})">✅ Mark as Paid</button>
-          <button class="btn btn-outline btn-sm" onclick="window.open('/api/v1/tax/voucher?quarter=' + getCurrentQuarter() + '&amount=' + ${d.tax.suggested_payment}, '_blank')">📄 Print Voucher</button>
+          <button class="btn btn-outline btn-sm" onclick="markTaxPaid(${sp})">✅ Mark as Paid</button>
+          <button class="btn btn-outline btn-sm" onclick="window.open('/api/v1/tax/voucher?quarter=' + getCurrentQuarter() + '&amount=' + ${sp}, '_blank')">📄 Print Voucher</button>
         </div>
       </div>
       <div class="card" style="flex:1;">
         <h2>Deadlines</h2>
         <ul class="deadline-list">
-          ${d.deadlines.map(dl => `
+          ${deadlines.map(dl => `
             <li>
               <span class="dot ${dl.status === 'overdue' ? 'dot-red' : dl.status === 'upcoming' ? 'dot-yellow' : 'dot-green'}"></span>
-              <strong>${dl.label}</strong>
-              <span style="color:#666;">${dl.due}</span>
-              <span style="margin-left:auto;color:${dl.days_until < 0 ? '#dc3545' : '#28a745'};">
-                ${dl.days_until < 0 ? 'OVERDUE' : dl.days_until + ' days'}
+              <strong>${dl.label || ''}</strong>
+              <span style="color:#666;">${dl.due || ''}</span>
+              <span style="margin-left:auto;color:${(dl.days_until || 0) < 0 ? '#dc3545' : '#28a745'};">
+                ${(dl.days_until || 0) < 0 ? 'OVERDUE' : (dl.days_until || 0) + ' days'}
               </span>
             </li>
           `).join('')}
@@ -132,10 +136,10 @@ export async function renderDashboard(content) {
         <tbody>
           ${d.recent_transactions.slice(0,8).map(t => `
             <tr>
-              <td>${t.date}</td>
-              <td>${t.payee}</td>
-              <td><span class="tag ${t.amount > 0 ? 'tag-red' : 'tag-green'}">${t.account.split(':').pop()}</span></td>
-              <td class="amount ${t.amount > 0 ? 'red' : 'green'}">${money(t.amount)}</td>
+              <td>${t.date || ''}</td>
+              <td>${t.payee || ''}</td>
+              <td><span class="tag ${(t.amount || 0) > 0 ? 'tag-red' : 'tag-green'}">${(t.account || '').split(':').pop()}</span></td>
+              <td class="amount ${(t.amount || 0) > 0 ? 'red' : 'green'}">${money(t.amount || 0)}</td>
             </tr>
           `).join('')}
         </tbody>

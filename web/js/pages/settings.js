@@ -129,7 +129,7 @@ async function loadSubscriptionInfo() {
       return;
     }
 
-    const plans = plansJson.data.plans;
+    const plans = plansJson.data.plans || {};
     const currentPlan = subJson.data.plan || 'free';
     const subStatus = subJson.data.status || 'active';
 

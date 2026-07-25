@@ -23,9 +23,9 @@ export async function renderReports(content) {
         <table>
           <thead><tr><th>Category</th><th class="amount">Amount</th><th class="amount">Transactions</th></tr></thead>
           <tbody>
-            ${expenses.categories.map(c => `
+            ${(expenses.categories || []).map(c => `
               <tr>
-                <td>${c.category.replace('Expenses:', '')}</td>
+                <td>${(c.category || '').replace('Expenses:', '')}</td>
                 <td class="amount">${money(c.amount)}</td>
                 <td class="amount">${c.count}</td>
               </tr>
