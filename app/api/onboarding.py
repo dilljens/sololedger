@@ -22,23 +22,12 @@ async def onboarding_status():
         return _ok({"needs_onboarding": True})
 
     complete = tenant.get("onboarding_complete", False)
-    # Check for actual transactions in the ledger, not just template comments
-    has_transactions = False
-    tdir = Path(tenant["ledger_dir"]) if tenant.get("ledger_dir") else None
-    if tdir and tdir.exists():
-        txn_file = tdir / "transactions.beancount"
-        if txn_file.exists():
-            # Look for real journal entries (lines containing a date + postings)
-            for line in txn_file.read_text().splitlines():
-                line = line.strip()
-                # A transaction entry starts with a date (2026-...) followed by *
-                if line.startswith("202") and " * " in line and '"' in line:
-                    has_transactions = True
-                    break
+    # Template ships with sample data, so skip onboarding for new users
+    needs_onboarding = not complete
 
     return _ok({
-        "needs_onboarding": not complete and not has_transactions,
-        "has_transactions": has_transactions,
+        "needs_onboarding": needs_onboarding,
+        "has_transactions": True,
         "plaid_available": bool(os.environ.get("PLAID_CLIENT_ID") and os.environ.get("PLAID_SECRET")),
     })
 

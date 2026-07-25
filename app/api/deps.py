@@ -250,7 +250,7 @@ def create_tenant(email: str, name: str = "") -> dict:
         "ledger_dir": str(tdir),
         "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "trial_ends": trial_end.isoformat(),
-        "onboarding_complete": False,
+        "onboarding_complete": True,  # template has sample data, skip onboarding
         "plaid_access_token": "",
     }
     tenants[email] = tenant
