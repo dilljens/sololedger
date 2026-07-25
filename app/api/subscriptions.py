@@ -89,6 +89,7 @@ async def create_subscription_checkout(req: CreateCheckoutRequest):
 
     try:
         import stripe as stripe_lib
+        stripe_lib.api_key = stripe_key
 
         customer_id = tenant.get("stripe_customer_id", "")
         if not customer_id:
@@ -146,6 +147,7 @@ async def billing_portal():
 
     try:
         import stripe as stripe_lib
+        stripe_lib.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
         session = stripe_lib.billing_portal.Session.create(
             customer=customer_id,
             return_url=base_url + "/settings",
