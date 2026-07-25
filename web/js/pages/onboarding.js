@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiFetch, escapeHtml, isAuthenticated } from '../api.js';
+import { apiGet, apiPost, apiFetch, escapeHtml, isAuthenticated, showToast } from '../api.js';
 
 let _onboardingStep = 1;
 
@@ -118,10 +118,11 @@ window.finishOnboarding = finishOnboarding;
 
 export async function handleOnboardingOfx(input) {
   const file = input.files[0];
-  if (!file) return;
+  if (!file) { showToast('No file selected', 'warning'); return; }
   const div = document.getElementById('onboarding-import-result');
   if (!div) return;
-  div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing...</div>';
+  div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing OFX file...</div>';
+  showToast('Importing OFX file...', 'info');
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -129,22 +130,29 @@ export async function handleOnboardingOfx(input) {
     const res = await apiFetch('/ofx/import', { method: 'POST', body: formData });
     const json = await res.json();
     if (json.success) {
-      div.innerHTML = `<span style="color:var(--success);">✅ ${json.data.imported} transactions imported!</span>`;
+      const msg = `✅ ${json.data.imported} transactions imported!`;
+      div.innerHTML = `<span style="color:var(--success);">${msg}</span>`;
+      showToast(msg, 'success');
     } else {
-      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(json.error || "") || 'Import failed'}</span>`;
+      const err = json.error || 'Import failed';
+      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(err)}</span>`;
+      showToast(err, 'error');
     }
   } catch (e) {
-    div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(e.message)}</span>`;
+    const err = e.message || 'Import failed';
+    div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(err)}</span>`;
+    showToast(err, 'error');
   }
 }
 window.handleOnboardingOfx = handleOnboardingOfx;
 
 export async function handleOnboardingCsv(input) {
   const file = input.files[0];
-  if (!file) return;
+  if (!file) { showToast('No file selected', 'warning'); return; }
   const div = document.getElementById('onboarding-import-result');
   if (!div) return;
-  div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing...</div>';
+  div.innerHTML = '<div class="loading"><div class="spinner"></div>Importing CSV...</div>';
+  showToast('Importing CSV file...', 'info');
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -152,12 +160,18 @@ export async function handleOnboardingCsv(input) {
     const res = await apiFetch('/expenses/import', { method: 'POST', body: formData });
     const json = await res.json();
     if (json.success) {
-      div.innerHTML = `<span style="color:var(--success);">✅ ${json.data.imported} transactions imported!</span>`;
+      const msg = `✅ ${json.data.imported} transactions imported!`;
+      div.innerHTML = `<span style="color:var(--success);">${msg}</span>`;
+      showToast(msg, 'success');
     } else {
-      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(json.error || "") || 'Import failed'}</span>`;
+      const err = json.error || 'Import failed';
+      div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(err)}</span>`;
+      showToast(err, 'error');
     }
   } catch (e) {
-    div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(e.message)}</span>`;
+    const err = e.message || 'Import failed';
+    div.innerHTML = `<span style="color:var(--danger);">⚠ ${escapeHtml(err)}</span>`;
+    showToast(err, 'error');
   }
 }
 window.handleOnboardingCsv = handleOnboardingCsv;

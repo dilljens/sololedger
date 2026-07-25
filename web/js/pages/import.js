@@ -105,29 +105,38 @@ async function loadPlaidStatus() {
 
 window.connectBank = async function() {
   try {
+    showToast('Connecting to Plaid...', 'info');
     const data = await apiGet('/bank/link-token');
-    if (!data.link_token) throw new Error('No link token returned');
+    if (!data.link_token) {
+      if (data.error) throw new Error(data.error);
+      throw new Error('No link token returned');
+    }
 
     const handler = Plaid.create({
       token: data.link_token,
       onSuccess: async (public_token, metadata) => {
+        showToast('✅ Bank connected successfully!', 'success');
         await apiPost('/bank/exchange-token', {
           public_token: public_token,
           accounts: metadata.accounts ? metadata.accounts.map(a => a.id) : [],
         });
-        showToast('✅ Bank connected successfully!', 'success');
+        showToast('✅ Bank synced — transactions imported!', 'success');
         loadPlaidStatus();
       },
       onExit: (err, metadata) => {
         if (err) showToast('⚠ Bank connection failed: ' + err.error_message, 'error');
+        else showToast('Bank connection cancelled', 'info');
       },
     });
     handler.open();
   } catch (e) {
-    if (escapeHtml(e.message) === 'Authentication required') {
+    const msg = e.message || 'Unknown error';
+    if (msg === 'Authentication required') {
       window.showAuthModal();
+    } else if (msg.includes('PLAID_')) {
+      showToast('Bank sync is a Premium feature — check Settings to upgrade, or connect via CSV import', 'warning');
     } else {
-      showToast('Failed to connect bank: ' + e.message, 'error');
+      showToast('Bank connect unavailable: ' + msg + '. Try the CSV import instead.', 'warning');
     }
   }
 };

@@ -103,7 +103,7 @@ async def bank_accounts():
     })
 
 
-@router.get("/bank/link-token", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+@router.get("/bank/link-token", dependencies=[Depends(check_auth)])
 async def bank_link_token():
     try:
         from ..bank_feed import PlaidFeed
@@ -116,7 +116,7 @@ async def bank_link_token():
     return _ok(result)
 
 
-@router.post("/bank/exchange-token", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+@router.post("/bank/exchange-token", dependencies=[Depends(check_auth)])
 async def bank_exchange_token(req: ExchangeTokenRequest):
     tenant = _current_tenant.get()
     if not tenant:
