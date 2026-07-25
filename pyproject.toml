@@ -59,10 +59,12 @@ include = ["app*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient"]
+# E2E tests require Playwright + browser — run explicitly via -m e2e
+markers = [
+    "e2e: Playwright E2E tests (requires Playwright + browser installed)",
+]
 
-# Playwright settings — always run headless on CI/server
 [tool.pytest-playwright]
-# Run headless by default
 launch_options = { headless = true }
 
 [project.urls]
