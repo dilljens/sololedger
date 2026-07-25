@@ -22,15 +22,19 @@ async def onboarding_status():
         return _ok({"needs_onboarding": True})
 
     complete = tenant.get("onboarding_complete", False)
-    # Check for actual transactions in the ledger, not just template files
+    # Check for actual transactions in the ledger, not just template comments
     has_transactions = False
     tdir = Path(tenant["ledger_dir"]) if tenant.get("ledger_dir") else None
     if tdir and tdir.exists():
         txn_file = tdir / "transactions.beancount"
         if txn_file.exists():
-            content = txn_file.read_text().strip()
-            # Has real transactions if there are posting entries (not just empty file)
-            has_transactions = len(content) > 100 or "  " in content
+            # Look for real journal entries (lines containing a date + postings)
+            for line in txn_file.read_text().splitlines():
+                line = line.strip()
+                # A transaction entry starts with a date (2026-...) followed by *
+                if line.startswith("202") and " * " in line and '"' in line:
+                    has_transactions = True
+                    break
 
     return _ok({
         "needs_onboarding": not complete and not has_transactions,
