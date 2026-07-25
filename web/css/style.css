@@ -1046,3 +1046,24 @@ html { scrollbar-gutter: stable; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Print styles ── */
+@media print {
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .sidebar, .mobile-nav, .mobile-drawer-overlay, .modal-overlay,
+  .loading-bar, .toast-container, .confirm-overlay,
+  .btn, .btn-primary, .btn-outline, .btn-danger, .btn-success,
+  .btn-ghost, button, .theme-toggle, .sidebar-signin, .sidebar-user,
+  [onclick] { display: none !important; }
+  .main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+  .card { break-inside: avoid; box-shadow: none !important; border: 1px solid #ddd !important; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+  .stat-card, .stat { break-inside: avoid; }
+  .page-header { margin-bottom: 12pt; }
+  h1 { font-size: 16pt; }
+  h2 { font-size: 13pt; }
+  a { color: #000 !important; text-decoration: underline; }
+  .tag { border: 1px solid #999 !important; background: transparent !important; color: #000 !important; }
+  .trust-panel, .summary-card { break-inside: avoid; }
+}
