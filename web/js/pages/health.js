@@ -20,8 +20,8 @@ export async function renderHealth(content) {
       div.innerHTML = `
         <div class="text-center" style="padding:30px;">
           <div style="font-size:3rem;margin-bottom:12px;">✅</div>
-          <h2 style="color:#2b8a3e;">Ledger is clean</h2>
-          <p style="color:#666;">No errors found in your Beancount ledger.</p>
+          <h2 class="text-success">Ledger is clean</h2>
+          <p class="text-muted">No errors found in your Beancount ledger.</p>
         </div>
         <table>
           <tr><td>Total accounts</td><td class="amount">${Object.keys(data.balances || {}).length}</td></tr>
@@ -31,20 +31,21 @@ export async function renderHealth(content) {
     } else {
       div.innerHTML = `
         <div style="background:#fff5f5;border:1px solid #ffc9c9;border-radius:8px;padding:16px;margin-bottom:16px;">
-          <strong style="color:#c92a2a;">⚠ ${data.error_count} error(s) found</strong>
-          <p style="font-size:0.85rem;color:#666;margin-top:4px;">
+          <strong class="text-error">⚠ ${data.error_count} error(s) found</strong>
+          <p class="text-muted">
             Fix these issues to keep your ledger in balance.
           </p>
         </div>
         ${(data.errors || []).map(e => `
           <div style="background:#fff;border:1px solid #ffe0e0;border-left:3px solid #c92a2a;border-radius:6px;padding:12px;margin:8px 0;font-size:0.85rem;">
             <strong>${escapeHtml(e.message) || 'Unknown error'}</strong>
-            ${e.file ? `<div style="color:#888;margin-top:4px;">${e.file}${e.line ? ':' + e.line : ''}</div>` : ''}
+            ${e.file ? `<div class="text-muted-light">${e.file}${e.line ? ':' + e.line : ''}</div>` : ''}
           </div>
         `).join('')}`;
     }
   } catch (err) {
     document.getElementById('health-results').innerHTML =
-      '<div class="error">⚠ Failed to validate: ' + escapeHtml(err.message) + '</div>';
+      '<div class="error">⚠ Failed to validate: ' + escapeHtml(err.message) +
+      ' <button class="btn btn-outline btn-sm mt-2" onclick="loadPage(\'health\')">🔄 Retry</button></div>';
   }
 }

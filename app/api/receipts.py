@@ -48,7 +48,10 @@ async def scan_receipt(
             "merchant": result.get("merchant"),
             "date": result.get("date"),
             "total": float(result["total"]) if result.get("total") else None,
-            "line_items": result.get("line_items", []),
+            "line_items": [
+                {"description": i.get("description", ""), "amount": float(i["amount"]) if i.get("amount") else None}
+                for i in result.get("line_items", [])
+            ],
             "appended": result.get("appended", False),
         })
     finally:

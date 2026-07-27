@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </button>
           </div>`;
       } else {
-        content.innerHTML = `<div class="error"><h3>⚠ Error</h3><p>${escapeHtml(err.message)}</p></div>`;
+        content.innerHTML = `<div class="error text-center" style="padding:40px;"><div style="font-size:2rem;margin-bottom:8px;">⚠️</div><h3>Error</h3><p>${escapeHtml(err.message)}</p><button class="btn btn-primary mt-3" onclick="loadPage('${escapeHtml(page)}')" style="margin:12px auto 0;">🔄 Retry</button></div>`;
       }
     }
   }

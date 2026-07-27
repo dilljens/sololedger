@@ -94,18 +94,21 @@ class ReceiptScanner:
         except ImportError:
             return ""
 
-        text_parts = []
-        with pdfplumber.open(str(path)) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    text_parts.append(text)
-                # Also try extracting tables
-                tables = page.extract_tables()
-                for table in tables:
-                    for row in table:
-                        text_parts.append(" | ".join(cell or "" for cell in row))
-        return "\n".join(text_parts)
+        try:
+            text_parts = []
+            with pdfplumber.open(str(path)) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        text_parts.append(text)
+                    # Also try extracting tables
+                    tables = page.extract_tables()
+                    for table in tables:
+                        for row in table:
+                            text_parts.append(" | ".join(cell or "" for cell in row))
+            return "\n".join(text_parts)
+        except Exception:
+            return ""
 
     def _extract_image(self, path: Path) -> str:
         """Extract text from an image receipt using OCR."""
@@ -191,9 +194,11 @@ class ReceiptScanner:
 
         # Parse amounts more carefully — only match at line end
         # Real dollar amounts: optional $ prefix, digits, optional decimal
-        amount_re = re.compile(r'(?:^|\s+)[\$]?\s*(\d{1,3}(?:,\d{3})*\.\d{2})\s*$')
+        # \d+ handles 4+ digit numbers (e.g. 1299.99) while (?:,\d{3})* handles
+        # comma-separated thousands (e.g. 1,299.99)
+        amount_re = re.compile(r'(?:^|\s+)[\$]?\s*(\d+(?:,\d{3})*\.\d{2})\s*$')
         # Also match when amount is right-aligned with spaces
-        amount_re_loose = re.compile(r'(?:^|\s)[\$]?\s*(\d{1,3}(?:,\d{3})*\.\d{2})\s*$')
+        amount_re_loose = re.compile(r'(?:^|\s)[\$]?\s*(\d+(?:,\d{3})*\.\d{2})\s*$')
 
         # Collect all lines with dollar amounts for cross-referencing
         amount_lines = []

@@ -61,6 +61,23 @@ class Ledger:
             self.reload()
         return self._errors
 
+    def balance(self, account: str) -> Optional[float]:
+        """Get the current balance for a specific account. Returns float or None."""
+        self.reload()
+        if account in self._balances:
+            for pos in self._balances[account]:
+                return float(pos.units.number)
+        return None
+
+    def all_balances(self) -> dict[str, float]:
+        """Get all account balances as a dict."""
+        self.reload()
+        result = {}
+        for acct, inventory in self._balances.items():
+            for pos in inventory:
+                result[acct] = float(pos.units.number)
+        return result
+
     def check(self) -> list[str]:
         """Run Beancount validation. Returns list of error strings (empty = clean)."""
         self.reload()

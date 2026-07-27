@@ -430,5 +430,14 @@
   },
   "ZOOM": {
     "Expenses:Software:SaaS": 3
+  },
+  "MY_TEST_STORE": {
+    "Expenses:Supplies": 10
+  },
+  "TEST_STORE_XYZ": {
+    "Expenses:Supplies": 10
+  },
+  "TEST_STORE_ABC": {
+    "Expenses:Software": 33
   }
 }

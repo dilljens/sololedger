@@ -8,7 +8,7 @@ export async function renderPayroll(content) {
     </div>
     <div class="card">
       <h2>Import Gusto Payroll CSV</h2>
-      <p style="color:#666;margin-bottom:12px;">Upload your Gusto payroll export CSV to record pay period journal entries in the ledger.</p>
+      <p class="text-muted">Upload your Gusto payroll export CSV to record pay period journal entries in the ledger.</p>
       <div style="border:2px dashed #ccc;border-radius:8px;padding:24px;text-align:center;">
         <input type="file" id="payroll-csv-input" accept=".csv" style="margin-bottom:12px;">
         <br>
@@ -21,19 +21,19 @@ export async function renderPayroll(content) {
     <div class="card">
       <h2>YTD Payroll Summary</h2>
       <div id="payroll-summary">
-        <p style="color:#666;">Loading...</p>
+        <p class="text-muted">Loading...</p>
       </div>
     </div>
     <div class="card">
       <h2>Disburse Net Pay</h2>
-      <p style="color:#666;margin-bottom:12px;">Record the transfer of net pay from your business account to the owner.</p>
+      <p class="text-muted">Record the transfer of net pay from your business account to the owner.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
         <div>
-          <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:4px;">Date</label>
+          <label class="text-muted">Date</label>
           <input type="date" id="disburse-date" class="input" value="${new Date().toISOString().split('T')[0]}" style="padding:8px 12px;border:1px solid #ccc;border-radius:6px;">
         </div>
         <div>
-          <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:4px;">Net Pay Amount</label>
+          <label class="text-muted">Net Pay Amount</label>
           <input type="number" id="disburse-amount" class="input" placeholder="3461.54" step="0.01" min="0" style="padding:8px 12px;border:1px solid #ccc;border-radius:6px;">
         </div>
         <button class="btn btn-outline" onclick="disbursePayroll()" style="margin-bottom:0;">💰 Record Disbursement</button>
@@ -50,7 +50,7 @@ async function loadPayrollSummary() {
   try {
     const summary = await apiGet('/payroll/summary');
     if (summary.entity_type !== 'scorp') {
-      el.innerHTML = `<p style="color:#666;">${summary.note || 'Payroll is for S-Corp mode only.'}</p>`;
+      el.innerHTML = `<p class="text-muted">${summary.note || 'Payroll is for S-Corp mode only.'}</p>`;
       return;
     }
     el.innerHTML = `
@@ -58,14 +58,14 @@ async function loadPayrollSummary() {
         <tr><td>Total Gross Wages YTD</td><td class="amount">${money(summary.total_gross)}</td></tr>
         <tr><td style="font-weight:600;">Total Employer Taxes YTD</td><td class="amount" style="font-weight:600;">${money(summary.total_employer_taxes)}</td></tr>
         ${summary.employer_breakdown ? `
-          <tr><td style="padding-left:24px;color:#666;">↳ Social Security (6.2%)</td><td class="amount" style="color:#666;">${money(summary.employer_breakdown.social_security)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ Medicare (1.45%)</td><td class="amount" style="color:#666;">${money(summary.employer_breakdown.medicare)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ FUTA (0.6%)</td><td class="amount" style="color:#666;">${money(summary.employer_breakdown.futa)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ SUTA</td><td class="amount" style="color:#666;">${money(summary.employer_breakdown.suta)}</td></tr>
+          <tr><td class="text-muted">↳ Social Security (6.2%)</td><td class="amount" class="text-muted">${money(summary.employer_breakdown.social_security)}</td></tr>
+          <tr><td class="text-muted">↳ Medicare (1.45%)</td><td class="amount" class="text-muted">${money(summary.employer_breakdown.medicare)}</td></tr>
+          <tr><td class="text-muted">↳ FUTA (0.6%)</td><td class="amount" class="text-muted">${money(summary.employer_breakdown.futa)}</td></tr>
+          <tr><td class="text-muted">↳ SUTA</td><td class="amount" class="text-muted">${money(summary.employer_breakdown.suta)}</td></tr>
         ` : ''}
       </table>`;
   } catch (err) {
-    el.innerHTML = `<p style="color:#dc3545;">⚠ Failed to load payroll summary: ${escapeHtml(err.message)}</p>`;
+    el.innerHTML = `<p class="text-error">⚠ Failed to load payroll summary: ${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -75,7 +75,7 @@ window.importPayroll = async function() {
   const resultsEl = document.getElementById('payroll-results');
 
   if (!fileInput.files || !fileInput.files[0]) {
-    resultsEl.innerHTML = '<p style="color:#dc3545;">⚠ Please select a CSV file first.</p>';
+    resultsEl.innerHTML = '<p class="text-error">⚠ Please select a CSV file first.</p>';
     return;
   }
 
@@ -84,7 +84,7 @@ window.importPayroll = async function() {
   formData.append('file', file);
   formData.append('preview', preview ? 'true' : 'false');
 
-  resultsEl.innerHTML = '<p style="color:#666;">Importing...</p>';
+  resultsEl.innerHTML = '<p class="text-muted">Importing...</p>';
 
   try {
     const token = getAuthToken();
@@ -94,14 +94,14 @@ window.importPayroll = async function() {
     const data = await res.json();
 
     if (data.error) {
-      resultsEl.innerHTML = `<p style="color:#dc3545;">⚠ ${escapeHtml(data.error)}</p>`;
+      resultsEl.innerHTML = `<p class="text-error">⚠ ${escapeHtml(data.error)}</p>`;
       return;
     }
 
     let html = '';
     const rows = data.rows || [];
     if (data.imported > 0) {
-      html += `<p style="color:#28a745;">✅ ${preview ? 'Parsed' : 'Imported'} ${data.imported} pay period(s)</p>`;
+      html += `<p class="text-success">✅ ${preview ? 'Parsed' : 'Imported'} ${data.imported} pay period(s)</p>`;
       html += `<table><tr><th>Date</th><th>Employee</th><th class="amount">Gross</th><th class="amount">Net</th></tr>`;
       for (const row of rows) {
         if (row.skipped) continue;
@@ -111,17 +111,17 @@ window.importPayroll = async function() {
       html += `<p>Total gross: ${money(data.total_gross)} | Total net: ${money(data.total_net)} | Employer taxes: ${money(data.total_employer_taxes)}</p>`;
     }
     if (data.errors && data.errors.length > 0) {
-      html += `<p style="color:#dc3545;">Errors: ${data.errors.join(', ')}</p>`;
+      html += `<p class="text-error">Errors: ${data.errors.join(', ')}</p>`;
     }
     if (data.imported === 0 && (!data.errors || data.errors.length === 0)) {
-      html += '<p style="color:#666;">No valid pay periods found in CSV.</p>';
+      html += '<p class="text-muted">No valid pay periods found in CSV.</p>';
     }
     resultsEl.innerHTML = html;
 
     // Reload summary if not preview
     if (!preview) loadPayrollSummary();
   } catch (err) {
-    resultsEl.innerHTML = `<p style="color:#dc3545;">⚠ Import failed: ${escapeHtml(err.message)}</p>`;
+    resultsEl.innerHTML = `<p class="text-error">⚠ Import failed: ${escapeHtml(err.message)}</p>`;
   }
 };
 
@@ -131,21 +131,21 @@ window.disbursePayroll = async function() {
   const resultsEl = document.getElementById('disburse-results');
 
   if (!date || !amount || amount <= 0) {
-    resultsEl.innerHTML = '<p style="color:#dc3545;">⚠ Enter a valid date and amount.</p>';
+    resultsEl.innerHTML = '<p class="text-error">⚠ Enter a valid date and amount.</p>';
     return;
   }
 
   const confirmed = await showConfirm('Record Disbursement', `Record net pay disbursement of $${fmt(amount)} on ${date}?`);
   if (!confirmed) return;
 
-  resultsEl.innerHTML = '<p style="color:#666;">Recording...</p>';
+  resultsEl.innerHTML = '<p class="text-muted">Recording...</p>';
 
   try {
     const result = await apiPost('/payroll/disburse', { date, amount });
-    resultsEl.innerHTML = `<p style="color:#28a745;">✅ Disbursement recorded: $${fmt(result.amount)} on ${result.date}</p>`;
+    resultsEl.innerHTML = `<p class="text-success">✅ Disbursement recorded: $${fmt(result.amount)} on ${result.date}</p>`;
     document.getElementById('disburse-amount').value = '';
     loadPayrollSummary();
   } catch (err) {
-    resultsEl.innerHTML = `<p style="color:#dc3545;">⚠ ${escapeHtml(err.message)}</p>`;
+    resultsEl.innerHTML = `<p class="text-error">⚠ ${escapeHtml(err.message)}</p>`;
   }
 };

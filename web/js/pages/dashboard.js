@@ -118,7 +118,7 @@ export async function renderDashboard(content) {
             <div class="value" style="font-size:1.3rem;">${money(sp)}</div>
           </div>
         </div>
-        <p style="color:#666;font-size:0.85rem;margin:8px 0;">${taxInfo.note || ''}</p>
+        <p class="text-muted">${taxInfo.note || ''}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
           <button class="btn btn-primary btn-sm" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">💳 Pay Now (IRS Direct Pay)</button>
           <button class="btn btn-outline btn-sm" onclick="markTaxPaid(${sp})">✅ Mark as Paid</button>
@@ -132,7 +132,7 @@ export async function renderDashboard(content) {
             <li>
               <span class="dot ${dl.status === 'overdue' ? 'dot-red' : dl.status === 'upcoming' ? 'dot-yellow' : 'dot-green'}"></span>
               <strong>${dl.label || ''}</strong>
-              <span style="color:#666;">${dl.due || ''}</span>
+              <span class="text-muted">${dl.due || ''}</span>
               <span style="margin-left:auto;color:${(dl.days_until || 0) < 0 ? '#dc3545' : '#28a745'};">
                 ${(dl.days_until || 0) < 0 ? 'OVERDUE' : (dl.days_until || 0) + ' days'}
               </span>
@@ -157,6 +157,7 @@ export async function markTaxPaid(amount) {
     window.loadPage('dashboard');
   } catch (err) { showToast('Error recording payment: ' + err.message, 'error'); }
 }
+window.markTaxPaid = markTaxPaid;
 
 export function getCurrentQuarter() {
   const m = new Date().getMonth();

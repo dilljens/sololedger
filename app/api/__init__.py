@@ -40,7 +40,8 @@ async def serve_js(rest_of_path: str):
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
-# Mount web UI (for HTML, CSS, images — non-JS static assets)
+# Mount web UI — serves web/ directory for both Vue and classic apps.
+# Vue app at /app/ (index.html), classic app at /app/index-classic.html.
 if _web_dir.exists():
     from fastapi.staticfiles import StaticFiles
     app.mount("/app", StaticFiles(directory=str(_web_dir), html=True), name="web")
@@ -54,6 +55,7 @@ from . import health, auth, invoices, taxes, banking, time_tracking
 from . import retainers, notifications, receipts, reports, expenses
 from . import mileage, accounts, reconciliation, attention, onboarding
 from . import subscriptions, settings, payroll
+from . import amazon, coa, rules, imports as import_routes
 
 app.include_router(health.router)
 app.include_router(auth.router)
@@ -74,6 +76,10 @@ app.include_router(onboarding.router)
 app.include_router(subscriptions.router)
 app.include_router(settings.router)
 app.include_router(payroll.router)
+app.include_router(amazon.router)
+app.include_router(import_routes.router)
+app.include_router(coa.router)
+app.include_router(rules.router)
 
 
 if __name__ == "__main__":

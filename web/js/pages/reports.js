@@ -85,7 +85,7 @@ export async function renderRecon(content) {
       </div>
       <div class="card">
         <h2>How It Works</h2>
-        <ol style="margin-left:20px;font-size:0.85rem;color:#555;">
+        <ol class="text-muted">
           <li>Download your latest bank statement</li>
           <li>Run <code>llc reconcile start --date YYYY-MM-DD --balance XXXX</code> in your terminal</li>
           <li>Review uncleared items below</li>

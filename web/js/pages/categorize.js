@@ -10,16 +10,16 @@ export async function renderCategorize(content) {
         <h2>Quick Suggest</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <input type="text" id="cat-merchant" placeholder="Paste a merchant name..."
-            style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;">
+            class="border">
           <input type="number" id="cat-amount" placeholder="Amount (optional)"
-            style="width:140px;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;">
+            class="border">
           <button class="btn btn-primary" onclick="suggestCategory()">🔍 Suggest</button>
         </div>
         <div id="cat-suggestion" style="margin-top:12px;"></div>
       </div>
       <div class="card">
         <h2>Uncategorized Transaction Tester</h2>
-        <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+        <p class="text-muted">
           Try merchants to see how the three-tier cascade categorizes them:
           exact match → pattern rule → embedding similarity.
         </p>
@@ -54,19 +54,19 @@ window.suggestCategory = async function() {
       div.innerHTML = `
         <div style="background:#f0f9ff;border:1px solid #b2ddff;border-radius:8px;padding:16px;">
           <div style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Suggested: ${s.account || 'Unknown'}</div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.85rem;color:#555;">
+          <div class="text-muted">
             <span>Confidence: ${confLabel}</span>
             ${s.count !== undefined ? `<span>Seen ${s.count} time(s)</span>` : ''}
           </div>
           ${similarTxn.length > 0 ? `
-            <div style="margin-top:8px;font-size:0.85rem;color:#666;">
+            <div class="text-muted">
               <strong>Similar past transactions:</strong>
               ${similarTxn.slice(0,3).map(t => `<span class="tag tag-green" style="margin:2px;">${t.payee} → ${t.account}</span>`).join('')}
             </div>
           ` : ''}
           <div style="margin-top:12px;display:flex;gap:8px;">
             <input type="text" id="cat-correct" value="${s.account || 'Expenses:Miscellaneous'}"
-              style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:6px;font-size:0.85rem;">
+              class="border">
             <button class="btn btn-outline btn-sm" onclick="learnCategory()">✓ Learn</button>
           </div>
         </div>`;
@@ -101,7 +101,7 @@ window.learnCategory = async function() {
       body: JSON.stringify({ merchant, account, correct: true }),
     });
     document.getElementById('cat-suggestion').innerHTML =
-      '<p style="color:#2b8a3e;">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
+      '<p class="text-success">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
   } catch (err) {
     showToast('Error: ' + escapeHtml(err.message), 'error');
   }

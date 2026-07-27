@@ -1,0 +1,29 @@
+/* SoloLedger Vue App — global styles
+   The existing design system in web/css/style.css handles most styling.
+   This file adds Vue-specific overrides and transition utilities.
+*/
+
+/* Vue transitions */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active, .slide-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.slide-enter-from {
+  transform: translateX(-8px);
+  opacity: 0;
+}
+.slide-leave-to {
+  transform: translateX(8px);
+  opacity: 0;
+}
+
+/* Ensure the app root takes full height */
+#app {
+  display: contents;
+}

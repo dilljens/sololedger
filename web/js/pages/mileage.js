@@ -34,13 +34,13 @@ export async function renderMileage(content) {
     <div class="card">
       <h2>Log a Trip</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
-        <div><label style="font-size:0.75rem;color:#888;display:block;">Date</label>
-          <input type="date" id="mil-date" value="${new Date().toISOString().slice(0,10)}" style="padding:8px;border:1.5px solid #ddd;border-radius:6px;"></div>
-        <div><label style="font-size:0.75rem;color:#888;display:block;">Miles</label>
-          <input type="number" id="mil-miles" placeholder="42" style="width:80px;padding:8px;border:1.5px solid #ddd;border-radius:6px;"></div>
-        <div style="flex:1;min-width:150px;"><label style="font-size:0.75rem;color:#888;display:block;">Purpose</label>
-          <input type="text" id="mil-purpose" placeholder="Client meeting" style="width:100%;padding:8px;border:1.5px solid #ddd;border-radius:6px;"></div>
-        <div><label style="font-size:0.75rem;color:#888;display:block;">&nbsp;</label>
+        <div><label class="text-muted-light">Date</label>
+          <input type="date" id="mil-date" value="${new Date().toISOString().slice(0,10)}" class="border"></div>
+        <div><label class="text-muted-light">Miles</label>
+          <input type="number" id="mil-miles" placeholder="42" class="border"></div>
+        <div style="flex:1;min-width:150px;"><label class="text-muted-light">Purpose</label>
+          <input type="text" id="mil-purpose" placeholder="Client meeting" class="border"></div>
+        <div><label class="text-muted-light">&nbsp;</label>
           <button class="btn btn-primary" onclick="logMileage()">➕ Log Trip</button></div>
       </div>
       <div id="mil-result" style="margin-top:8px;"></div>
@@ -60,7 +60,7 @@ export async function renderMileage(content) {
             </tr>
           `).join('')}
         </tbody>
-      </table>` : '<p class="text-muted text-center" style="padding:20px;">No trips logged yet. Use the CLI or API to add trips.</p>'}
+      </table>` : '<div class="empty-state"><div class="icon">🚗</div><h3>No Trips Yet</h3><p>Use the form above to log your first trip.</p></div>'}
     </div>`;
 }
 
@@ -69,7 +69,7 @@ window.logMileage = async function() {
   const miles = parseFloat(document.getElementById('mil-miles').value);
   const purpose = document.getElementById('mil-purpose').value.trim();
   if (!date || !miles || !purpose) {
-    document.getElementById('mil-result').innerHTML = '<span style="color:#c92a2a;">Please fill in all fields.</span>';
+    document.getElementById('mil-result').innerHTML = '<span class="text-error">Please fill in all fields.</span>';
     return;
   }
   try {
@@ -81,12 +81,12 @@ window.logMileage = async function() {
     const json = await res.json();
     if (json.success) {
       document.getElementById('mil-result').innerHTML =
-        `<span style="color:#2b8a3e;">✅ Logged: ${purpose} — ${miles} mi ($${(miles * 0.70).toFixed(2)} deduction)</span>`;
+        `<span class="text-success">✅ Logged: ${purpose} — ${miles} mi ($${(miles * 0.70).toFixed(2)} deduction)</span>`;
       window.loadPage('mileage');
     } else {
-      document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
+      document.getElementById('mil-result').innerHTML = `<span class="text-error">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
     }
   } catch (err) {
-    document.getElementById('mil-result').innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`;
+    document.getElementById('mil-result').innerHTML = `<span class="text-error">⚠ ${escapeHtml(err.message)}</span>`;
   }
 };

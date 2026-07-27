@@ -3,6 +3,40 @@ export const API_BASE = '/api/v1';
 
 const FETCH_TIMEOUT = 30000; // 30s
 
+// ── In-memory cache with TTL ───────────────────────────────
+const _cache = new Map();
+const CACHE_TTL = 30000; // 30 seconds
+
+function _cacheKey(path) {
+  return path;
+}
+
+function _cacheGet(path) {
+  const key = _cacheKey(path);
+  const entry = _cache.get(key);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) {
+    return entry.data;
+  }
+  _cache.delete(key);
+  return null;
+}
+
+function _cacheSet(path, data) {
+  _cache.set(_cacheKey(path), { data, ts: Date.now() });
+}
+
+function _cacheInvalidate(prefix) {
+  if (!prefix) { _cache.clear(); return; }
+  for (const key of _cache.keys()) {
+    if (key.startsWith(prefix)) _cache.delete(key);
+  }
+}
+
+// Invalidate dashboard cache when mutations happen
+export function invalidateDashboardCache() {
+  _cacheInvalidate('/dashboard');
+}
+
 // ── Auth (Google session only) ────────────────────────────
 
 export function getSessionToken() {
@@ -142,8 +176,14 @@ export async function apiFetch(path, options = {}) {
   }
 }
 
-export async function apiGet(path) {
-  const res = await apiFetch(path);
+export async function apiGet(path, options = {}) {
+  // Check cache for GET requests (skip when bypassCache is set)
+  if (!options.bypassCache) {
+    const cached = _cacheGet(path);
+    if (cached) return cached;
+  }
+
+  const res = await apiFetch(path, options);
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) {
       throw new Error('Authentication required');
@@ -152,6 +192,10 @@ export async function apiGet(path) {
   }
   const json = await res.json();
   if (!json.success) throw new Error(json.error || 'API error');
+
+  // Cache successful GET responses
+  _cacheSet(path, json.data);
+
   return json.data;
 }
 
@@ -169,6 +213,10 @@ export async function apiPost(path, body) {
   }
   const json = await res.json();
   if (!json.success) throw new Error(json.error || 'API error');
+
+  // Invalidate cache on mutations
+  _cache.clear();
+
   return json.data;
 }
 

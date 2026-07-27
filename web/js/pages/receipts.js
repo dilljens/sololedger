@@ -11,7 +11,7 @@ export async function renderReceipts(content) {
       </div>
       <div class="card">
         <h2>📸 New Receipt</h2>
-        <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+        <p class="text-muted">
           Take a photo or upload a PDF receipt. It will be scanned,
           categorized, and permanently attached to your ledger.
         </p>
@@ -25,7 +25,7 @@ export async function renderReceipts(content) {
 
     const listDiv = document.getElementById('receipt-list');
     if (docs.length === 0) {
-      listDiv.innerHTML = '<p class="text-muted text-center" style="padding:20px;">No receipt documents attached yet.</p>';
+      listDiv.innerHTML = '<div class="empty-state"><div class="icon">🧾</div><h3>No Receipts Yet</h3><p>Upload a receipt photo or PDF to get started.</p><a href="#" onclick="loadPage(\'capture\')" class="btn btn-primary mt-3" style="display:inline-block;">📸 Capture Receipt</a></div>';
     } else {
       listDiv.innerHTML = `
         <h2>Attached Receipts (${docs.length})</h2>
@@ -44,7 +44,8 @@ export async function renderReceipts(content) {
     }
   } catch (err) {
     document.getElementById('receipt-list').innerHTML =
-      '<div class="error">⚠ Could not load receipts: ' + escapeHtml(err.message) + '</div>';
+      '<div class="error">⚠ Could not load receipts: ' + escapeHtml(err.message) +
+      ' <button class="btn btn-outline btn-sm mt-2" onclick="loadPage(\'receipts\')">🔄 Retry</button></div>';
   }
 }
 
@@ -85,7 +86,7 @@ export function renderCaptureContent(content) {
     <div id="receipt-done" style="display:none;">
       <div class="card" class="text-center" style="padding:30px;">
         <h2 style="font-size:1.5rem;">✅ Receipt Recorded</h2>
-        <p style="color:#666;margin:8px 0;" id="receipt-done-detail"></p>
+        <p class="text-muted" id="receipt-done-detail"></p>
         <button class="btn btn-outline" onclick="resetCapture()">📸 Capture Another</button>
       </div>
     </div>`;
@@ -138,7 +139,7 @@ window.handleReceiptUpload = async function(input) {
         <tr><td><strong>Date</strong></td><td>${data.date || 'Unknown'}</td></tr>
         <tr><td><strong>Total</strong></td><td><strong>$${fmt(data.total || 0)}</strong></td></tr>
         ${data.line_items && data.line_items.length ? `
-        <tr><td><strong>Items</strong></td><td>${data.line_items.slice(0,5).map(i => `<span style="display:block;">· ${i.description}: $${fmt(i.amount)}</span>`).join('')}${data.line_items.length > 5 ? `<span style="color:#888;">...and ${data.line_items.length-5} more</span>` : ''}</td></tr>
+        <tr><td><strong>Items</strong></td><td>${data.line_items.slice(0,5).map(i => `<span style="display:block;">· ${i.description}: $${fmt(i.amount)}</span>`).join('')}${data.line_items.length > 5 ? `<span class="text-muted-light">...and ${data.line_items.length-5} more</span>` : ''}</td></tr>
         ` : ''}
       </table>
       <p class="text-muted text-sm mt-3">${file.name} (${(file.size/1024).toFixed(0)} KB)</p>`;
@@ -154,21 +155,21 @@ window.handleReceiptUpload = async function(input) {
         categoryDiv.innerHTML = `
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <span>${confLabel} Suggested: <strong>${suggestedAccount}</strong></span>
-            <input type="text" id="receipt-account" value="${suggestedAccount}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;width:250px;">
+            <input type="text" id="receipt-account" value="${suggestedAccount}" class="border">
             <button class="btn btn-outline btn-sm" onclick="learnCategory()">✓ Learn</button>
           </div>`;
       } else {
         categoryDiv.innerHTML = `
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <span>Category:</span>
-            <input type="text" id="receipt-account" value="Expenses:Miscellaneous" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;width:250px;">
+            <input type="text" id="receipt-account" value="Expenses:Miscellaneous" class="border">
           </div>`;
       }
     } else {
       categoryDiv.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <span>Category:</span>
-          <input type="text" id="receipt-account" value="Expenses:Miscellaneous" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.85rem;width:250px;">
+          <input type="text" id="receipt-account" value="Expenses:Miscellaneous" class="border">
         </div>`;
     }
 
@@ -179,7 +180,7 @@ window.handleReceiptUpload = async function(input) {
       if (matchJson.success && matchJson.data && matchJson.data.matches && matchJson.data.matches.length > 0) {
         matchSection.style.display = 'block';
         matchesDiv.innerHTML = matchJson.data.matches.slice(0,3).map(m => `
-          <label style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #ddd;border-radius:6px;margin:4px 0;cursor:pointer;">
+          <label class="border">
             <input type="radio" name="receipt-match" value='${JSON.stringify(m).replace(/'/g, "&#39;")}'>
             <span>${m.date} — <strong>${m.description}</strong> — $${fmt(m.amount)}</span>
             <span class="tag ${(m.match_score || 0) > 0.95 ? 'tag-green' : 'tag-blue'}">${((m.match_score || 0) * 100).toFixed(0)}% match</span>
@@ -247,7 +248,7 @@ window.learnCategory = async function() {
       body: JSON.stringify({ merchant, account, correct: true }),
     });
     document.getElementById('cat-suggestion').innerHTML =
-      '<p style="color:#2b8a3e;">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
+      '<p class="text-success">✅ Learned: ' + escapeHtml(merchant) + ' → ' + escapeHtml(account) + '</p>';
   } catch (err) {
     showToast('Error: ' + escapeHtml(err.message), 'error');
   }

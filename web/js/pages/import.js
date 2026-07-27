@@ -26,10 +26,10 @@ export async function renderImport(content) {
 
       <div class="card">
         <h2>📄 OFX/QFX Bank Statement</h2>
-        <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+        <p class="text-muted">
           Upload an OFX or QFX file from your bank.
         </p>
-        <div style="text-align:center;padding:20px;border:2px dashed #ddd;border-radius:12px;">
+        <div class="border">
           <label class="btn btn-primary" style="cursor:pointer;padding:12px 24px;">
             📄 Choose OFX/QFX File
             <input type="file" id="ofx-file" accept=".ofx,.qfx,.ofx.gz" style="display:none;" onchange="handleOfxUpload(this)">
@@ -40,18 +40,18 @@ export async function renderImport(content) {
       </div>
       <div class="card">
         <h2>📋 CSV / QBO Import</h2>
-        <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+        <p class="text-muted">
           Upload a CSV or QuickBooks Online (QBO) file from your bank.
         </p>
         <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-          <div style="text-align:center;padding:16px;border:2px dashed #ddd;border-radius:12px;flex:1;min-width:140px;">
+          <div class="border">
             <label class="btn btn-outline" style="cursor:pointer;padding:10px 20px;">
               📊 Upload CSV
               <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="handleCsvUpload(this)">
             </label>
             <p class="text-muted text-sm mt-2">.csv files</p>
           </div>
-          <div style="text-align:center;padding:16px;border:2px dashed #ddd;border-radius:12px;flex:1;min-width:140px;">
+          <div class="border">
             <label class="btn btn-outline" style="cursor:pointer;padding:10px 20px;">
               📋 Upload QBO
               <input type="file" id="qbo-file" accept=".qbo,.csv" style="display:none;" onchange="handleQboUpload(this)">
@@ -181,9 +181,9 @@ window.handleOfxUpload = async function(input) {
     if (json.success) {
       const d = json.data;
       div.innerHTML = `
-        <div style="background:#d3f9d8;border:1px solid #b2dfdb;border-radius:8px;padding:12px;">
+        <div class="bg-success">
           <strong>✅ ${d.imported} of ${d.total} transactions imported</strong>
-          ${d.skipped_duplicates > 0 ? `<br><span style="color:#888;font-size:0.85rem;">${d.skipped_duplicates} duplicates skipped</span>` : ''}
+          ${d.skipped_duplicates > 0 ? `<br><span class="text-muted-light">${d.skipped_duplicates} duplicates skipped</span>` : ''}
           <p style="margin-top:8px;">
             <button class="btn btn-success btn-sm" onclick="confirmOfxImport()">✓ Confirm & Import</button>
             <button class="btn btn-outline btn-sm" onclick="resetImport()">🔄 Reset</button>
@@ -212,16 +212,16 @@ window.confirmOfxImport = async function() {
     const json = await res.json();
     if (json.success) {
       const msg = `✅ ${json.data.imported} transactions imported to ledger.`;
-      div.innerHTML = `<span style="color:#2b8a3e;">${msg}</span>`;
+      div.innerHTML = `<span class="text-success">${msg}</span>`;
       showToast(msg, 'success');
     } else {
       const err = json.error || 'Import failed';
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err)}</span>`;
+      div.innerHTML = `<span class="text-error">⚠ ${escapeHtml(err)}</span>`;
       showToast(err, 'error');
     }
   } catch (err) {
     const msg = err.message || 'Import failed';
-    div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(msg)}</span>`;
+    div.innerHTML = `<span class="text-error">⚠ ${escapeHtml(msg)}</span>`;
     showToast(msg, 'error');
   }
 };
@@ -246,16 +246,16 @@ window.handleCsvUpload = async function(input) {
     const json = await res.json();
     if (json.success) {
       const msg = `✅ CSV uploaded. ${json.data.imported || 0} transactions found.`;
-      div.innerHTML = `<span style="color:#2b8a3e;">${msg}</span>`;
+      div.innerHTML = `<span class="text-success">${msg}</span>`;
       showToast(msg, 'success');
     } else {
       const err = json.error || 'Import failed';
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err)}</span>`;
+      div.innerHTML = `<span class="text-error">⚠ ${escapeHtml(err)}</span>`;
       showToast(err, 'error');
     }
   } catch (err) {
     const msg = err.message || 'Import failed';
-    div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(msg)}</span>`;
+    div.innerHTML = `<span class="text-error">⚠ ${escapeHtml(msg)}</span>`;
     showToast(msg, 'error');
   }
 };
@@ -273,9 +273,9 @@ window.handleQboUpload = async function(input) {
     const res = await apiFetch('/import/csv', { method: 'POST', body: formData });
     const json = await res.json();
     if (json.success) {
-      div.innerHTML = `<span style="color:#2b8a3e;">✅ QBO uploaded. ${json.data.imported || 0} transactions found.</span>`;
+      div.innerHTML = `<span class="text-success">✅ QBO uploaded. ${json.data.imported || 0} transactions found.</span>`;
     } else {
-      div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
+      div.innerHTML = `<span class="text-error">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;
     }
-  } catch (err) { div.innerHTML = `<span style="color:#c92a2a;">⚠ ${escapeHtml(err.message)}</span>`; }
+  } catch (err) { div.innerHTML = `<span class="text-error">⚠ ${escapeHtml(err.message)}</span>`; }
 };

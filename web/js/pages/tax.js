@@ -39,8 +39,8 @@ export async function renderTax(content) {
         <h2>1120-S Income</h2>
         <table>
           <tr><td>Ordinary Business Income</td><td class="amount">${money(form1120.ordinary_income || 0)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ Officer salary deduction</td><td class="amount" style="color:#666;">${money(form1120.officer_salary || 0)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ Employer payroll taxes</td><td class="amount" style="color:#666;">${money(form1120.employer_payroll_taxes || 0)}</td></tr>
+          <tr><td class="text-muted">↳ Officer salary deduction</td><td class="amount" class="text-muted">${money(form1120.officer_salary || 0)}</td></tr>
+          <tr><td class="text-muted">↳ Employer payroll taxes</td><td class="amount" class="text-muted">${money(form1120.employer_payroll_taxes || 0)}</td></tr>
         </table>
       </div>
       <div class="card">
@@ -58,9 +58,9 @@ export async function renderTax(content) {
         <h2>Federal</h2>
         <table>
           <tr><td>Self-Employment Tax (15.3%)</td><td class="amount">${money(se.total || 0)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ Deductible half (AGI)</td><td class="amount" style="color:#666;">${money(se.deductible_half || 0)}</td></tr>
+          <tr><td class="text-muted">↳ Deductible half (AGI)</td><td class="amount" class="text-muted">${money(se.deductible_half || 0)}</td></tr>
           <tr><td>Federal Income Tax</td><td class="amount">${money(fed.total || 0)}</td></tr>
-          <tr><td style="padding-left:24px;color:#666;">↳ Taxable income</td><td class="amount" style="color:#666;">${money(fed.taxable_income || 0)}</td></tr>
+          <tr><td class="text-muted">↳ Taxable income</td><td class="amount" class="text-muted">${money(fed.taxable_income || 0)}</td></tr>
         </table>
       </div>`;
   }
@@ -119,7 +119,7 @@ export async function renderDeadlines(content) {
             <span class="dot ${d.status === 'overdue' ? 'dot-red' : d.status === 'upcoming' ? 'dot-yellow' : 'dot-green'}"></span>
             <div style="flex:1;">
               <strong>${d.label || ''}</strong>
-              <span style="color:#666;margin-left:12px;">${d.due || ''}</span>
+              <span class="text-muted">${d.due || ''}</span>
             </div>
             <span style="font-weight:600;color:${(d.days_until || 0) < 0 ? '#dc3545' : (d.days_until || 0) <= 30 ? '#ffc107' : '#28a745'};">
               ${(d.days_until || 0) < 0 ? 'OVERDUE (' + (d.days_until || 0) + ' days)' : (d.days_until || 0) === 0 ? 'Due today!' : (d.days_until || 0) + ' days away'}

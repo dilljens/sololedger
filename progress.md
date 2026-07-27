@@ -7,10 +7,10 @@
 | **Version** | 0.3.0 |
 | **Ledger** | ✅ Clean — no errors |
 | **Demo Data** | ✅ Loaded (cash: $11,855.27, revenue: $13,000.00) |
-| **Tests** | ✅ 71 passing (config, ledger, invoice, CLI, taxes, payments) |
+| **Tests** | ✅ 74 passing (config, ledger, invoice, CLI, taxes, payments, API, receipt scanner, rules, DB, COA) |
 | **Config** | ⚠️ Template values (name, EIN not set) |
 | **Working tree** | ✅ Clean |
-| **Architecture** | ⚠️ 0.5851 (post-refactor; modularity metric artifact from API split) |
+| **Architecture** | ⚠️ 0.5912 (post-refactor; modularity metric artifact from API split) |
 
 ## Phase Log
 
@@ -22,6 +22,21 @@
 | P4: Fix & Polish | ✅ Complete | No bare excepts, all compile; API split into 18 routers |
 | P5: CI & Documentation | ✅ Complete | GitHub Actions test workflow added, wiki current, README badge |
 | P6: Release Prep | ✅ Complete | v0.3.0, all 71 tests green |
+| **Rearchitecture (v1 plan)** | ✅ 15/22 phases | See docs/plans/sololedger-v1-rearchitecture.md |
+
+## Rearchitecture Progress (2026-07-27)
+
+Audited the rearchitecture plan — most work was already built but checkboxes weren't updated.
+
+**Completed this session:**
+- Updated plan to reflect actual state (15 of 22 phases already done)
+- Phase I1: ReceiptCapture.vue + ReceiptList.vue (replaced PlaceholderPage)
+- Phase D2: Statements.vue page with PDF upload
+- Phase E2: Reconciliation.vue page with uncleared list
+- Added routes + nav links for all new pages
+- Fixed duplicate nav label (`/coa` → "Chart")
+
+**Test suite:** 74 tests passing (+3 since baseline: test_db, test_rules, test_coa)
 
 ## Blockers
 

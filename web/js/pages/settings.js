@@ -68,11 +68,11 @@ export async function renderSettings(content) {
       </div>
       <div class="card">
         <h2>🔒 Data Ownership</h2>
-        <p style="font-size:0.85rem;color:#555;">
+        <p class="text-muted">
           Your data lives in plain-text Beancount files. It is not locked into any proprietary format.
           You can stop using SoloLedger at any time and your data goes with you — it's just text files.
         </p>
-        <p style="font-size:0.85rem;color:#555;margin-top:8px;">
+        <p class="text-muted">
           ✅ Plain text · ✅ Git versioned · ✅ No subscription · ✅ Self-hosted · ✅ Open source (MIT)
         </p>
       </div>
@@ -86,7 +86,7 @@ export async function renderSettings(content) {
       </div>
       <div class="card">
         <h2>📤 Backup</h2>
-        <p style="font-size:0.85rem;color:#666;margin-bottom:12px;">
+        <p class="text-muted">
           Commit your latest changes to git. Your ledger is versioned and
           recoverable at any point in history.
         </p>
@@ -126,7 +126,7 @@ async function loadSubscriptionInfo() {
     const subJson = await subResp.json();
 
     if (!plansJson.success || !subJson.success) {
-      loadingEl.textContent = 'Could not load plan info.';
+      loadingEl.innerHTML = '<div class="text-error">⚠ Could not load plan info. <button class="btn btn-outline btn-sm" onclick="window.loadPage(\'settings\')">🔄 Retry</button></div>';
       return;
     }
 
@@ -184,7 +184,7 @@ async function loadSubscriptionInfo() {
       </div>
       ${upgradeHtml}`;
   } catch (e) {
-    if (loadingEl) loadingEl.textContent = 'Plan info unavailable.';
+    if (loadingEl) loadingEl.innerHTML = '<span class="text-error">⚠ Plan info unavailable.</span>';
   }
 }
 
@@ -252,4 +252,18 @@ window.clearLlmConfig = async function() {
   showToast('AI/LLM settings cleared', 'info');
   const active = document.querySelector('[data-page].active');
   if (active) window.loadPage(active.dataset.page);
+};
+
+window.doBackup = async function() {
+  try {
+    const res = await apiFetch('/backup', { method: 'POST' });
+    const json = await res.json();
+    if (json.success) {
+      showToast('✅ Backup complete: ' + (json.data?.message || ''), 'success');
+    } else {
+      showToast('⚠ Backup failed: ' + (json.error || ''), 'error');
+    }
+  } catch (err) {
+    showToast('⚠ Backup error: ' + err.message, 'error');
+  }
 };

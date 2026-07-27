@@ -36,3 +36,16 @@ ledgers/
 # IDE
 .idea
 .vscode
+
+# Runtime data (generated, not committed)
+sessions.json
+retainers.json
+.mileage_log.json
+ledger/feature.db
+ledger/transactions.beancount
+data/
+
+# Node / Vue
+web/node_modules/
+web/package-lock.json
+web/dist/

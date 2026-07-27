@@ -9,20 +9,20 @@ export async function renderNewInvoice(content) {
     <div class="card">
       <div style="max-width:500px;">
         <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Client Name</label>
-          <input type="text" id="inv-client" placeholder="Acme Corp" style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;">
+          <label class="text-body">Client Name</label>
+          <input type="text" id="inv-client" placeholder="Acme Corp" class="border">
         </div>
         <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Description</label>
-          <textarea id="inv-desc" placeholder="Q3 2026 Consulting Retainer" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;resize:vertical;"></textarea>
+          <label class="text-body">Description</label>
+          <textarea id="inv-desc" placeholder="Q3 2026 Consulting Retainer" rows="2" class="border"></textarea>
         </div>
         <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Amount ($)</label>
-          <input type="number" id="inv-amount" placeholder="5000" step="0.01" style="width:200px;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;">
+          <label class="text-body">Amount ($)</label>
+          <input type="number" id="inv-amount" placeholder="5000" step="0.01" class="border">
         </div>
         <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;color:#333;">Client Email (for Stripe payment link)</label>
-          <input type="email" id="inv-email" placeholder="client@acme.com" style="width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:0.9rem;">
+          <label class="text-body">Client Email (for Stripe payment link)</label>
+          <input type="email" id="inv-email" placeholder="client@acme.com" class="border">
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="createInvoice()" style="padding:12px 24px;">📄 Create Invoice</button>
@@ -44,7 +44,7 @@ window.createInvoice = async function() {
   const resultDiv = document.getElementById('inv-result');
 
   if (!client || !description || !amount) {
-    resultDiv.innerHTML = '<span style="color:#c92a2a;">Please fill in client, description, and amount.</span>';
+    resultDiv.innerHTML = '<span class="text-error">Please fill in client, description, and amount.</span>';
     return;
   }
 
@@ -65,8 +65,8 @@ window.createInvoice = async function() {
     if (json.success) {
       const d = json.data;
       resultDiv.innerHTML = `
-        <div style="background:#d3f9d8;border:1px solid #b2dfdb;border-radius:8px;padding:16px;">
-          <strong style="color:#2b8a3e;">✅ Invoice created!</strong>
+        <div class="bg-success">
+          <strong class="text-success">✅ Invoice created!</strong>
           <p style="margin-top:8px;">Invoice for ${d.client}: <strong>$${fmt(d.amount)}</strong></p>
           ${d.pdf_url ? `<p><a href="${d.pdf_url}" target="_blank" class="btn btn-outline btn-sm">📄 Download PDF</a></p>` : ''}
           ${d.payment_link ? `<p><a href="${d.payment_link}" target="_blank" class="btn btn-primary btn-sm">💳 Payment Link</a></p>` : ''}
