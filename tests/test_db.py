@@ -87,13 +87,16 @@ class TestTenantDB:
         assert rows[0]["id"] == 1
 
     def test_fingerprint_unique(self, db):
-        """Fingerprint should be deterministically unique."""
+        """Fingerprint should be deterministic and cross-source identical."""
         fp1 = make_fingerprint("plaid", "Assets:Bank", "2026-01-15", 5000, "Coffee")
         fp2 = make_fingerprint("plaid", "Assets:Bank", "2026-01-15", 5000, "Coffee")
         fp3 = make_fingerprint("ofx", "Assets:Bank", "2026-01-15", 5000, "Coffee")
 
         assert fp1 == fp2, "Fingerprint not deterministic"
-        assert fp1 != fp3, "Different sources should have different fingerprints"
+        # The same transaction from a different source must collide so
+        # cross-source duplicates are detected (source is not part of the
+        # identity fingerprint).
+        assert fp1 == fp3, "Same transaction from different source should collide"
 
     def test_imported_transaction_dedup(self, db):
         """Inserting the same fingerprint twice should violate UNIQUE."""

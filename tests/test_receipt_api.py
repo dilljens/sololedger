@@ -3,10 +3,8 @@
 Uses FastAPI TestClient with open mode (no auth) and sample ledger data.
 Pattern follows tests/test_api.py conventions.
 """
-import json
 import os
 from pathlib import Path
-from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -73,20 +71,14 @@ def assert_error(response, expected_status=400):
 
 
 @pytest.fixture
-def api_client_no_auth():
-    """TestClient when no auth is configured (open mode)."""
+def api_client_no_auth(isolated_environment):
+    """TestClient when no auth is configured (open mode), isolated tmp state."""
     from app.api import app as api_app
-    old_keys = os.environ.pop("API_KEYS", None)
-    old_google = os.environ.pop("GOOGLE_CLIENT_ID", None)
-    os.environ["API_CONFIG"] = str(
-        Path(__file__).resolve().parent.parent / "config.toml"
-    )
+    # Fail-closed auth: explicitly opt into open mode for these tests
+    os.environ["SOLOLEDGER_OPEN_MODE"] = "true"
     client = TestClient(api_app)
     yield client
-    if old_keys is not None:
-        os.environ["API_KEYS"] = old_keys
-    if old_google is not None:
-        os.environ["GOOGLE_CLIENT_ID"] = old_google
+    os.environ.pop("SOLOLEDGER_OPEN_MODE", None)
 
 
 @pytest.fixture
@@ -130,7 +122,7 @@ class TestScanReceipt:
         elif resp.status_code == 402:
             # Plan gating — graceful error
             body = resp.json()
-            assert "plan" in body.get("error", "").lower() or True
+            assert "plan" in body.get("error", "").lower()
         else:
             pytest.fail(f"Unexpected status: {resp.status_code}: {resp.text[:200]}")
 

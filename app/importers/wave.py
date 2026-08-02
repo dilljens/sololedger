@@ -12,6 +12,7 @@ from pathlib import Path
 from collections import defaultdict
 
 from app.db import TenantDB, make_fingerprint
+from . import post_imported_txn
 
 WAVE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -29,8 +30,9 @@ def parse_wave_csv(path: str | Path) -> list[dict]:
 
         amount_str = (row.get("Amount") or "0").replace("$", "").replace(",", "").strip()
         try:
-            amount_cents = int(round(float(amount_str) * 100))
-        except (ValueError, TypeError):
+            from decimal import Decimal, InvalidOperation
+            amount_cents = int((Decimal(amount_str) * 100).quantize(Decimal("1")))
+        except (ValueError, ArithmeticError, InvalidOperation):
             continue
 
         txns.append({
@@ -43,8 +45,14 @@ def parse_wave_csv(path: str | Path) -> list[dict]:
     return txns
 
 
-def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False) -> dict:
-    """Import Wave CSV transactions into SQLite metadata layer."""
+def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False,
+                    ledger=None, cfg=None) -> dict:
+    """Import Wave CSV transactions into SQLite metadata layer.
+
+    When `ledger` + `cfg` are provided, newly imported transactions are
+    also posted to the Beancount ledger (Wave amounts: positive = income,
+    negative = expense, relative to the business checking account).
+    """
     txns = parse_wave_csv(path)
     result = {"total": len(txns), "imported": 0, "skipped": 0, "errors": 0}
 
@@ -76,6 +84,14 @@ def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False) -> di
                 (batch_id, "wave", "wave", txn["date"], txn["amount_cents"], txn["description"][:200], fp),
             )
 
+            # Post to the Beancount ledger so the transaction actually appears
+            if ledger is not None and cfg is not None:
+                # Wave exports positive amounts for income, negative for expenses
+                post_imported_txn(
+                    ledger, cfg, txn["date"], txn["description"],
+                    txn["amount_cents"], source_account=cfg.checking_account,
+                )
+
         result["imported"] += 1
 
     if not dry_run:
@@ -84,5 +100,7 @@ def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False) -> di
             (str({"imported": result["imported"], "skipped": result["skipped"]}), batch_id),
         )
         db.commit()
+        if ledger is not None:
+            ledger.reload(force=True)
 
     return result

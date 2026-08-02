@@ -1,5 +1,7 @@
 import { apiFetch, apiPost, escapeHtml, showToast, showConfirm, getUserInfo, isAuthenticated, getAuthToken, getLlmApiKey, getLlmBackend, getLlmModel, setLlmApiKey, setLlmBackend, setLlmModel, apiSaveLlmConfig } from '../api.js';
 
+const escAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+
 export async function renderSettings(content) {
   const user = getUserInfo();
 
@@ -9,10 +11,10 @@ export async function renderSettings(content) {
       <div class="card">
         <h2>🔐 Authentication</h2>
         <div style="display:flex;align-items:center;gap:12px;">
-          ${user?.picture ? `<img src="${user.picture}" style="width:36px;height:36px;border-radius:50%;">` : '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>'}
+          ${user?.picture ? `<img src="${escAttr(user.picture)}" style="width:36px;height:36px;border-radius:50%;">` : '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>'}
           <div>
-            <div style="font-weight:600;">${user?.name || 'Signed in'}</div>
-            <div style="font-size:0.8rem;color:var(--gray-500);">${user?.email || ''}</div>
+            <div style="font-weight:600;">${escapeHtml(user?.name || 'Signed in')}</div>
+            <div style="font-size:0.8rem;color:var(--gray-500);">${escapeHtml(user?.email || '')}</div>
           </div>
           <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="margin-left:auto;">Sign Out</button>
         </div>
@@ -46,7 +48,7 @@ export async function renderSettings(content) {
           receipt scanning, and content generation.
           <strong>Not used for authentication.</strong>
         </p>
-        ${llmKey ? `<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">Current key: <code style="font-size:0.8rem;">${maskedLlmKey}</code> <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llm-api-key').value='';document.getElementById('llm-api-key').focus()" style="font-size:0.75rem;">✏️ Change</button></p>` : '<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">No key configured.</p>'}
+        ${llmKey ? `<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">Current key: <code style="font-size:0.8rem;">${escapeHtml(maskedLlmKey)}</code> <button class="btn btn-ghost btn-sm" onclick="document.getElementById('llm-api-key').value='';document.getElementById('llm-api-key').focus()" style="font-size:0.75rem;">✏️ Change</button></p>` : '<p class="text-muted" style="font-size:0.85rem;margin-bottom:8px;">No key configured.</p>'}
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <select id="llm-backend" class="form-select" style="width:140px;">
@@ -54,7 +56,7 @@ export async function renderSettings(content) {
               <option value="anthropic" ${llmBackend === 'anthropic' ? 'selected' : ''}>Anthropic</option>
               <option value="ollama" ${llmBackend === 'ollama' ? 'selected' : ''}>Ollama (local)</option>
             </select>
-            <input type="text" id="llm-model" placeholder="Model (e.g. gpt-4o-mini)" value="${llmModel}"
+            <input type="text" id="llm-model" placeholder="Model (e.g. gpt-4o-mini)" value="${escAttr(llmModel)}"
               class="form-input" style="flex:1;min-width:140px;font-family:var(--font-mono);font-size:0.85rem;">
           </div>
           <div style="display:flex;gap:8px;">
@@ -155,9 +157,9 @@ async function loadSubscriptionInfo() {
             ${Object.entries(plans).filter(([k]) => k !== 'free').map(([key, plan]) => `
               <div class="card" style="flex:1;min-width:180px;cursor:pointer;text-align:center;padding:16px;border:2px solid var(--gray-200);transition:border-color 0.12s;"
                    onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor=''"
-                   onclick="startUpgrade('${key}')">
+                   onclick="startUpgrade('${escAttr(key)}')">
                 <div style="font-size:1.5rem;margin-bottom:6px;">${planEmojis[key] || '⭐'}</div>
-                <div style="font-weight:600;">${plan.name}</div>
+                <div style="font-weight:600;">${escapeHtml(plan.name)}</div>
                 <div style="font-size:1.1rem;font-weight:700;color:var(--primary);margin:4px 0;">
                   $${plan.price_monthly}<span style="font-size:0.8rem;font-weight:400;color:var(--gray-500);">/mo</span>
                 </div>

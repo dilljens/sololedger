@@ -38,6 +38,8 @@ def api_server(api_port):
     config_path = project_root / "config.toml"
     env = os.environ.copy()
     env["API_CONFIG"] = str(config_path)
+    # Auth is fail-closed; E2E runs against the local demo in open mode.
+    env["SOLOLEDGER_OPEN_MODE"] = "true"
 
     import tempfile
     log_path = project_root / "tests" / "e2e" / "server.log"

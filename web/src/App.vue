@@ -29,7 +29,7 @@
           <button class="btn btn-ghost btn-sm" @click="handleLogout" title="Sign out">🚪</button>
         </div>
         <button v-else class="btn btn-ghost btn-sm" @click="showAuthModal">🔑 Sign In</button>
-        <div class="version">v0.3.0 · MIT</div>
+        <div class="version">v0.4.0 · MIT</div>
       </div>
     </aside>
 

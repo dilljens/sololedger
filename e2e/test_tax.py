@@ -31,7 +31,7 @@ class TestTaxPage:
     def test_shows_heading_or_no_profit(self, app_page):
         self._go(app_page)
         app_page.wait_for_timeout(2000)
-        heading = app_page.locator("h1")
+        heading = app_page.locator("#page-content h1")
         assert heading.is_visible(), "Tax page: no h1 heading"
 
     def test_shows_tax_content(self, app_page):
@@ -66,7 +66,7 @@ class TestDeadlinesPage:
 
     def test_loads(self, app_page):
         self._go(app_page)
-        heading = app_page.locator("h1")
+        heading = app_page.locator("#page-content h1")
         assert heading.is_visible()
 
     def test_no_js_errors(self, app_page, console_errors):
@@ -89,7 +89,7 @@ class TestSettingsPage:
 
     def test_loads(self, app_page):
         self._go(app_page)
-        heading = app_page.locator("h1")
+        heading = app_page.locator("#page-content h1")
         assert heading.is_visible()
 
     def test_no_js_errors(self, app_page, console_errors):

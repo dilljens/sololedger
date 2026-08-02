@@ -38,7 +38,7 @@
 </template>
 <script setup>
 import { ref, onMounted } from 'vue'
-import { apiGet, apiPost, apiDelete } from '../api.js'
+import { apiGet, apiPost, apiPut, apiDelete } from '../api.js'
 const loading = ref(true); const error = ref(''); const rules = ref([])
 const newRule = ref({ pattern: '', matcher_type: 'substring', target_account: '' })
 async function load() {
@@ -52,7 +52,7 @@ async function addRule() {
   await load()
 }
 async function toggleRule(r) {
-  await apiPost(`/rules/${r.id}`, { fields: { is_active: !r.is_active } })
+  await apiPut(`/rules/${r.id}`, { is_active: !r.is_active })
   await load()
 }
 async function deleteRule(id) {

@@ -14,24 +14,53 @@
     <div v-if="activeTab === 'ofx'" class="card">
       <h2>📄 OFX/QFX Bank Statement</h2>
       <p class="text-muted text-sm mb-3">Upload an OFX or QFX file from your bank.</p>
-      <FileUpload accept=".ofx,.qfx" label="Choose OFX/QFX File" icon="📄" @select="uploadOfx" />
+      <FileUpload accept=".ofx,.qfx" label="Choose OFX/QFX File" icon="📄" @select="onOfxSelect" @clear="clearOfx" />
+      <div v-if="ofxFile" class="mt-2">
+        <button class="btn btn-primary" @click="previewOfx" :disabled="previewing">
+          {{ previewing ? '⏳ Previewing...' : '👁️ Preview Import' }}
+        </button>
+        <button v-if="ofxPreview" class="btn btn-success" @click="confirmOfx" :disabled="confirming">
+          {{ confirming ? '⏳ Importing...' : '✅ Confirm Import' }}
+        </button>
+      </div>
+      <div v-if="ofxPreview" class="mt-3">
+        <div class="bg-success border-success" style="padding:12px;border-radius:8px;">
+          Preview: {{ ofxPreview.imported }} of {{ ofxPreview.total }} would import
+          <span v-if="ofxPreview.skipped_duplicates" class="text-muted-light"> ({{ ofxPreview.skipped_duplicates }} duplicates)</span>
+        </div>
+      </div>
       <div v-if="ofxResult" class="mt-3">
         <div class="bg-success border-success" style="padding:12px;border-radius:8px;">
           ✅ {{ ofxResult.imported }} of {{ ofxResult.total }} imported
           <span v-if="ofxResult.skipped_duplicates" class="text-muted-light"> ({{ ofxResult.skipped_duplicates }} duplicates skipped)</span>
         </div>
       </div>
+      <div v-if="ofxError" class="card error mt-3">⚠ {{ ofxError }}</div>
     </div>
 
     <!-- Citi CSV -->
     <div v-if="activeTab === 'citi'" class="card">
       <h2>💳 Citi Credit Card CSV</h2>
       <p class="text-muted text-sm mb-3">Upload a Citi credit-card statement CSV.</p>
-      <FileUpload accept=".csv" label="Upload Citi CSV" icon="💳" @select="uploadCiti" />
+      <FileUpload accept=".csv" label="Upload Citi CSV" icon="💳" @select="onCitiSelect" @clear="clearCiti" />
+      <div v-if="citiFile" class="mt-2">
+        <button class="btn btn-primary" @click="previewCiti" :disabled="previewingCiti">
+          {{ previewingCiti ? '⏳ Previewing...' : '👁️ Preview Import' }}
+        </button>
+        <button v-if="citiPreview" class="btn btn-success" @click="confirmCiti" :disabled="confirmingCiti">
+          {{ confirmingCiti ? '⏳ Importing...' : '✅ Confirm Import' }}
+        </button>
+      </div>
       <div v-if="citiPreview" class="mt-3">
         <p class="text-muted">{{ citiPreview.total }} transactions found</p>
-        <button class="btn btn-primary btn-sm" @click="confirmCiti">Confirm Import</button>
       </div>
+      <div v-if="citiResult" class="mt-3">
+        <div class="bg-success border-success" style="padding:12px;border-radius:8px;">
+          ✅ Import complete: {{ citiResult.imported }} transactions imported
+          <span v-if="citiResult.skipped" class="text-muted-light"> ({{ citiResult.skipped }} duplicates skipped)</span>
+        </div>
+      </div>
+      <div v-if="citiError" class="card error mt-3">⚠ {{ citiError }}</div>
     </div>
 
     <!-- Amazon -->
@@ -44,7 +73,7 @@
 </template>
 <script setup>
 import { ref } from 'vue'
-import { apiUpload, apiPost } from '../api.js'
+import { apiUpload } from '../api.js'
 import FileUpload from '../components/FileUpload.vue'
 
 const tabs = [
@@ -53,29 +82,109 @@ const tabs = [
   { id: 'amazon', label: 'Amazon', icon: '📦' },
 ]
 const activeTab = ref('ofx')
+const ofxFile = ref(null)
+const ofxPreview = ref(null)
 const ofxResult = ref(null)
+const ofxError = ref('')
+const previewing = ref(false)
+const confirming = ref(false)
+const citiFile = ref(null)
 const citiPreview = ref(null)
+const citiResult = ref(null)
+const citiError = ref('')
+const previewingCiti = ref(false)
+const confirmingCiti = ref(false)
 
-async function uploadOfx(files) {
-  if (!files?.length) return
+function firstFile(files) {
+  return files && files[0] ? files[0] : files
+}
+
+function onOfxSelect(files) {
+  ofxFile.value = firstFile(files)
+  ofxPreview.value = null
+  ofxResult.value = null
+  ofxError.value = ''
+}
+
+function clearOfx() {
+  ofxFile.value = null
+  ofxPreview.value = null
+  ofxResult.value = null
+  ofxError.value = ''
+}
+
+async function previewOfx() {
+  if (!ofxFile.value) return
+  previewing.value = true
+  ofxError.value = ''
+  ofxPreview.value = null
+  ofxResult.value = null
   try {
-    ofxResult.value = await apiUpload('/import/ofx', files[0], { preview: 'true' })
+    ofxPreview.value = await apiUpload('/import/ofx', ofxFile.value, { preview: 'true' })
   } catch (e) {
-    ofxResult.value = { error: e.message }
+    ofxError.value = e.message
+  } finally {
+    previewing.value = false
   }
 }
 
-async function uploadCiti(files) {
-  if (!files?.length) return
+async function confirmOfx() {
+  if (!ofxFile.value) return
+  confirming.value = true
+  ofxError.value = ''
   try {
-    citiPreview.value = await apiUpload('/import/citi/preview', files[0])
+    ofxResult.value = await apiUpload('/import/ofx', ofxFile.value, { preview: 'false' })
+    ofxPreview.value = null
   } catch (e) {
-    citiPreview.value = { error: e.message }
+    ofxError.value = e.message
+  } finally {
+    confirming.value = false
+  }
+}
+
+function onCitiSelect(files) {
+  citiFile.value = firstFile(files)
+  citiPreview.value = null
+  citiResult.value = null
+  citiError.value = ''
+}
+
+function clearCiti() {
+  citiFile.value = null
+  citiPreview.value = null
+  citiResult.value = null
+  citiError.value = ''
+}
+
+async function previewCiti() {
+  if (!citiFile.value) return
+  previewingCiti.value = true
+  citiError.value = ''
+  citiResult.value = null
+  try {
+    citiPreview.value = await apiUpload('/import/citi/preview', citiFile.value)
+  } catch (e) {
+    citiError.value = e.message
+  } finally {
+    previewingCiti.value = false
   }
 }
 
 async function confirmCiti() {
-  // Re-upload with import
+  if (!citiFile.value) return
+  confirmingCiti.value = true
+  citiError.value = ''
+  try {
+    citiResult.value = await apiUpload('/import/citi/import', citiFile.value, {
+      account: 'citi',
+      dry_run: 'false',
+    })
+    citiPreview.value = null
+  } catch (e) {
+    citiError.value = e.message
+  } finally {
+    confirmingCiti.value = false
+  }
 }
 </script>
 <style scoped>

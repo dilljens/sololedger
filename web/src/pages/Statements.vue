@@ -51,8 +51,8 @@ const uploading = ref(false)
 const uploadResult = ref(null)
 const uploadError = ref('')
 
-function onFileSelect(file) {
-  selectedFile.value = file
+function onFileSelect(files) {
+  selectedFile.value = files && files[0] ? files[0] : files
   uploadResult.value = null
   uploadError.value = ''
 }

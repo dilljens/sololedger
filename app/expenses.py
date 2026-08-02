@@ -5,9 +5,16 @@ import datetime
 import re
 from decimal import Decimal
 from pathlib import Path
+from typing import Optional
 
 from .config import Config
+from .db import make_fingerprint
 from .ledger import Ledger
+
+
+def _cents(amount: Decimal) -> int:
+    """Round a Decimal amount to integer cents without float error."""
+    return int((amount.copy_abs() * 100).quantize(Decimal("1")))
 
 
 class ExpenseImporter:
@@ -17,8 +24,14 @@ class ExpenseImporter:
         self.cfg = cfg
         self.ledger = ledger
 
-    def import_csv(self, csv_path: str | Path, preview: bool = False) -> list[dict]:
+    def import_csv(self, csv_path: str | Path, preview: bool = False,
+                   db=None, source: str = "csv") -> list[dict]:
         """Import transactions from a bank CSV.
+
+        When `db` is provided (a TenantDB), rows are deduplicated against
+        previously imported transactions before being appended to the
+        ledger — re-importing the same CSV (or the same transaction from
+        another source) never double-posts.
 
         Returns list of transaction dicts with their categorization.
         If preview=True, just shows what would be imported (no writes).
@@ -40,6 +53,7 @@ class ExpenseImporter:
         date_col, desc_col, amount_col = self._detect_columns(columns)
 
         imported = []
+        skipped = 0
         for row in rows:
             raw_date = row[date_col]
             raw_desc = row[desc_col]
@@ -79,6 +93,20 @@ class ExpenseImporter:
                 "postings": postings,
             }
 
+            # Dedup against the metadata DB BEFORE touching the ledger
+            if db is not None:
+                fp = make_fingerprint(
+                    source, self.cfg.checking_account,
+                    str(date), _cents(amount), desc,
+                )
+                already = db.execute(
+                    "SELECT 1 FROM imported_transactions WHERE fingerprint = ?", (fp,)
+                ).fetchone()
+                if already:
+                    skipped += 1
+                    continue
+                tx["fingerprint"] = fp
+
             if not preview:
                 entry = self.ledger.append(
                     date=date,
@@ -88,8 +116,23 @@ class ExpenseImporter:
                 )
                 tx["entry"] = entry
 
+                # Record the fingerprint only AFTER the ledger write
+                if db is not None:
+                    try:
+                        db.execute(
+                            "INSERT OR IGNORE INTO imported_transactions "
+                            "(batch_id, source, account, date, amount_cents, description, fingerprint) "
+                            "VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                            (source, self.cfg.checking_account, str(date), _cents(amount), desc[:200], tx["fingerprint"]),
+                        )
+                        db.commit()
+                    except Exception:
+                        pass  # dedup trail is best-effort; the ledger write already happened
+
             imported.append(tx)
 
+        if skipped:
+            print(f"⚠  Skipped {skipped} already-imported transaction(s)")
         return imported
 
     def _detect_columns(self, columns) -> tuple[str, str, str]:

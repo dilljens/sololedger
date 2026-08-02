@@ -397,21 +397,38 @@ created: 2026-07-25
 | A2: Vue.js scaffold | `[x]` | App.vue, router, vite, api.js all in place |
 | A3: Component library | `[ ]` | DataTable, FormField, FileUpload, AuthModal exist; missing StatusBadge, Tag, Alert, ConfirmDialog, Skeleton |
 | B1: Amazon import backend | `[x]` | importers/amazon.py + api/amazon.py + test_amazon.py |
-| B2: Amazon import Vue page | `[x]` | AmazonOrders.vue |
+| B2: Amazon import Vue page | `[x]` | AmazonOrders.vue; Amazon importer posts to ledger now (verified v0.4) |
 | C1: OFX improvements | `[x]` | ofx_import.py with fingerprint |
 | C2: Citi CSV import | `[x]` | importers/citi.py + test_citi.py |
-| C3: Wave CSV import | `[x]` | importers/wave.py + test_wave.py |
+| C3: Wave CSV import | `[x]` | importers/wave.py + test_wave.py; Wave importer posts to ledger now (verified v0.4) |
 | C4: Cross-source dedup | `[x]` | Fingerprint system in db.py; cross-source flagging still TODO |
 | D1: PDF statement backend | `[x]` | statements.py with classify + filing |
 | D2: PDF statement Vue page | `[x]` | Statements.vue with upload + router entry |
-| E1: Reconciliation locking | `[x]` | reconciliation.py + api/reconciliation.py |
-| E2: Reconciliation Vue page | `[x]` | Reconciliation.vue with uncleared list + nav entry |
-| F1: COA backend | `[x]` | api/coa.py + test_coa.py |
+| E1: Reconciliation locking | `[x]` | reconciliation.py + api/reconciliation.py; lock is a mark with no enforcement yet (partial — see audit notes) |
+| E2: Reconciliation Vue page | `[x]` | Reconciliation.vue with uncleared list + nav entry; difference calculation not implemented (partial — see audit notes) |
+| F1: COA backend | `[x]` | api/coa.py + test_coa.py; read-only — GET only, no update endpoint (partial — see audit notes) |
 | F2: COA Vue page | `[x]` | ChartOfAccounts.vue |
-| G1: Rules engine | `[x]` | rules.py + api/rules.py + test_rules.py |
+| G1: Rules engine | `[x]` | rules.py + api/rules.py + test_rules.py; integrated into Categorizer (verified v0.4) |
 | G2: Rules Vue page | `[x]` | RulesPage.vue |
-| H1: Line-item reconciler backend | `[x]` | Schema + API endpoints exist |
+| H1: Line-item reconciler backend | `[x]` | Schema + API endpoints exist; no dedicated tests (partial — see audit notes) |
 | H2: Line-item Vue component | `[ ]` | NOT STARTED |
 | I1: Receipt page Vue migration | `[x]` | ReceiptCapture.vue + ReceiptList.vue + router update |
-| I2: Import page Vue migration | `[x]` | ImportCenter.vue |
+| I2: Import page Vue migration | `[x]` | ImportCenter.vue; import history toggle not implemented (partial — see audit notes) |
 | I3: Dashboard + remaining pages | `[ ]` | Dashboard.vue + TaxPage.vue exist; 8 pages still use GenericPage |
+
+---
+
+## v0.4 Audit Notes (2026-08-01)
+
+The phase checkboxes above were audited against the shipped v0.4 code. Most were accurate; the following were overclaimed or partial and are corrected here (noted inline in the Progress table as well):
+
+| Phase | Verdict | Why |
+|-------|---------|-----|
+| C3: Wave CSV import | ✅ accurate | Wave importer posts to the ledger now (double-entry insertion when `ledger`+`cfg` provided, `app/importers/wave.py`). |
+| B2: Amazon import Vue page | ✅ accurate | Amazon importer posts NEW orders to the ledger as credit-card expenses (`app/importers/amazon.py`), dry-run preview + commit wired through `AmazonOrders.vue`. |
+| G1: Rules engine | ✅ accurate | Rules engine (first-match-wins, DB rules priority-ordered) is integrated into the Categorizer's Tier 2 (`app/categorizer.py`); CRUD + test endpoints in `app/api/rules.py`. |
+| F1: COA backend | ⚠️ partial | **COA is read-only.** `app/api/coa.py` exposes only `GET` list + `GET /tree`; the planned `PUT /coa/:account` (update metadata) is not implemented. |
+| E1: Reconciliation locking | ⚠️ partial | **The reconciliation lock is a mark with no enforcement yet.** `reconciliation_marks` rows are written and listed, but there is no `/lock`/`/unlock` API and nothing prevents modifying a reconciled transaction. |
+| E2: Reconciliation Vue page | ⚠️ partial | Statement-balance entry + uncleared list exist in `Reconciliation.vue`; the planned difference calculation is not implemented. |
+| H1: Line-item reconciler backend | ⚠️ partial | Schema columns + item-assignment endpoints exist, but no dedicated tests were written for assignment/commit. |
+| I2: Import page Vue migration | ⚠️ partial | `ImportCenter.vue` tabbed import UI exists; the planned import history toggle is not implemented. |

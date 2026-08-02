@@ -17,7 +17,7 @@ def _test_page(nav_to, console_errors, page_name, heading_contains):
 class TestTransactionsPage:
     def test_heading(self, app_page, nav_to):
         nav_to("transactions")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Transaction" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -29,7 +29,7 @@ class TestTransactionsPage:
 class TestInvoicesPage:
     def test_heading(self, app_page, nav_to):
         nav_to("invoices")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Invoice" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -41,7 +41,7 @@ class TestInvoicesPage:
 class TestImportPage:
     def test_heading(self, app_page, nav_to):
         nav_to("import")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Import" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -53,7 +53,7 @@ class TestImportPage:
 class TestReceiptsPage:
     def test_heading(self, app_page, nav_to):
         nav_to("receipts")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Receipt" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -65,7 +65,7 @@ class TestReceiptsPage:
 class TestCategorizePage:
     def test_heading(self, app_page, nav_to):
         nav_to("categorize")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Categoriz" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -77,7 +77,7 @@ class TestCategorizePage:
 class TestMileagePage:
     def test_heading(self, app_page, nav_to):
         nav_to("mileage")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Mileage" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -89,7 +89,7 @@ class TestMileagePage:
 class TestReportsPage:
     def test_heading(self, app_page, nav_to):
         nav_to("reports")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Report" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -101,7 +101,7 @@ class TestReportsPage:
 class TestPayrollPage:
     def test_heading(self, app_page, nav_to):
         nav_to("payroll")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Payroll" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):
@@ -113,7 +113,7 @@ class TestPayrollPage:
 class TestNewInvoicePage:
     def test_heading(self, app_page, nav_to):
         nav_to("new-invoice")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Invoice" in text or "New" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):

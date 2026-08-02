@@ -39,20 +39,76 @@ class RulesEngine:
         description = "Uber rides"
     """
 
-    def __init__(self, rules_path: str | Path | None = None):
+    def __init__(self, rules_path: str | Path | None = None, db=None):
         if rules_path is None:
             rules_path = Path(__file__).resolve().parent.parent / "categorization_rules.toml"
         self._path = Path(rules_path)
+        self._db = db  # optional TenantDB — DB-defined rules are merged in
         self._rules: list[dict] = []
         self._loaded = False
 
+    @staticmethod
+    def _safe_pattern(pattern: str) -> Optional[re.Pattern]:
+        """Compile a user regex with ReDoS guards. Returns None if unsafe."""
+        if not pattern:
+            return None
+        # Reject patterns longer than 200 chars or with nested quantifiers
+        if len(pattern) > 200 or re.search(r'\(\.[*+]\)\{|\(\.[*+]\)\+|\(\?:\.[*+]\)\{|\+[?+*}]', pattern):
+            return None
+        try:
+            return re.compile(pattern, re.IGNORECASE)
+        except re.error:
+            return None
+
+    def _compile_for_matcher(self, pattern: str, matcher_type: str) -> Optional[re.Pattern]:
+        """Compile a DB rule pattern according to its matcher type."""
+        if matcher_type == "regex":
+            return self._safe_pattern(pattern)
+        if matcher_type == "eq":
+            return self._safe_pattern(r"^" + re.escape(pattern) + r"$")
+        if matcher_type == "substring":
+            return self._safe_pattern(re.escape(pattern))
+        # 'range' requires amount context — not supported by this engine
+        return None
+
     def load(self):
-        """Load and compile rules from the TOML file."""
+        """Load and compile rules from the TOML file, then DB rules (if any).
+
+        DB rules (user-created via the API) are evaluated FIRST — they
+        carry an explicit priority (higher = first) and are the user's
+        explicit instructions. TOML rules are the fallback baseline.
+        """
         if self._loaded:
             return
         self._rules = []
 
+        # 1) DB-defined rules (user-created via the rules API)
+        if self._db is not None:
+            try:
+                rows = self._db.execute(
+                    "SELECT id, matcher_type, pattern, target_account, priority, description "
+                    "FROM categorization_rules WHERE is_active = 1 "
+                    "ORDER BY priority DESC, id ASC"
+                ).fetchall()
+                for row in rows:
+                    compiled = self._compile_for_matcher(row["pattern"], row["matcher_type"])
+                    if compiled is None:
+                        continue
+                    self._rules.append({
+                        "name": f"db-{row['id']}",
+                        "account": row["target_account"],
+                        "confidence": 0.9,
+                        "patterns": [row["pattern"]],
+                        "compiled": [compiled],
+                        "description": row["description"] or "",
+                        "priority": row["priority"],
+                    })
+            except Exception:
+                pass  # DB unavailable — fall back to TOML rules only
+
+        # 2) TOML file rules
         if not self._path.exists():
+            self._loaded = True
             return
 
         with open(self._path, "rb") as f:
@@ -66,15 +122,9 @@ class RulesEngine:
 
             compiled = []
             for p in patterns:
-                if not p:
-                    continue
-                # Reject patterns longer than 200 chars or with nested quantifiers (ReDoS guard)
-                if len(p) > 200 or re.search(r'\(\.[*+]\)\{|\(\.[*+]\)\+|\(\?:\.[*+]\)\{|\+[?+*}]', p):
-                    continue
-                try:
-                    compiled.append(re.compile(p, re.IGNORECASE))
-                except re.error:
-                    continue
+                safe = self._safe_pattern(p)
+                if safe is not None:
+                    compiled.append(safe)
 
             if compiled:
                 self._rules.append({

@@ -4,6 +4,7 @@
  */
 
 const API_BASE = '/api/v1'
+const REQUEST_TIMEOUT = 30000 // 30s
 
 export class ApiError extends Error {
   constructor(message, status, data) {
@@ -24,31 +25,52 @@ async function request(path, options = {}) {
   }
 
   // Add auth token if available
-  const token = localStorage.getItem('auth_token')
+  const token = getAuthToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
   try {
     const response = await fetch(url, {
       ...options,
       headers,
+      signal: controller.signal,
     })
 
-    const data = await response.json()
+    // Read the body as text first so non-JSON error bodies don't crash
+    // the JSON.parse with "Unexpected token".
+    const text = await response.text()
+    let data = null
+    if (text) {
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = text
+      }
+    }
 
     if (!response.ok) {
-      throw new ApiError(
-        data.error || `HTTP ${response.status}`,
-        response.status,
-        data
-      )
+      let message
+      if (data && typeof data === 'object') {
+        message = data.error || data.detail || `HTTP ${response.status}`
+      } else if (typeof data === 'string' && data) {
+        message = data
+      } else {
+        message = `HTTP ${response.status}`
+      }
+      throw new ApiError(message, response.status, data)
     }
 
     return data
   } catch (err) {
     if (err instanceof ApiError) throw err
+    if (err.name === 'AbortError') throw new ApiError('Request timed out', 0, null)
     throw new ApiError(err.message, 0, null)
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -88,24 +110,30 @@ export async function apiUpload(path, file, extraFields = {}) {
 }
 
 // ── Auth helpers ────────────────────────────────────────────────────
+// The classic UI (web/js) stores the session under `sololedger_session`;
+// this UI used `auth_token`. Read/write BOTH keys so switching UIs keeps
+// the session (the backend session is shared; only the client key differs).
 
 export function isAuthenticated() {
-  return !!localStorage.getItem('auth_token')
+  return !!getAuthToken()
 }
 
 export function getAuthToken() {
-  return localStorage.getItem('auth_token')
+  return localStorage.getItem('auth_token') || localStorage.getItem('sololedger_session')
 }
 
 export function setAuthToken(token) {
   if (token) {
     localStorage.setItem('auth_token', token)
+    localStorage.setItem('sololedger_session', token)
   } else {
     localStorage.removeItem('auth_token')
+    localStorage.removeItem('sololedger_session')
   }
 }
 
 export function clearAuth() {
   localStorage.removeItem('auth_token')
+  localStorage.removeItem('sololedger_session')
   localStorage.removeItem('user_email')
 }

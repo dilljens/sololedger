@@ -21,17 +21,34 @@ from typing import Any, Optional
 from .config import Config
 
 
-# Lazy-loaded singletons
-_RULES_ENGINE = None
+# Lazy-loaded singletons, cached per tenant DB path (rules are tenant-scoped)
+_RULES_ENGINES: dict[str, Any] = {}
 _EMBED_CATEGORIZER = None
 
 
-def _get_rules_engine():
-    global _RULES_ENGINE
-    if _RULES_ENGINE is None:
+def _get_rules_engine(cfg: Optional[Config] = None):
+    """Get the RulesEngine for the current tenant (DB rules merged in).
+
+    Cached per tenant-DB path so per-tenant user rules take effect and
+    one tenant's rules never leak into another's categorizer.
+    """
+    global _RULES_ENGINES
+    db = None
+    key = "__none__"
+    if cfg is not None:
+        try:
+            from .db import get_db, get_tenant_db_path
+            tenant_dir = get_tenant_db_path(cfg)
+            if tenant_dir:
+                db = get_db(tenant_dir)
+                key = str(db.db_path)
+        except Exception:
+            key = "__none__"
+
+    if key not in _RULES_ENGINES:
         from app.rules import RulesEngine
-        _RULES_ENGINE = RulesEngine()
-    return _RULES_ENGINE
+        _RULES_ENGINES[key] = RulesEngine(db=db)
+    return _RULES_ENGINES[key]
 
 
 def _get_embed_categorizer():
@@ -121,7 +138,7 @@ class Categorizer:
         if not self.use_patterns:
             return None
         try:
-            rules = _get_rules_engine()
+            rules = _get_rules_engine(self.cfg)
             result = rules.match(merchant)
             return result["account"] if result else None
         except Exception as e:
@@ -133,7 +150,7 @@ class Categorizer:
         if not self.use_patterns:
             return {"account": None, "count": 0, "total": 0, "confidence": "none"}
         try:
-            rules = _get_rules_engine()
+            rules = _get_rules_engine(self.cfg)
             result = rules.match(merchant)
             if result is None:
                 return {"account": None, "count": 0, "total": 0, "confidence": "none"}

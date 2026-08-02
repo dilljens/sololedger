@@ -37,8 +37,8 @@ export async function renderDashboard(content) {
                   border-radius:8px;background:${s.bg};border-left:3px solid ${s.border};font-size:0.85rem;">
               <span style="font-size:1.1rem;">${s.icon}</span>
               <div>
-                <strong>${item.label}</strong>
-                <div style="color:var(--gray-600);margin-top:2px;">${item.detail}</div>
+                <strong>${escapeHtml(item.label)}</strong>
+                <div style="color:var(--gray-600);margin-top:2px;">${escapeHtml(item.detail)}</div>
               </div>
             </div>`;
         }).join('')}
@@ -64,7 +64,7 @@ export async function renderDashboard(content) {
     ${demoBanner}
     <div class="page-header">
       <h1>Dashboard</h1>
-      <p>${entityLabel}</p>
+      <p>${escapeHtml(entityLabel)}</p>
     </div>
     ${attentionHtml}
     <div class="card-row">
@@ -118,7 +118,7 @@ export async function renderDashboard(content) {
             <div class="value" style="font-size:1.3rem;">${money(sp)}</div>
           </div>
         </div>
-        <p class="text-muted">${taxInfo.note || ''}</p>
+        <p class="text-muted">${escapeHtml(taxInfo.note || '')}</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
           <button class="btn btn-primary btn-sm" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">💳 Pay Now (IRS Direct Pay)</button>
           <button class="btn btn-outline btn-sm" onclick="markTaxPaid(${sp})">✅ Mark as Paid</button>
@@ -131,8 +131,8 @@ export async function renderDashboard(content) {
           ${deadlines.map(dl => `
             <li>
               <span class="dot ${dl.status === 'overdue' ? 'dot-red' : dl.status === 'upcoming' ? 'dot-yellow' : 'dot-green'}"></span>
-              <strong>${dl.label || ''}</strong>
-              <span class="text-muted">${dl.due || ''}</span>
+              <strong>${escapeHtml(dl.label || '')}</strong>
+              <span class="text-muted">${escapeHtml(dl.due || '')}</span>
               <span style="margin-left:auto;color:${(dl.days_until || 0) < 0 ? '#dc3545' : '#28a745'};">
                 ${(dl.days_until || 0) < 0 ? 'OVERDUE' : (dl.days_until || 0) + ' days'}
               </span>

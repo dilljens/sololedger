@@ -18,9 +18,13 @@ from .shared import _decimal_to_float
 router = APIRouter(prefix="/api/v1")
 
 
-@router.get("/health", dependencies=[Depends(check_auth)])
+@router.get("/health")
 async def health():
-    """Simple health check — returns OK if the API is running."""
+    """Simple health check — returns OK if the API is running.
+
+    Public (no auth): it reveals nothing sensitive and must be callable by
+    load balancers / uptime checks / the deploy health gate.
+    """
     return _ok({"status": "ok", "timestamp": datetime.datetime.now().isoformat()})
 
 

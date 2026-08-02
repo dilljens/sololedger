@@ -60,15 +60,15 @@ class Config:
             for r in raw.get("income_rules", [])
         ]
 
-        # Tax
-        t = raw["tax"]
-        self.standard_deduction = t["standard_deduction"]
-        self.brackets = [dict(b) for b in t["brackets"]]
-        se = t["self_employment"]
-        self.se_ss_rate = se["rate_social_security"]
-        self.se_med_rate = se["rate_medicare"]
-        self.ss_wage_base = se["ss_wage_base"]
-        self.se_deduction_ratio = se["deduction_ratio"]
+        # Tax (optional with defaults — a config that omits [tax] must not 500)
+        t = raw.get("tax", {})
+        self.standard_deduction = t.get("standard_deduction", 14600)
+        self.brackets = [dict(b) for b in t.get("brackets", [])]
+        se = t.get("self_employment", {})
+        self.se_ss_rate = se.get("rate_social_security", 0.124)
+        self.se_med_rate = se.get("rate_medicare", 0.029)
+        self.ss_wage_base = se.get("ss_wage_base", 184800)
+        self.se_deduction_ratio = se.get("deduction_ratio", 0.9235)
 
         # Tax state (default: WY)
         self.state_code = raw.get("tax", {}).get("state", "WY").upper()
@@ -133,3 +133,111 @@ class Config:
         p = self.project_root / "imports"
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+
+def _toml_escape(value: str) -> str:
+    """Escape a string for safe interpolation into a TOML basic string."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+
+
+def generate_config_toml(name: str, owner: str = "", email: str = "", state: str = "WY", ledger_path: str = "main.beancount") -> str:
+    """Generate a complete, valid config.toml for a new tenant/instance.
+
+    Single source of truth for the config template (previously copy-pasted
+    across deps.py / provision.py / setup). Includes the mandatory [tax]
+    section so Config.__init__ never KeyErrors on a freshly provisioned
+    instance. All user-supplied fields are TOML-escaped.
+    """
+    safe_name = _toml_escape(name)
+    safe_owner = _toml_escape(owner or name)
+    safe_email = _toml_escape(email)
+    safe_state = _toml_escape(state)
+    safe_ledger = _toml_escape(ledger_path)
+    return f'''# SoloLedger — {safe_name}
+# Auto-generated {__import__("datetime").date.today().isoformat()}
+
+[business]
+name = "{safe_name}"
+owner = "{safe_owner}"
+state = "{safe_state}"
+ein = "XX-XXXXXXX"
+address = ""
+phone = ""
+email = "{safe_email}"
+
+[ledger]
+path = "{safe_ledger}"
+
+[accounts]
+checking = "Assets:Bank:BusinessChecking"
+ar = "Assets:AccountsReceivable"
+income = "Income:Consulting"
+owner_draws = "Equity:OwnerDraws"
+
+[tax]
+state = "WY"
+standard_deduction = 14600
+[[tax.brackets]]
+rate = 0.10
+floor = 0
+ceiling = 11925
+[[tax.brackets]]
+rate = 0.12
+floor = 11926
+ceiling = 48475
+[[tax.brackets]]
+rate = 0.22
+floor = 48476
+ceiling = 103350
+[[tax.brackets]]
+rate = 0.24
+floor = 103351
+ceiling = 197300
+[[tax.brackets]]
+rate = 0.32
+floor = 197301
+ceiling = 250525
+[[tax.brackets]]
+rate = 0.35
+floor = 250526
+ceiling = 626350
+[[tax.brackets]]
+rate = 0.37
+floor = 626351
+ceiling = 999999999
+[tax.self_employment]
+rate_social_security = 0.124
+rate_medicare = 0.029
+ss_wage_base = 184800
+deduction_ratio = 0.9235
+safe_harbor_percent = 1.00
+safe_harbor_percent_high_income = 1.10
+safe_harbor_threshold = 150000
+[tax.quarter_dates]
+q1 = [4, 15]
+q2 = [6, 15]
+q3 = [9, 15]
+q4 = [1, 15]
+
+[payments]
+stripe_enabled = false
+
+[notifications]
+desktop_enabled = false
+email_enabled = false
+remind_days_before = 7
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+smtp_user = ""
+smtp_password = ""
+alert_email = ""
+
+[banking]
+plaid_enabled = false
+'''

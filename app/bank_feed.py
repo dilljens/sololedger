@@ -18,6 +18,7 @@ Usage:
 
 import csv
 import datetime
+import hashlib
 import os
 import sys
 import tempfile
@@ -58,6 +59,7 @@ class PlaidFeed:
         self._client = None
         self._access_token = access_token or os.environ.get("PLAID_ACCESS_TOKEN", "")
         self._enabled = bool(self._access_token)
+        self._pending_cursor: Optional[str] = None
 
     @property
     def enabled(self) -> bool:
@@ -138,8 +140,10 @@ class PlaidFeed:
                 has_more = response.has_more
                 cursor = response.next_cursor
 
-            # Save cursor for next sync
-            self._save_cursor(cursor)
+            # The cursor is NOT saved here: advancing it must only happen
+            # after a successful ledger import, otherwise a crash between
+            # fetch and import would permanently skip those transactions.
+            self._pending_cursor = cursor
 
         except plaid.ApiException as e:
             print(f"⚠  Plaid API error: {e}", file=sys.stderr)
@@ -172,6 +176,18 @@ class PlaidFeed:
 
         return txns
 
+    def commit_cursor(self):
+        """Persist the fetched cursor after a successful import.
+
+        Call this only once the transactions have been written to the
+        ledger; a crash before this point leaves the cursor unadvanced so
+        the transactions will be re-fetched, not lost.
+        """
+        cursor = getattr(self, "_pending_cursor", None)
+        if cursor:
+            self._save_cursor(cursor)
+            self._pending_cursor = None
+
     def fetch_accounts(self) -> list[dict]:
         """Get list of connected accounts and their balances."""
         client = self._get_client()
@@ -202,16 +218,21 @@ class PlaidFeed:
         accounts = self.fetch_accounts()
         return {a["id"]: a["name"] for a in accounts}
 
+    def _cursor_path(self) -> Path:
+        """Per-access-token cursor path — tenants never share cursors."""
+        token_hash = hashlib.sha256(self._access_token.encode()).hexdigest()[:16]
+        return Path(tempfile.gettempdir()) / f".llc-plaid-cursor-{token_hash}"
+
     def _load_cursor(self) -> str:
         """Load the last sync cursor from disk for incremental sync."""
-        cursor_path = Path(tempfile.gettempdir()) / ".llc-plaid-cursor"
+        cursor_path = self._cursor_path()
         if cursor_path.exists():
             return cursor_path.read_text().strip()
         return ""
 
     def _save_cursor(self, cursor: str):
         """Save the sync cursor for next time."""
-        cursor_path = Path(tempfile.gettempdir()) / ".llc-plaid-cursor"
+        cursor_path = self._cursor_path()
         cursor_path.write_text(cursor)
 
     def import_transactions(
@@ -240,8 +261,13 @@ class PlaidFeed:
         # This reuses all the auto-categorization rules and dedup logic
         import_path = self._write_temp_csv(txns)
 
+        # Dedup against the tenant's metadata DB so Plaid re-syncs never double-post
+        from .db import get_db, get_tenant_db_path
+        tenant_dir = get_tenant_db_path(self.cfg)
+        db = get_db(tenant_dir) if tenant_dir else None
+
         importer = ExpenseImporter(self.cfg, Ledger(self.cfg))
-        results = importer.import_csv(import_path, preview=preview)
+        results = importer.import_csv(import_path, preview=preview, db=db, source="plaid")
 
         # Clean up temp file
         import_path.unlink(missing_ok=True)

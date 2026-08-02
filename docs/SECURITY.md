@@ -13,6 +13,8 @@ SoloLedger supports three auth methods, configured via environment variables:
 When `GOOGLE_CLIENT_ID` is set, Google OAuth is the primary login and email/password signup is also available.
 When only `API_KEYS` is set (no `GOOGLE_CLIENT_ID`), the app enters "API key mode" — email/password routes are unavailable and the session-based UI is not accessible.
 
+**Auth is fail-closed.** Unauthenticated access is denied unless `SOLOLEDGER_OPEN_MODE=true` is set — an explicit opt-in for open (demo) deployments. Never set it in production.
+
 ## Token Storage (XSS Risk)
 
 Session tokens, user profile data, and LLM API keys (OpenAI/Anthropic) are stored in **localStorage**:
@@ -23,18 +25,23 @@ Session tokens, user profile data, and LLM API keys (OpenAI/Anthropic) are store
 | `sololedger_user` | User email, name, avatar URL (JSON) |
 | `sololedger_llm_key` | LLM provider API key (OpenAI / Anthropic) |
 
+Sessions are persisted server-side to `sessions.json` with a **30-day expiry enforced on every request** — an expired token is rejected even if it is still present in localStorage.
+
 **Risk:** localStorage is accessible to any JavaScript running on the same origin. A single XSS vulnerability (injected script, third-party CDN compromise, SVG upload, etc.) would allow an attacker to exfiltrate all stored tokens and API keys. This is a [known trade-off](https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url) for SPAs without a backend-for-frontend (BFF) proxy.
 
 **Mitigations already in place:**
 - `escapeHtml()` helper in `api.js` for safe DOM insertion
 - No session token in URL query strings
-- Tokens are short-lived (in-memory session map) though currently without an explicit expiry
+- Session tokens validated server-side against `sessions.json`; 30-day expiry enforced per request
+- LLM API key is masked in API responses (first 8 chars shown, remainder redacted)
+- Uploads are size-capped at 25 MB (rejected with HTTP 413)
+- CORS is locked down: same-origin by default; cross-origin clients must opt in via `CORS_ORIGINS`
+- Stripe webhooks always require a valid `Stripe-Signature` (verified with `STRIPE_WEBHOOK_SECRET`)
 
 **Recommendations for production:**
 1. **Set `API_KEYS`** env var and **remove `GOOGLE_CLIENT_ID`** to disable email/password auth entirely, switching to API-key-only mode. This eliminates session storage in localStorage (API keys are held by the caller, not the browser).
 2. **Add a Content-Security-Policy** header to restrict script sources.
-3. **Implement session expiry** — session tokens currently live until the server process restarts.
-4. **Use HTTPS** — without TLS, localStorage values and auth tokens are trivially intercepted on any network path.
+3. **Use HTTPS** — without TLS, localStorage values and auth tokens are trivially intercepted on any network path.
 
 ## Environment Variables
 
@@ -62,3 +69,4 @@ The following environment variables carry secrets. None are hardcoded in the rep
 - [ ] Use environment secrets (not config files) for all credentials
 - [ ] Review `users.json` permissions — should be readable only by the app user
 - [ ] Configure regular log rotation (session tokens logged in request logs)
+- [x] Session expiry — sessions persist to `sessions.json` with 30-day expiry enforced per request (implemented)

@@ -1,21 +1,17 @@
 """Tests for Categorization Rules API."""
 import os
-from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client():
+def client(isolated_environment):
     from app.api import app as api_app
-    old_keys = os.environ.pop("API_KEYS", None)
-    old_google = os.environ.pop("GOOGLE_CLIENT_ID", None)
+    # Fail-closed auth: explicitly opt into open mode for these tests
+    os.environ["SOLOLEDGER_OPEN_MODE"] = "true"
     c = TestClient(api_app)
     yield c
-    if old_keys is not None:
-        os.environ["API_KEYS"] = old_keys
-    if old_google is not None:
-        os.environ["GOOGLE_CLIENT_ID"] = old_google
+    os.environ.pop("SOLOLEDGER_OPEN_MODE", None)
 
 
 class TestRulesAPI:

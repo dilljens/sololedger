@@ -1,7 +1,6 @@
 """Tests for Citi CSV importer."""
 import csv
 import io
-from pathlib import Path
 
 import pytest
 
@@ -135,18 +134,14 @@ class TestImport:
 
 class TestAPI:
     @pytest.fixture
-    def api_client(self):
+    def api_client(self, isolated_environment):
         from app.api import app as api_app
         from fastapi.testclient import TestClient
         import os
-        old_keys = os.environ.pop("API_KEYS", None)
-        old_google = os.environ.pop("GOOGLE_CLIENT_ID", None)
+        os.environ["SOLOLEDGER_OPEN_MODE"] = "true"
         client = TestClient(api_app)
         yield client
-        if old_keys is not None:
-            os.environ["API_KEYS"] = old_keys
-        if old_google is not None:
-            os.environ["GOOGLE_CLIENT_ID"] = old_google
+        os.environ.pop("SOLOLEDGER_OPEN_MODE", None)
 
     def test_preview_endpoint(self, citi_csv, api_client):
         with open(str(citi_csv), "rb") as f:

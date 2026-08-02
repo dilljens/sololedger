@@ -1,5 +1,7 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast } from '../api.js';
 
+const escAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+
 export async function renderAccounts(content) {
   let accts = { checking: '', income: '', cards: [], balances: {} };
   try { accts = await apiGet('/accounts'); } catch (e) { /* offline */ }
@@ -16,9 +18,9 @@ export async function renderAccounts(content) {
       <div class="stat"><div class="label">Business Checking</div>
         <div class="value blue">${money(balances[accts.checking] || 0)}</div></div>
       ${cards.length > 0 ? cards.map(c => `
-        <div class="stat"><div class="label">${c.name} <span class="text-muted-light">${c.type}</span></div>
+        <div class="stat"><div class="label">${escapeHtml(c.name)} <span class="text-muted-light">${escapeHtml(c.type)}</span></div>
           <div class="value ${c.balance > 0 ? 'red' : 'green'}">${money(c.balance)}</div>
-          ${c.last_four ? `<div class="text-muted-light">•••• ${c.last_four}</div>` : ''}
+          ${c.last_four ? `<div class="text-muted-light">•••• ${escapeHtml(c.last_four)}</div>` : ''}
         </div>`).join('') : `
         <div class="stat empty-state" style="opacity:0.7;border:1px dashed var(--gray-300);border-radius:8px;padding:12px;">
           <div class="icon" style="font-size:1.5rem;">💳</div>
@@ -39,15 +41,15 @@ export async function renderAccounts(content) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
         <div><label class="text-muted-light">From</label>
           <select id="tx-from" class="border">
-            <option value="${accts.checking}">Business Checking</option>
-            ${cards.map(c => `<option value="${c.account}">${c.name}</option>`).join('')}
+            <option value="${escAttr(accts.checking)}">Business Checking</option>
+            ${cards.map(c => `<option value="${escAttr(c.account)}">${escapeHtml(c.name)}</option>`).join('')}
             <option value="Assets:Bank:Personal">Personal Checking</option>
           </select></div>
         <div><label class="text-muted-light">To</label>
           <select id="tx-to" class="border">
             <option value="Assets:Bank:Personal">Personal Checking</option>
-            ${cards.map(c => `<option value="${c.account}">${c.name}</option>`).join('')}
-            <option value="${accts.checking}">Business Checking</option>
+            ${cards.map(c => `<option value="${escAttr(c.account)}">${escapeHtml(c.name)}</option>`).join('')}
+            <option value="${escAttr(accts.checking)}">Business Checking</option>
           </select></div>
         <div><label class="text-muted-light">Amount</label>
           <input type="number" id="tx-amount" placeholder="500" class="border"></div>
@@ -136,7 +138,7 @@ window.doReimburse = async function() {
       body: JSON.stringify({ merchant, amount, account }),
     });
     const json = await res.json();
-    if (json.success) resultDiv.innerHTML = `<span class="text-success">✅ Recorded: ${merchant} $${fmt(amount)} → ${account}</span>`;
+    if (json.success) resultDiv.innerHTML = `<span class="text-success">✅ Recorded: ${escapeHtml(merchant)} $${fmt(amount)} → ${escapeHtml(account)}</span>`;
     else resultDiv.innerHTML = `<span class="text-error">⚠ ${escapeHtml(json.error)}</span>`;
   } catch (err) { resultDiv.innerHTML = `<span class="text-error">⚠ ${escapeHtml(err.message)}</span>`; }
 };
@@ -155,7 +157,7 @@ window.doSplit = async function() {
       body: JSON.stringify({ merchant, total, business, account }),
     });
     const json = await res.json();
-    if (json.success) resultDiv.innerHTML = `<span class="text-success">✅ Split: ${merchant} — $${fmt(business)} business, $${fmt(personal)} personal</span>`;
+    if (json.success) resultDiv.innerHTML = `<span class="text-success">✅ Split: ${escapeHtml(merchant)} — $${fmt(business)} business, $${fmt(personal)} personal</span>`;
     else resultDiv.innerHTML = `<span class="text-error">⚠ ${escapeHtml(json.error)}</span>`;
   } catch (err) { resultDiv.innerHTML = `<span class="text-error">⚠ ${escapeHtml(err.message)}</span>`; }
 };

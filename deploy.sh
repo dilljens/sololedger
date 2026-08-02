@@ -60,6 +60,22 @@ python3 -m venv .venv 2>/dev/null || true
 source .venv/bin/activate 2>/dev/null || source "${INSTALL_DIR}/.venv/bin/activate"
 pip install -q -r requirements.txt 2>/dev/null || pip install -r requirements.txt
 
+# ── 3.5 Build the Vue SPA ──────────────────────────────────────────
+# The Vue app ships as source; the built bundle (web/dist/) is produced
+# here and copied over web/index.html by the postbuild hook.
+if ! command -v node &>/dev/null; then
+    echo "  Installing Node.js 20..."
+    if [ "$UBUNTU" -gt 0 ]; then
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt-get install -y -qq nodejs
+    else
+        echo "  ⚠ Please install Node.js 20+, then re-run this script."
+        exit 1
+    fi
+fi
+echo "  Building web UI..."
+cd web && npm install --no-audit --no-fund && npm run build && cd ..
+
 # ── 4. Run init if config doesn't exist ────────────────────────────
 if [ ! -f config.toml ] || grep -q "Your LLC Name Here" config.toml 2>/dev/null; then
     echo ""

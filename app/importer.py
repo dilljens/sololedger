@@ -76,8 +76,13 @@ class Importer:
 
         return self._process_rows(rows, date_col, desc_col, amount_col, account_col=account_col, preview=preview)
 
-    def import_csv(self, filepath: str | Path, preview: bool = False) -> list[dict]:
-        """Import a generic CSV with Date, Description, Amount columns."""
+    def import_csv(self, filepath: str | Path, preview: bool = False,
+                   db=None, source: str = "csv") -> list[dict]:
+        """Import a generic CSV with Date, Description, Amount columns.
+
+        When `db` is provided, rows are deduplicated against the metadata
+        store so re-importing the same file never double-posts.
+        """
         path = Path(filepath)
         if not path.exists():
             return [{"error": f"File not found: {path}"}]
@@ -94,7 +99,8 @@ class Importer:
         desc_col = self._find_col(columns, ["description", "desc", "memo", "payee", "name", "merchant"])
         amount_col = self._find_col(columns, ["amount", "sum", "value", "total"])
 
-        return self._process_rows(rows, date_col, desc_col, amount_col, preview=preview)
+        return self._process_rows(rows, date_col, desc_col, amount_col, preview=preview,
+                                  db=db, source=source)
 
     def _find_col(self, columns: list[str], candidates: list[str]) -> Optional[int]:
         """Find a column index by trying candidate names."""
@@ -106,7 +112,7 @@ class Importer:
 
     def _process_rows(self, rows: list[dict], date_col: Optional[int], desc_col: Optional[int],
                       amount_col: Optional[int], account_col: Optional[int] = None,
-                      preview: bool = False) -> list[dict]:
+                      preview: bool = False, db=None, source: str = "csv") -> list[dict]:
         """Process parsed CSV rows into beancount transactions."""
         if date_col is None or desc_col is None or amount_col is None:
             return [{"error": "Could not detect required columns (Date, Description, Amount)"}]
@@ -132,9 +138,9 @@ class Importer:
 
             tmp_path = tmp.name
 
-        # Use the existing ExpenseImporter
+        # Use the existing ExpenseImporter (with dedup when a DB is supplied)
         importer = ExpenseImporter(self.cfg, self.ledger)
-        results = importer.import_csv(tmp_path, preview=preview)
+        results = importer.import_csv(tmp_path, preview=preview, db=db, source=source)
 
         os.unlink(tmp_path)
         return results

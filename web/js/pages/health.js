@@ -39,7 +39,7 @@ export async function renderHealth(content) {
         ${(data.errors || []).map(e => `
           <div style="background:#fff;border:1px solid #ffe0e0;border-left:3px solid #c92a2a;border-radius:6px;padding:12px;margin:8px 0;font-size:0.85rem;">
             <strong>${escapeHtml(e.message) || 'Unknown error'}</strong>
-            ${e.file ? `<div class="text-muted-light">${e.file}${e.line ? ':' + e.line : ''}</div>` : ''}
+            ${e.file ? `<div class="text-muted-light">${escapeHtml(e.file)}${e.line ? ':' + escapeHtml(e.line) : ''}</div>` : ''}
           </div>
         `).join('')}`;
     }

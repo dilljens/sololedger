@@ -86,7 +86,7 @@ async function loadPlaidStatus() {
         </div>
         ${data.accounts && data.accounts.length ? `
         <div style="margin-top:8px;font-size:0.85rem;color:var(--gray-500);">
-          ${data.accounts.map(a => `<span style="display:inline-block;margin-right:12px;">• ${a.name || ''}: $${(a.balance || 0).toFixed(2)}</span>`).join('')}
+          ${data.accounts.map(a => `<span style="display:inline-block;margin-right:12px;">• ${escapeHtml(a.name || '')}: $${(a.balance || 0).toFixed(2)}</span>`).join('')}
         </div>` : ''}
         <div id="plaid-sync-result" style="margin-top:8px;"></div>`;
     } else if (data.connected) {

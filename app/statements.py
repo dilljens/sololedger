@@ -1,7 +1,7 @@
 """PDF statement filing — extract text, classify by institution, file to canonical layout.
 
 Uses pdfplumber (already installed) for PDF text extraction.
-Stores metadata in SQLite statements table.
+Stores metadata in SQLite import_batches table.
 """
 import re
 import shutil
@@ -24,6 +24,21 @@ _INSTITUTION_SIGNATURES: list[tuple[str, str]] = [
     (r"AMERICAN EXPRESS|AMEX", "amex"),
     (r"U\.?S\.?\s*BANK", "us_bank"),
 ]
+
+
+def _safe_component(value: Optional[str], default: str) -> str:
+    """Sanitize a user-supplied path component.
+
+    Only word characters, spaces, dashes, dots and underscores are kept;
+    anything else (notably '..', '/' and '\\') is stripped. Guards against
+    path traversal via institution/account_mask/period form fields.
+    """
+    if not value:
+        return default
+    cleaned = re.sub(r"[^\w\s.\-]", "", value).strip()
+    if cleaned in ("", ".", "..") or ".." in cleaned:
+        return default
+    return cleaned
 
 
 def classify_institution(text: str) -> Optional[str]:
@@ -79,10 +94,12 @@ def file_statement(
 
     # Extract text for classification
     text = ""
+    page_count = 0
     try:
         import pdfplumber
         with pdfplumber.open(str(src)) as pdf:
             for page in pdf.pages[:3]:  # Read first 3 pages for classification
+                page_count += 1
                 t = page.extract_text()
                 if t:
                     text += t + "\n"
@@ -90,16 +107,20 @@ def file_statement(
         return {"success": False, "error": f"PDF read failed: {e}"}
 
     # Classify
-    detected_institution = institution or classify_institution(text) or "unknown"
+    detected_institution = _safe_component(institution, "") or classify_institution(text) or "unknown"
     start_date, end_date = detect_period(text)
     period_str = period or (end_date[:7] if end_date and len(end_date) >= 7 else "unknown")
 
     # Build canonical path: documents/statements/{institution}/{mask or period}/{filename}
-    docs_dir = Path("documents") / "statements" / detected_institution
+    # Every path component is sanitized against traversal.
+    docs_root = (Path.cwd() / "documents" / "statements").resolve()
+    docs_dir = docs_root / _safe_component(detected_institution, "unknown")
     if account_mask:
-        docs_dir = docs_dir / account_mask
-    docs_dir = docs_dir / period_str
+        docs_dir = docs_dir / _safe_component(account_mask, "unknown")
+    docs_dir = docs_dir / _safe_component(period_str, "unknown")
     docs_dir.mkdir(parents=True, exist_ok=True)
+    if not (docs_dir == docs_root or docs_dir.is_relative_to(docs_root)):
+        return {"success": False, "error": "Invalid statement destination"}
 
     # Copy file with date prefix
     dest = docs_dir / src.name
@@ -108,17 +129,26 @@ def file_statement(
     # Record in SQLite
     try:
         db.execute(
-            "INSERT OR IGNORE INTO import_batches (source, account, filename, status) VALUES (?, ?, ?, ?)",
+            "INSERT INTO import_batches (source, account, filename, status) VALUES (?, ?, ?, ?)",
             ("statement", detected_institution, src.name, "filed"),
         )
         db.commit()
     except Exception:
-        pass
+        # Statement is already filed; a metadata failure must not lose data,
+        # but surface it so callers know the record is missing.
+        return {
+            "success": True,
+            "filed_path": str(dest),
+            "institution": detected_institution,
+            "period": period_str,
+            "page_count": page_count,
+            "warning": "Filed but metadata record failed",
+        }
 
     return {
         "success": True,
         "filed_path": str(dest),
         "institution": detected_institution,
         "period": period_str,
-        "page_count": len(text) > 0,
+        "page_count": page_count,
     }

@@ -46,15 +46,6 @@ async def api_accounts():
     data = ledger.registered_accounts()
 
     data["cards"] = []
-    for card_cfg in getattr(cfg, 'cards', []):
-        bal = ledger.account_balance(card_cfg.account)
-        data["cards"].append({
-            "account": card_cfg.account,
-            "name": card_cfg.name,
-            "type": card_cfg.type,
-            "balance": float(bal),
-            "last_four": card_cfg.last_four or "",
-        })
     return _ok(data)
 
 

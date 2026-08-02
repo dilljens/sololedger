@@ -88,7 +88,7 @@ class Reconciliation:
                 uncleared.append({
                     "date": txn_date.isoformat(),
                     "payee": entry.payee or entry.narration or "Unknown",
-                    "amount": float(abs(total)),
+                    "amount": float(total),  # signed: credits and debits keep sign
                     "type": "debit" if total > 0 else "credit",
                     "account": account,
                     "status": status,
@@ -114,15 +114,13 @@ class Reconciliation:
         """
         stmt_date = datetime.date.fromisoformat(date)
 
-        # Add a balance directive to the ledger
-        self.ledger.append(
+        # Add a BALANCE DIRECTIVE to the ledger — asserts the expected
+        # balance without posting money. (A transaction here would double-
+        # count the entire statement balance into the books.)
+        self.ledger.balance_assertion(
             date=stmt_date,
-            payee="Reconciliation",
-            narration=f"Bank reconciliation balance assertion: ${balance:,.2f}",
-            postings=[
-                (account, f"{balance:.2f} USD"),
-                ("Equity:OpeningBalance", f"{-balance:.2f} USD"),
-            ],
+            account=account,
+            amount=balance,
         )
 
         # Log this reconciliation

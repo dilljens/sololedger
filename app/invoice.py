@@ -202,6 +202,27 @@ class Invoicer:
 
         return pdf_path
 
+    def _invoice_number_for(self, entry, year: int) -> str:
+        """Derive the invoice number for an income entry within its year.
+
+        Invoice numbers are INV-YYYY-NNN where N is the income posting's
+        ordinal within that year (same rule as _next_invoice_number).
+        """
+        count = 0
+        for other in self.ledger.entries:
+            if not hasattr(other, "date") or not hasattr(other, "postings"):
+                continue
+            if other.date.year != year:
+                continue
+            if other.date < entry.date or (other.date == entry.date and other is entry):
+                for posting in other.postings:
+                    if posting.account == self.cfg.income_account:
+                        count += 1
+                        break
+                if other is entry:
+                    break
+        return f"INV-{year}-{count:03d}"
+
     def list_invoices(self, year: int | None = None, ar_only: bool = False) -> list[dict]:
         """List all invoices for a given year (or all time).
 
@@ -210,11 +231,24 @@ class Invoicer:
             ar_only: Only show unpaid invoices (Accounts Receivable > 0)
 
         Returns:
-            List of invoice dicts
+            List of invoice dicts (each with a stable `number` field that
+            mark_paid() matches on).
         """
         self.ledger.reload()
         invoices = []
         ar_account = self.cfg.ar_account
+
+        # Per-payee net AR: an invoice is paid when its payee's AR has been
+        # offset by a payment credit (vs. the old global AR-balance check
+        # which marked every invoice paid whenever ANY invoice was unpaid).
+        payee_net_ar: dict[str, Decimal] = {}
+        for entry in self.ledger.entries:
+            if not hasattr(entry, "postings"):
+                continue
+            payee = (entry.payee or entry.narration or "Unknown").strip()
+            for posting in entry.postings:
+                if posting.account == ar_account:
+                    payee_net_ar[payee] = payee_net_ar.get(payee, Decimal("0")) + Decimal(str(posting.units.number))
 
         for entry in self.ledger.entries:
             if not hasattr(entry, "date") or not hasattr(entry, "postings"):
@@ -225,15 +259,12 @@ class Invoicer:
             for posting in entry.postings:
                 if posting.account == self.cfg.income_account:
                     amt = abs(Decimal(str(posting.units.number)))
-                    # Only include in AR list if still outstanding
-                    # Check if this invoice has been paid by looking for matching AR credit
-                    is_paid = False
-                    if ar_only:
-                        # Simple heuristic: check if AR balance for this payee is non-zero
-                        ar_balance = self.ledger.account_balance(ar_account)
-                        is_paid = ar_balance == 0
+                    payee = (entry.payee or entry.narration or "Unknown").strip()
+                    # Paid when this payee's net AR is fully offset (<= 0)
+                    is_paid = payee_net_ar.get(payee, Decimal("0")) <= 0
 
                     invoices.append({
+                        "number": self._invoice_number_for(entry, entry.date.year),
                         "date": entry.date,
                         "client": entry.payee,
                         "description": entry.narration,
@@ -450,8 +481,7 @@ class Invoicer:
         if amount is None:
             invoices = self.list_invoices()
             for inv in invoices:
-                inv_num = inv.get("date", "") + "-" + inv.get("client", "")
-                if inv.get("_number") == invoice_number or invoice_number in inv.get("_key", ""):
+                if inv.get("number") == invoice_number:
                     amount = Decimal(str(inv["amount"]))
                     break
             if amount is None:

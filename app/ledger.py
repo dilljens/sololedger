@@ -1,6 +1,7 @@
 """Thin wrapper around Beancount v3 — append transactions, query balances."""
 
 import datetime
+import os
 import re
 import time
 from decimal import Decimal
@@ -18,6 +19,49 @@ from .config import Config
 
 # Cache timeout in seconds — avoids re-parsing the ledger on rapid API calls
 _CACHE_TTL = 5.0
+
+
+def _esc_beancount(value: str) -> str:
+    """Escape a string for safe inclusion in a beancount quoted string.
+
+    Handles quotes, backslashes and newlines. A raw newline would break
+    out of the directive and let attacker-controlled payee/narration
+    inject arbitrary beancount directives into the ledger.
+    """
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .replace("\t", " ")
+    )
+
+
+def _append_locked(path: Path, text: str):
+    """Append text to a file under an exclusive lock (POSIX).
+
+    Serializes concurrent writers so a crash or overlapping requests
+    cannot interleave or truncate beancount lines in the source of truth.
+    """
+    with open(path, "a") as f:
+        locked = False
+        try:
+            import fcntl
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            locked = True
+        except (ImportError, OSError):
+            pass  # non-POSIX / unsupported — best effort
+        try:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        finally:
+            if locked:
+                try:
+                    import fcntl
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                except (ImportError, OSError):
+                    pass
 
 
 class Ledger:
@@ -184,13 +228,11 @@ class Ledger:
         """
         date_str = date.isoformat()
         abs_path = Path(filepath).resolve()
-        # Escape backslashes and quotes in the path for safe Beancount insertion
-        safe_path = str(abs_path).replace("\\", "\\\\").replace('"', '\\"')
+        safe_path = _esc_beancount(str(abs_path))
         entry = f'{date_str} document {account:45s} "{safe_path}"\n\n'
 
         doc_path = self.cfg.ledger_dir / "transactions.beancount"
-        with open(doc_path, "a") as f:
-            f.write(entry)
+        _append_locked(doc_path, entry)
 
         self._entries = None
         self._balances = None
@@ -205,8 +247,8 @@ class Ledger:
         Returns the beancount entry string (which was also appended to file).
         """
         date_str = date.isoformat()
-        payee_escaped = payee.replace('"', '\\"')
-        nar_escaped = narration.replace('"', '\\"')
+        payee_escaped = _esc_beancount(payee)
+        nar_escaped = _esc_beancount(narration)
 
         lines = [f'{date_str} * "{payee_escaped}" "{nar_escaped}"']
         for account, amount_str in postings:
@@ -216,8 +258,7 @@ class Ledger:
 
         # Append to transactions file
         tx_path = self.cfg.ledger_dir / "transactions.beancount"
-        with open(tx_path, "a") as f:
-            f.write(entry)
+        _append_locked(tx_path, entry)
 
         # Invalidate cached entries
         self._entries = None
@@ -237,6 +278,23 @@ class Ledger:
                 (to_account, f"{amount:.2f} USD"),
             ],
         )
+
+    def balance_assertion(self, date: datetime.date, account: str, amount: Decimal) -> str:
+        """Append a Beancount balance directive (assertion), not a transaction.
+
+        A balance directive (`YYYY-MM-DD balance ACCOUNT AMOUNT CURRENCY`)
+        only asserts the account's expected balance at that date — it does
+        NOT post money, so running a reconciliation never double-counts.
+        """
+        date_str = date.isoformat()
+        entry = f'{date_str} balance {account:45s} {amount:.2f} USD\n\n'
+
+        tx_path = self.cfg.ledger_dir / "transactions.beancount"
+        _append_locked(tx_path, entry)
+
+        self._entries = None
+        self._balances = None
+        return entry
 
     def reimbursement(self, date: datetime.date, merchant: str, amount: Decimal,
                       expense_account: str = "Expenses:Miscellaneous") -> str:
@@ -262,7 +320,7 @@ class Ledger:
 
         E.g., {business items} to expense accounts, personal portion to owner draws.
         """
-        total = sum(float(amt.split()[0]) for _, amt in business_postings)
+        total = sum(Decimal(amt.split()[0]) for _, amt in business_postings)
         postings = list(business_postings)
         postings.append((source_account, f"-{total:.2f} USD"))
         return self.append(

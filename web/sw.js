@@ -1,8 +1,9 @@
-/* SoloLedger Service Worker v1 — offline support + caching */
+/* SoloLedger Service Worker v2 — offline support + caching */
 
-const CACHE = 'sololedger-v1';
+const CACHE = 'sololedger-v2';
 const STATIC_ASSETS = [
   '/app/',
+  '/app/index-classic.html',
   '/app/css/style.css?v=2',
   '/app/manifest.json',
   '/app/favicon.svg',
@@ -47,13 +48,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ── Fetch: network-first for API, cache-first for static assets ──
+// ── Fetch: network-only for API, cache-first for static assets ──
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // API calls: network-first, fall back to cache
+  // API calls: never cache (auth-scoped financial data) — straight to network
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(networkOnly(event.request));
     return;
   }
 
@@ -66,7 +67,7 @@ async function cacheFirst(request) {
   if (cached) return cached;
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    if (response.ok && request.method === 'GET') {
       const cache = await caches.open(CACHE);
       cache.put(request, response.clone());
     }
@@ -76,20 +77,12 @@ async function cacheFirst(request) {
   }
 }
 
-async function networkFirst(request) {
+async function networkOnly(request) {
   try {
-    const response = await fetch(request);
-    // Only cache GET requests — POST/PUT/DELETE have side effects
-    if (response.ok && request.method === 'GET') {
-      const cache = await caches.open(CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
+    return await fetch(request);
   } catch (err) {
-    const cached = await caches.match(request);
-    if (cached) return cached;
     return new Response(
-      JSON.stringify({ success: false, error: 'You are offline. Data will load when you reconnect.' }),
+      JSON.stringify({ success: false, error: 'Offline' }),
       { status: 503, headers: { 'Content-Type': 'application/json' } }
     );
   }

@@ -6,7 +6,7 @@ class TestDashboardPage:
 
     def test_has_heading(self, app_page):
         app_page.wait_for_selector("h1", timeout=10000)
-        assert app_page.locator("h1").is_visible()
+        assert app_page.locator("#page-content h1").is_visible()
 
     def test_has_stat_cards(self, app_page):
         app_page.wait_for_selector(".stat-card", timeout=10000)
@@ -27,7 +27,7 @@ class TestHealthPage:
 
     def test_heading(self, app_page, nav_to):
         nav_to("health")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Health" in text
 
     def test_shows_validation_result(self, app_page, nav_to):
@@ -48,7 +48,7 @@ class TestAccountsPage:
 
     def test_heading(self, app_page, nav_to):
         nav_to("accounts")
-        text = app_page.locator("h1").text_content() or ""
+        text = app_page.locator("#page-content h1").text_content() or ""
         assert "Accounts" in text
 
     def test_no_js_errors(self, app_page, nav_to, console_errors):

@@ -1,5 +1,7 @@
 import { apiGet, apiPost, apiFetch, escapeHtml, fmt, money, showToast, showConfirm } from '../api.js';
 
+const escAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+
 export async function renderNewInvoice(content) {
   content.innerHTML = `
     <div class="page-header">
@@ -67,9 +69,9 @@ window.createInvoice = async function() {
       resultDiv.innerHTML = `
         <div class="bg-success">
           <strong class="text-success">✅ Invoice created!</strong>
-          <p style="margin-top:8px;">Invoice for ${d.client}: <strong>$${fmt(d.amount)}</strong></p>
-          ${d.pdf_url ? `<p><a href="${d.pdf_url}" target="_blank" class="btn btn-outline btn-sm">📄 Download PDF</a></p>` : ''}
-          ${d.payment_link ? `<p><a href="${d.payment_link}" target="_blank" class="btn btn-primary btn-sm">💳 Payment Link</a></p>` : ''}
+          <p style="margin-top:8px;">Invoice for ${escapeHtml(d.client)}: <strong>$${fmt(d.amount)}</strong></p>
+          ${d.pdf_url ? `<p><a href="${escAttr(d.pdf_url)}" target="_blank" class="btn btn-outline btn-sm">📄 Download PDF</a></p>` : ''}
+          ${d.payment_link ? `<p><a href="${escAttr(d.payment_link)}" target="_blank" class="btn btn-primary btn-sm">💳 Payment Link</a></p>` : ''}
         </div>`;
     } else {
       resultDiv.innerHTML = `<div class="error">⚠ ${escapeHtml(json.error || "") || 'Failed to create invoice'}</div>`;
@@ -104,15 +106,15 @@ export async function renderInvoices(content) {
             const invNum = 'INV-' + ((i.date || '').slice(0,4) || '2026') + '-' + String(idx+1).padStart(3,'0');
             const paid = i.paid === true;
             return `<tr>
-              <td>${i.date}</td>
-              <td>${i.client}</td>
-              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.description}</td>
+              <td>${escapeHtml(i.date)}</td>
+              <td>${escapeHtml(i.client)}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(i.description)}</td>
               <td class="amount">${money(i.amount)}</td>
               <td>${paid ? '<span class="tag tag-green">Paid</span>' : '<span class="tag tag-red">Unpaid</span>'}</td>
               <td style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button class="btn btn-outline btn-sm" onclick="apiDownload('/invoices/${escapeHtml(invNum)}/pdf', '${escapeHtml(invNum)}.pdf')">📄 PDF</button>
                 ${!paid ? `<button class="btn btn-success btn-sm" onclick="markInvoicePaid('${escapeHtml(invNum)}', ${i.amount})">✅ Pay</button>` : ''}
-                <a href="mailto:?subject=Invoice ${invNum}&body=Hi,%0D%0A%0D%0AInvoice ${invNum} for ${i.description} is attached.%0D%0A%0D%0AAmount due: ${money(i.amount)}%0D%0A%0D%0AThank you!" class="btn btn-outline btn-sm">✉️ Send</a>
+                <a href="mailto:?subject=Invoice ${escAttr(invNum)}&body=Hi,%0D%0A%0D%0AInvoice ${escAttr(invNum)} for ${escAttr(i.description)} is attached.%0D%0A%0D%0AAmount due: ${money(i.amount)}%0D%0A%0D%0AThank you!" class="btn btn-outline btn-sm">✉️ Send</a>
               </td>
             </tr>`;
           }).join('')}

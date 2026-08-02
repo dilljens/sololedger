@@ -127,7 +127,13 @@ async def test_rule(merchant: str = Form(""), pattern: str = Form(""), matcher_t
         upper_pattern = pattern.upper()
 
         if matcher_type == "regex":
-            matches = bool(re.search(upper_pattern, upper_merchant))
+            # ReDoS guard — same check the rules engine applies on load
+            if len(pattern) > 200 or re.search(r'\(\.[*+]\)\{|\(\.[*+]\)\+|\(\?:\.[*+]\)\{|\+[?+*}]', pattern):
+                return _err("Pattern rejected: too long or contains nested quantifiers", 400)
+            try:
+                matches = bool(re.search(upper_pattern, upper_merchant))
+            except re.error:
+                return _err("Invalid regex pattern", 400)
         elif matcher_type == "eq":
             matches = upper_merchant == upper_pattern
         elif matcher_type == "substring":

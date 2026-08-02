@@ -1,5 +1,7 @@
 import { apiFetch, apiGet, escapeHtml, showToast } from '../api.js';
 
+const escAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+
 export async function renderCategorize(content) {
   content.innerHTML = `
       <div class="page-header">
@@ -53,7 +55,7 @@ window.suggestCategory = async function() {
 
       div.innerHTML = `
         <div style="background:#f0f9ff;border:1px solid #b2ddff;border-radius:8px;padding:16px;">
-          <div style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Suggested: ${s.account || 'Unknown'}</div>
+          <div style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Suggested: ${escapeHtml(s.account || 'Unknown')}</div>
           <div class="text-muted">
             <span>Confidence: ${confLabel}</span>
             ${s.count !== undefined ? `<span>Seen ${s.count} time(s)</span>` : ''}
@@ -61,11 +63,11 @@ window.suggestCategory = async function() {
           ${similarTxn.length > 0 ? `
             <div class="text-muted">
               <strong>Similar past transactions:</strong>
-              ${similarTxn.slice(0,3).map(t => `<span class="tag tag-green" style="margin:2px;">${t.payee} → ${t.account}</span>`).join('')}
+              ${similarTxn.slice(0,3).map(t => `<span class="tag tag-green" style="margin:2px;">${escapeHtml(t.payee)} → ${escapeHtml(t.account)}</span>`).join('')}
             </div>
           ` : ''}
           <div style="margin-top:12px;display:flex;gap:8px;">
-            <input type="text" id="cat-correct" value="${s.account || 'Expenses:Miscellaneous'}"
+            <input type="text" id="cat-correct" value="${escAttr(s.account || 'Expenses:Miscellaneous')}"
               class="border">
             <button class="btn btn-outline btn-sm" onclick="learnCategory()">✓ Learn</button>
           </div>

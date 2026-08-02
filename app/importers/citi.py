@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.db import TenantDB, make_fingerprint
+from . import post_imported_txn
 
 
 CITI_HEADER = "Date,Description,Debit,Credit,Category,Name,Card"
@@ -54,8 +55,9 @@ def _parse_citi_amount_cents(s: str) -> int:
     if not cleaned:
         return 0
     try:
-        return int(round(float(cleaned) * 100))
-    except (ValueError, OverflowError):
+        from decimal import Decimal, InvalidOperation
+        return int((Decimal(cleaned) * 100).quantize(Decimal("1")))
+    except (ValueError, ArithmeticError, InvalidOperation):
         return 0
 
 
@@ -127,6 +129,9 @@ def import_citi_csv(
     path: str | Path,
     account_label: str = "citi",
     dry_run: bool = False,
+    ledger=None,
+    cfg=None,
+    source_account: str = "Liabilities:CreditCard",
 ) -> dict:
     """Import Citi CSV transactions into the SQLite metadata layer.
 
@@ -135,6 +140,10 @@ def import_citi_csv(
         path: Path to Citi CSV file
         account_label: Account label for fingerprinting
         dry_run: If True, don't write
+        ledger: Optional Ledger — when provided, imported transactions are
+            also posted to the Beancount ledger (credit-card purchases).
+        cfg: Optional Config — used for categorization when posting
+        source_account: Ledger account the card charges move out of
 
     Returns:
         dict with {imported, skipped_duplicates, total, errors}
@@ -182,6 +191,13 @@ def import_citi_csv(
                  txn["date"], txn["amount_cents"], txn["merchant_raw"][:200], fp),
             )
 
+            # Post to the Beancount ledger so the expense actually appears
+            if ledger is not None and cfg is not None:
+                post_imported_txn(
+                    ledger, cfg, txn["date"], txn["merchant_raw"],
+                    txn["amount_cents"], source_account=source_account,
+                )
+
         result["imported"] += 1
 
     if not dry_run:
@@ -191,6 +207,8 @@ def import_citi_csv(
             (str({"imported": result["imported"], "skipped": result["skipped_duplicates"]}), batch_id),
         )
         db.commit()
+        if ledger is not None:
+            ledger.reload(force=True)
 
     return result
 

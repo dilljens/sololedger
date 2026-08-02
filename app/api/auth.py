@@ -18,6 +18,9 @@ from .deps import (
     _save_users,
     _hash_password,
     _verify_password,
+    _session_valid,
+    _rate_limited,
+    _client_ip,
     create_tenant,
 )
 from .shared import _decimal_to_float
@@ -30,10 +33,13 @@ class GoogleAuthRequest(BaseModel):
 
 
 @router.post("/auth/google")
-async def auth_google(req: GoogleAuthRequest):
+async def auth_google(req: GoogleAuthRequest, request: Request):
     """Verify a Google ID token and create a session."""
     if not GOOGLE_CLIENT_ID:
         return _err("Google sign-in not configured on this server", 501)
+
+    if _rate_limited(f"google:{_client_ip(request)}"):
+        return _err("Too many attempts. Try again later.", 429)
 
     try:
         resp = http_requests.post(
@@ -49,9 +55,16 @@ async def auth_google(req: GoogleAuthRequest):
         if aud != GOOGLE_CLIENT_ID:
             return _err("Token audience mismatch", 401)
 
+        if not info.get("email_verified", False):
+            return _err("Email not verified", 401)
+
         email = info.get("email", "")
         if not email:
             return _err("Email not provided in token", 401)
+
+        # Provision an isolated tenant so Google users never fall back to
+        # the owner's main ledger. Idempotent — existing users keep their tenant.
+        create_tenant(email, info.get("name", email))
 
         token = secrets.token_urlsafe(32)
         _sessions[token] = {
@@ -83,7 +96,7 @@ async def auth_me(request: Request):
 
     token = auth_header[7:]
 
-    if token in _sessions:
+    if token in _sessions and _session_valid(token):
         return _ok(_sessions[token])
 
     if _valid_api_keys and token in _valid_api_keys:
@@ -108,19 +121,24 @@ class SignupRequest(BaseModel):
 
 
 @router.post("/auth/signup")
-async def auth_signup(req: SignupRequest):
+async def auth_signup(req: SignupRequest, request: Request):
     """Create a new account with email and password."""
+    if _rate_limited(f"signup:{_client_ip(request)}"):
+        return _err("Too many accounts from this address. Try again later.", 429)
+
     email = req.email.strip().lower()
-    if not email or "@" not in email:
+    if not email or "@" not in email or len(email) > 254:
         return _err("Valid email required", 400)
-    if len(req.password) < 6:
-        return _err("Password must be at least 6 characters", 400)
+    if len(req.password) < 8:
+        return _err("Password must be at least 8 characters", 400)
+
+    name = (req.name.strip() or email.split("@")[0])[:64]
+    if any(c in name for c in "\r\n\t"):
+        return _err("Name contains invalid characters", 400)
 
     users = _load_users()
     if email in users:
         return _err("An account with this email already exists", 409)
-
-    name = req.name.strip() or email.split("@")[0]
 
     users[email] = {
         "password": _hash_password(req.password),
@@ -153,8 +171,11 @@ class SigninRequest(BaseModel):
 
 
 @router.post("/auth/signin")
-async def auth_signin(req: SigninRequest):
+async def auth_signin(req: SigninRequest, request: Request):
     """Sign in with email and password."""
+    if _rate_limited(f"signin:{_client_ip(request)}"):
+        return _err("Too many attempts. Try again later.", 429)
+
     email = req.email.strip().lower()
     if not email:
         return _err("Email required", 400)

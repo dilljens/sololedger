@@ -20,6 +20,11 @@
   <meta property="og:title" content="SoloLedger">
   <meta property="og:description" content="Open-source accounting, invoicing, and tax tools for your consulting LLC">
   <meta property="og:type" content="website">
+  <!-- Classic app uses inline event handlers throughout (onclick="loadPage(...)"),
+       so script-src must keep 'unsafe-inline' — the XSS fix is the escaping in
+       web/js/pages/*.js. This CSP still blocks injected external script origins,
+       data: URIs, objects, frames, and restricts connect-src to same-origin. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdn.plaid.com https://umami.ferrumeng.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://umami.ferrumeng.com">
   <script defer src="https://umami.ferrumeng.com/script.js" data-website-id="c70463b6-ba32-4d1d-b5ed-85614d689862"></script>
 </head>
 <body>
@@ -63,7 +68,7 @@
       <button class="btn btn-primary btn-sm sidebar-signin" id="sidebar-signin" onclick="showAuthModal()" style="width:100%;justify-content:center;">
         🔑 Sign In
       </button>
-      <div class="sidebar-footer" style="border:none;padding:8px 0 0;font-size:0.65rem;">v0.3.0 · MIT</div>
+      <div class="sidebar-footer" style="border:none;padding:8px 0 0;font-size:0.65rem;">v0.4.0 · MIT</div>
     </div>
   </aside>
 
@@ -168,11 +173,6 @@
   </div>
 
   <script type="module" src="/api/v1/_js/app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/app/sw.js')
-        .catch(err => console.debug('SW registration skipped:', err.message));
-    }
-  </script>
+  <script src="/api/v1/_js/sw-register.js" defer></script>
 </body>
 </html>

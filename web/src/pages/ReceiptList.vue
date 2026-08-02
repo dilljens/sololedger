@@ -34,10 +34,17 @@
           ]"
           :rows="documents.map(d => ({
             date: d.date,
-            account: `<span class=\"tag tag-blue\">${escapeHtml(d.account || '')}</span>`,
-            file: `<code style=\"font-size:0.75rem;\">${escapeHtml((d.path || '').split('/').pop())}</code>`,
+            account: d.account || '',
+            file: (d.path || '').split('/').pop(),
           }))"
-        />
+        >
+          <template #cell-account="{ value }">
+            <span class="tag tag-blue">{{ value }}</span>
+          </template>
+          <template #cell-file="{ value }">
+            <code style="font-size:0.75rem;">{{ value }}</code>
+          </template>
+        </DataTable>
       </div>
 
       <!-- New receipt CTA -->
@@ -63,11 +70,6 @@ import DataTable from '../components/DataTable.vue'
 const loading = ref(true)
 const error = ref('')
 const documents = ref([])
-
-function escapeHtml(str) {
-  if (!str) return ''
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
 
 async function load() {
   loading.value = true

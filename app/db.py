@@ -60,21 +60,30 @@ class TenantDB:
     # ── Migrations ────────────────────────────────────────────────────
 
     def migrate(self):
-        """Apply all pending migrations in order."""
+        """Apply all pending migrations in order.
+
+        Each migration is applied inside a single transaction: the version
+        row is written in the SAME transaction as the DDL, so a mid-script
+        failure rolls everything back and the migration can safely re-run
+        on the next boot. (executescript issues an implicit COMMIT first,
+        so we apply statement-by-statement inside the transaction.)
+        """
         applied = self._applied_versions()
         for sql_file in sorted(_SCHEMA_DIR.glob("[0-9]*_*.sql")):
             version = int(sql_file.stem.split("_", 1)[0])
-            if version not in applied:
-                sql = sql_file.read_text()
-                try:
-                    with self._conn:  # transaction
-                        self._conn.executescript(sql)
-                        self._conn.execute(
-                            "INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)",
-                            (version, sql_file.name),
-                        )
-                except sqlite3.Error as e:
-                    raise RuntimeError(f"Migration {sql_file.name} failed: {e}") from e
+            if version in applied:
+                continue
+            statements = [s.strip() for s in sql_file.read_text().split(";") if s.strip()]
+            try:
+                with self._conn:  # one transaction per migration
+                    for stmt in statements:
+                        self._conn.execute(stmt)
+                    self._conn.execute(
+                        "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
+                        (version, sql_file.name),
+                    )
+            except sqlite3.Error as e:
+                raise RuntimeError(f"Migration {sql_file.name} failed: {e}") from e
 
     def _applied_versions(self) -> set[int]:
         try:
@@ -119,28 +128,41 @@ class TenantDB:
 
     @staticmethod
     def fingerprint(source: str, account: str, date: str, amount_cents: int, description: str) -> str:
-        """Create a deterministic fingerprint for dedup."""
-        key = f"{source}|{account}|{date}|{amount_cents}|{description[:40]}"
+        """Create a deterministic identity fingerprint for dedup.
+
+        `source` is intentionally EXCLUDED from the identity: the same
+        transaction imported from a second source (OFX → CSV → Plaid) must
+        produce the same fingerprint so cross-source duplicates are
+        detected instead of silently double-posted. The source is stored
+        in the row itself.
+        """
+        key = f"{account}|{date}|{amount_cents}|{description[:40]}"
         return hashlib.sha256(key.encode()).hexdigest()[:32]
 
 
 # ── Module-level helpers ───────────────────────────────────────────────
 
+import threading as _threading
+
 _active_dbs: dict[str, TenantDB] = {}
+_dbs_lock = _threading.Lock()
 
 
 def get_db(tenant_dir: str | Path | None = None) -> TenantDB:
     """Get or create a TenantDB for the given directory.
 
-    Caches instances by path so the same DB isn't opened twice.
-    If tenant_dir is None, uses the project root's data directory.
+    Caches instances by path so the same DB isn't opened twice (the cache
+    is lock-guarded so concurrent requests can't create two instances for
+    the same path). If tenant_dir is None, uses the project root's data
+    directory.
     """
     if tenant_dir is None:
         tenant_dir = Path(__file__).resolve().parent.parent / "data"
     path = str(Path(tenant_dir).resolve())
-    if path not in _active_dbs:
-        _active_dbs[path] = TenantDB(path)
-    return _active_dbs[path]
+    with _dbs_lock:
+        if path not in _active_dbs:
+            _active_dbs[path] = TenantDB(path)
+        return _active_dbs[path]
 
 
 def get_tenant_db_path(cfg) -> Optional[str]:

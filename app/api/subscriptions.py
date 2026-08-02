@@ -85,7 +85,12 @@ async def create_subscription_checkout(req: CreateCheckoutRequest):
 
     price_cents = plan_info["price_annual"] if req.interval == "year" else plan_info["price_monthly"]
 
-    base_url = os.environ.get("APP_URL", "http://localhost:8100")
+    base_url = os.environ.get("APP_URL", "http://localhost:8100").rstrip("/")
+
+    # Validate redirect URLs: they must be relative paths so an attacker
+    # can't smuggle an off-origin URL into the Stripe redirect.
+    if not req.success_url.startswith("/") or not req.cancel_url.startswith("/"):
+        return _err("Redirect URLs must be relative paths", 400)
 
     try:
         import stripe as stripe_lib
@@ -164,17 +169,16 @@ async def stripe_webhook(request: Request):
 
     import stripe as stripe_lib
     secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-    dev_mode = os.environ.get("STRIPE_DEV_MODE", "").lower() in ("1", "true", "yes")
 
-    if secret:
-        try:
-            event = stripe_lib.Webhook.construct_event(payload, sig_header, secret)
-        except stripe_lib.error.SignatureVerificationError:
-            return _err("Invalid signature", 400)
-    elif dev_mode:
-        event = json.loads(payload)
-    else:
-        return _err("Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET, or set STRIPE_DEV_MODE=true for development.", 503)
+    if not secret:
+        return _err("Stripe webhook secret not configured. Set STRIPE_WEBHOOK_SECRET.", 503)
+
+    try:
+        event = stripe_lib.Webhook.construct_event(payload, sig_header, secret)
+    except stripe_lib.error.SignatureVerificationError:
+        return _err("Invalid signature", 400)
+    except Exception:
+        return _err("Invalid webhook payload", 400)
 
     event_type = event["type"]
     data = event["data"]["object"]

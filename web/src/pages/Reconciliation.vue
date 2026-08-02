@@ -35,7 +35,7 @@
 
       <div class="text-muted text-sm mb-3">
         Balance as of {{ data.balance_date }} |
-        <router-link to="/check">Run ledger check →</router-link>
+        <router-link to="/health">Run ledger check →</router-link>
       </div>
 
       <!-- Uncleared transactions -->
@@ -52,8 +52,8 @@
           ]"
           :rows="data.uncleared.map(t => ({
             date: t.date,
-            payee: escapeHtml(t.payee || ''),
-            description: escapeHtml(t.description || ''),
+            payee: t.payee || '',
+            description: t.description || '',
             amount: toCents(t.amount),
           }))"
         />
@@ -64,7 +64,7 @@
         <h3>Reconciliation Tools</h3>
         <p class="text-muted text-sm">
           For advanced reconciliation operations (start, lock, assert), use the classic CLI or the
-          <a :href="`/app/#reconciliation`" target="_blank">classic reconciliation page</a>.
+          <a href="/app/index-classic.html#/recon" target="_blank">classic reconciliation page</a>.
         </p>
       </div>
     </template>
@@ -79,11 +79,6 @@ import DataTable from '../components/DataTable.vue'
 const loading = ref(true)
 const error = ref('')
 const data = ref(null)
-
-function escapeHtml(str) {
-  if (!str) return ''
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
 
 function toCents(amount) {
   if (amount == null) return 0

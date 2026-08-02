@@ -50,7 +50,7 @@ async function loadPayrollSummary() {
   try {
     const summary = await apiGet('/payroll/summary');
     if (summary.entity_type !== 'scorp') {
-      el.innerHTML = `<p class="text-muted">${summary.note || 'Payroll is for S-Corp mode only.'}</p>`;
+      el.innerHTML = `<p class="text-muted">${escapeHtml(summary.note || 'Payroll is for S-Corp mode only.')}</p>`;
       return;
     }
     el.innerHTML = `
@@ -105,13 +105,13 @@ window.importPayroll = async function() {
       html += `<table><tr><th>Date</th><th>Employee</th><th class="amount">Gross</th><th class="amount">Net</th></tr>`;
       for (const row of rows) {
         if (row.skipped) continue;
-        html += `<tr><td>${row.date || ''}</td><td>${escapeHtml(row.employee || '')}</td><td class="amount">${money(row.gross || 0)}</td><td class="amount">${money(row.net || 0)}</td></tr>`;
+        html += `<tr><td>${escapeHtml(row.date || '')}</td><td>${escapeHtml(row.employee || '')}</td><td class="amount">${money(row.gross || 0)}</td><td class="amount">${money(row.net || 0)}</td></tr>`;
       }
       html += `</table>`;
       html += `<p>Total gross: ${money(data.total_gross)} | Total net: ${money(data.total_net)} | Employer taxes: ${money(data.total_employer_taxes)}</p>`;
     }
     if (data.errors && data.errors.length > 0) {
-      html += `<p class="text-error">Errors: ${data.errors.join(', ')}</p>`;
+      html += `<p class="text-error">Errors: ${escapeHtml(data.errors.join(', '))}</p>`;
     }
     if (data.imported === 0 && (!data.errors || data.errors.length === 0)) {
       html += '<p class="text-muted">No valid pay periods found in CSV.</p>';
@@ -142,7 +142,7 @@ window.disbursePayroll = async function() {
 
   try {
     const result = await apiPost('/payroll/disburse', { date, amount });
-    resultsEl.innerHTML = `<p class="text-success">✅ Disbursement recorded: $${fmt(result.amount)} on ${result.date}</p>`;
+    resultsEl.innerHTML = `<p class="text-success">✅ Disbursement recorded: $${fmt(result.amount)} on ${escapeHtml(result.date)}</p>`;
     document.getElementById('disburse-amount').value = '';
     loadPayrollSummary();
   } catch (err) {

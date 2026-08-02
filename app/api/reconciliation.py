@@ -93,31 +93,16 @@ async def setup_business(req: SetupRequest):
     try:
         from ..setup import write_business_config, init_ledger
     except ImportError:
-        import toml
+        # Fallback uses the shared generator (includes the mandatory [tax]
+        # section, unlike the old hand-built dict which 500'd on load).
+        from ..config import generate_config_toml
 
-        config_data = {
-            "business": {
-                "name": req.name,
-                "owner": req.owner,
-                "state": req.state,
-                "ein": req.ein or "XX-XXXXXXX",
-                "address": "",
-                "phone": "",
-                "email": req.email,
-            },
-            "ledger": {"path": "ledger/main.beancount"},
-            "accounts": {
-                "checking": "Assets:Bank:BusinessChecking",
-                "ar": "Assets:AccountsReceivable",
-                "income": "Income:Consulting",
-                "owner_draws": "Equity:OwnerDraws",
-            },
-            "notifications": {"desktop_enabled": False, "email_enabled": False},
-            "banking": {"plaid_enabled": False},
-        }
+        config_data = generate_config_toml(name=req.name, owner=req.owner,
+                                           email=req.email, state=req.state,
+                                           ledger_path="ledger/main.beancount")
 
         with open(config_path, "w") as f:
-            toml.dump(config_data, f)
+            f.write(config_data)
 
         ledger_dir = Path(config_path).parent / "ledger"
         ledger_dir.mkdir(parents=True, exist_ok=True)

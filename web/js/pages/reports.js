@@ -41,7 +41,7 @@ export async function renderReports(content) {
           <tbody>
             ${expenses.categories.map(c => `
               <tr>
-                <td>${(c.category || '').replace('Expenses:', '')}</td>
+                <td>${escapeHtml((c.category || '').replace('Expenses:', ''))}</td>
                 <td class="amount">${money(c.amount || 0)}</td>
                 <td class="amount">${c.count || 0}</td>
               </tr>

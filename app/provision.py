@@ -216,36 +216,14 @@ def _write_default_ledger(inst_dir: Path, email: str):
 
 
 def _write_instance_config(inst_dir: Path, inst_name: str):
-    """Write a minimal config.toml for the new instance."""
+    """Write a minimal config.toml for the new instance.
+
+    Uses the shared template from app.config (includes the mandatory
+    [tax] section, so Config.__init__ works on first boot).
+    """
+    from .config import generate_config_toml
     config_path = inst_dir / "config.toml"
-    config_path.write_text(f"""# SoloLedger Cloud — {inst_name}
-# Auto-generated. Customer-specific settings.
-
-[business]
-name = "My LLC"
-owner = "Business Owner"
-state = "WY"
-ein = "XX-XXXXXXX"
-address = ""
-phone = ""
-email = ""
-
-[ledger]
-path = "ledger/main.beancount"
-
-[accounts]
-checking = "Assets:Bank:BusinessChecking"
-ar = "Assets:AccountsReceivable"
-income = "Income:Consulting"
-owner_draws = "Equity:OwnerDraws"
-
-[notifications]
-desktop_enabled = false
-email_enabled = false
-
-[banking]
-plaid_enabled = false
-""")
+    config_path.write_text(generate_config_toml(name="My LLC", owner="Business Owner", ledger_path="ledger/main.beancount"))
 
 
 def _fallback_host_run(inst_name: str, inst_dir: Path, api_key: str, port: int) -> str:

@@ -8,9 +8,9 @@
     "exists": true,
     "path": "docs/wiki/",
     "created": "2026-07-16",
-    "lastUpdated": "2026-07-21",
-    "lastCheck": "2026-07-21",
-    "lastGraphSync": "2026-07-21",
+    "lastUpdated": "2026-08-01",
+    "lastCheck": "2026-08-01",
+    "lastGraphSync": "2026-08-01",
     "domains": [
       {
         "name": "Core Ledger",
@@ -56,11 +56,20 @@
         "updated": "2026-07-21",
         "staleness": 0,
         "status": "FRESH"
+      },
+      {
+        "name": "Marketing",
+        "doc": "features/marketing.md",
+        "files": 1,
+        "coverage": 70,
+        "updated": "2026-08-01",
+        "staleness": 0,
+        "status": "FRESH"
       }
     ],
     "coverage": {
-      "documented": 5,
-      "total": 5,
+      "documented": 6,
+      "total": 6,
       "percent": 100
     },
     "standards": {
@@ -74,7 +83,7 @@
     },
     "crossReferences": {
       "broken": 0,
-      "total": 7
+      "total": 8
     },
     "health": {
       "avgStaleness": 0,

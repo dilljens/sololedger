@@ -7,6 +7,9 @@ venv/
 *.egg-info/
 dist/
 build/
+.coverage
+htmlcov/
+.pytest_cache/
 
 # Secrets
 .env
@@ -21,6 +24,7 @@ output/vouchers/
 imports/*
 !imports/.gitkeep
 ledgers/
+*.db
 .codebase-memory/
 
 # Personal dotfiles (env-specific, not project code)
@@ -44,6 +48,7 @@ retainers.json
 ledger/feature.db
 ledger/transactions.beancount
 data/
+tests/e2e/server.log
 
 # Node / Vue
 web/node_modules/

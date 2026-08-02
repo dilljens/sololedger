@@ -40,7 +40,7 @@ _pass_config = click.make_pass_decorator(dict, ensure=True)
 
 @click.group()
 @click.option("--config", "-c", default=None, help="Path to config.toml")
-@click.version_option(version="0.3.0")
+@click.version_option(version="0.4.0")
 @_pass_config
 def cli(ctx, config):
     """SoloLedger — accounting, invoicing, and tax tools for your consulting LLC."""
@@ -768,6 +768,7 @@ def bank_sync(ctx, days, preview):
     else:
         click.echo("Importing transactions...")
         results = feed.import_transactions(txns)
+        feed.commit_cursor()  # only advance after the ledger write succeeded
         income_count = sum(1 for r in results if r["type"] == "income")
         expense_count = sum(1 for r in results if r["type"] == "expense")
         total = sum(r["amount"] for r in results)
@@ -2355,16 +2356,6 @@ def split_expense(ctx, merchant, total, business, account, date, source):
     txn_date = datetime.date.fromisoformat(date) if date else datetime.date.today()
     src = source or cfg.checking_account
     personal = total - business
-
-    if personal > 0:
-        postings = [
-            (account, f"{business:.2f} USD"),
-            ("Equity:OwnerDraws", f"{personal:.2f} USD"),
-        ]
-    else:
-        postings = [
-            (account, f"{total:.2f} USD"),
-        ]
 
     result = ledger.append(
         date=txn_date,

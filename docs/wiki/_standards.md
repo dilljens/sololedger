@@ -2,10 +2,11 @@
 
 ## Rules
 
-- Python 3.11+ required
+- Python 3.12+ required (pyproject.toml `requires-python`; CI tests 3.12/3.13)
 - Beancount for double-entry accounting
 - FastAPI for REST API
 - Config via `config.toml`
+- Auth is fail-closed. Set `SOLOLEDGER_OPEN_MODE=true` only for explicit open (demo) mode.
 
 ## Practices
 
@@ -17,5 +18,5 @@
 ## Patterns
 
 - Module-per-domain under `app/`
-- API routes in `app/api.py`
+- API routes live in the `app/api/` package (one module per domain, e.g. `app/api/invoices.py`)
 - Tests alongside source (pyproject.toml)

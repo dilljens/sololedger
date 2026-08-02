@@ -146,6 +146,8 @@ class OfxImporter:
         expense_account: str = "Expenses:Miscellaneous",
         income_account: str = "Income:Consulting",
         preview: bool = False,
+        db=None,
+        source: str = "ofx",
     ) -> dict:
         """Parse and import an OFX/QFX file into the Beancount ledger.
 
@@ -155,10 +157,17 @@ class OfxImporter:
             expense_account: Default expense for debits
             income_account: Default income for credits
             preview: If True, don't write anything
+            db: Optional TenantDB — cross-source fingerprint dedup (checked
+                BEFORE the ledger append, so re-importing the same
+                transaction from another source is blocked, not recorded
+                after the fact)
+            source: Import source label used in the fingerprint trail
 
         Returns:
             dict with: total, imported, skipped_duplicates, errors, transactions
         """
+        from .db import make_fingerprint
+
         self._existing_fitids = self._load_existing_fitids()
         transactions = self.parse_file(path)
 
@@ -179,6 +188,18 @@ class OfxImporter:
 
             payee = txn["name"] or txn["memo"] or "Unknown"
             amt = txn["amount"]
+
+            # Cross-source fingerprint dedup — checked BEFORE any ledger write
+            if db is not None:
+                fp = make_fingerprint(
+                    source, account, txn["date"].isoformat(),
+                    int((amt.copy_abs() * 100).quantize(Decimal("1"))), payee,
+                )
+                if db.execute(
+                    "SELECT 1 FROM imported_transactions WHERE fingerprint = ?", (fp,)
+                ).fetchone():
+                    result["skipped_duplicates"] += 1
+                    continue
 
             # Use the categorizer to suggest an account
             suggestion = self._suggest_account(payee, amt)
@@ -201,6 +222,18 @@ class OfxImporter:
 
             if not preview:
                 self.ledger.append(date, payee, narration, postings)
+                if db is not None:
+                    try:
+                        db.execute(
+                            "INSERT OR IGNORE INTO imported_transactions "
+                            "(batch_id, source, account, date, amount_cents, description, fingerprint) "
+                            "VALUES (NULL, ?, ?, ?, ?, ?, ?)",
+                            (source, account, date.isoformat(),
+                             int((amt.copy_abs() * 100).quantize(Decimal("1"))), payee[:200], fp),
+                        )
+                        db.commit()
+                    except Exception:
+                        pass  # dedup trail is best-effort; the ledger write already happened
                 if fitid:
                     self._save_fitid(fitid)
 

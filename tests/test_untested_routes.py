@@ -1,29 +1,22 @@
 """Tests for previously-untested API routes.
 
 Covers: auth, invoices, mileage, reports, settings, import endpoints.
-Uses open mode (no auth) and the project's config.toml for test data.
+Uses open mode (no auth) and an isolated tmp config + data dir.
 """
 import os
-from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client():
-    """TestClient in open mode (no auth required)."""
+def client(isolated_environment):
+    """TestClient in open mode (no auth required), isolated tmp state."""
     from app.api import app as api_app
-    old_keys = os.environ.pop("API_KEYS", None)
-    old_google = os.environ.pop("GOOGLE_CLIENT_ID", None)
-    os.environ["API_CONFIG"] = str(
-        Path(__file__).resolve().parent.parent / "config.toml"
-    )
+    # Fail-closed auth: explicitly opt into open mode for these tests
+    os.environ["SOLOLEDGER_OPEN_MODE"] = "true"
     c = TestClient(api_app)
     yield c
-    if old_keys is not None:
-        os.environ["API_KEYS"] = old_keys
-    if old_google is not None:
-        os.environ["GOOGLE_CLIENT_ID"] = old_google
+    os.environ.pop("SOLOLEDGER_OPEN_MODE", None)
 
 
 def assert_ok(resp):
@@ -69,7 +62,7 @@ class TestAuth:
 
         # Logout
         resp = client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {token}"})
-        assert resp.status_code in (200, 401)  # 401 OK if already invalidated
+        assert resp.status_code == 200
 
     def test_signin_invalid_password(self, client):
         """Sign in with wrong password should return 401."""
@@ -89,14 +82,14 @@ class TestAuth:
         email = f"test_dup_{int(time.time()*1000)}@example.com"
         client.post("/api/v1/auth/signup", json={"email": email, "password": "test1234"})
         resp = client.post("/api/v1/auth/signup", json={"email": email, "password": "test1234"})
-        assert resp.status_code in (400, 409)
+        assert resp.status_code == 409
         body = resp.json()
         assert body["success"] is False
 
     def test_auth_me_without_token(self, client):
         """GET /auth/me without token should return 401."""
         resp = client.get("/api/v1/auth/me")
-        assert resp.status_code in (401, 403)
+        assert resp.status_code == 401
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -132,10 +125,9 @@ class TestInvoiceRoutes:
             "client_email": "client@example.com",
             "generate_pdf": False,
         })
-        assert resp.status_code in (200, 500)  # May fail if Stripe not configured
-        if resp.status_code == 200:
-            body = resp.json()
-            assert body["success"] is True
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -244,11 +236,10 @@ class TestImportRoutes:
         f.write_text("not an ofx file")
         with open(str(f), "rb") as fh:
             resp = client.post("/api/v1/import/ofx", files={"file": ("test.ofx", fh, "application/x-ofx")}, data={"preview": "true"})
-        # Should not crash — may return 200 with error in data or 500
-        assert resp.status_code in (200, 422, 500)
-        if resp.status_code == 200:
-            body = resp.json()
-            assert "success" in body
+        # Invalid file parses to zero transactions and returns 200 gracefully
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
 
     def test_wave_preview_invalid(self, client, tmp_path):
         """POST /import/wave/preview handles invalid CSV gracefully."""
@@ -256,10 +247,9 @@ class TestImportRoutes:
         f.write_text("not,valid,csv")
         with open(str(f), "rb") as fh:
             resp = client.post("/api/v1/import/wave/preview", files={"file": ("bad.csv", fh, "text/csv")})
-        assert resp.status_code in (200, 400, 422)
-        if resp.status_code == 200:
-            body = resp.json()
-            assert "data" in body
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "data" in body
 
     def test_statement_file_invalid(self, client, tmp_path):
         """POST /import/statement/file handles invalid PDF."""
@@ -267,10 +257,9 @@ class TestImportRoutes:
         f.write_text("not a pdf")
         with open(str(f), "rb") as fh:
             resp = client.post("/api/v1/import/statement/file", files={"file": ("fake.pdf", fh, "application/pdf")})
-        assert resp.status_code in (200, 400, 422)
-        if resp.status_code == 200:
-            body = resp.json()
-            assert body["success"] is True  # Returns success=false in data, not HTTP error
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True  # success=false in data, not HTTP error
 
     def test_reconciliation_lock_and_status(self, client):
         """POST then GET reconciliation lock."""

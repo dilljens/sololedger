@@ -53,8 +53,8 @@ export async function renderMileage(content) {
         <tbody>
           ${trips.map(t => `
             <tr>
-              <td>${t.date}</td>
-              <td>${t.purpose}</td>
+              <td>${escapeHtml(t.date)}</td>
+              <td>${escapeHtml(t.purpose)}</td>
               <td>${t.miles.toFixed(1)}</td>
               <td class="amount green">$${fmt(t.deduction)}</td>
             </tr>
@@ -81,7 +81,7 @@ window.logMileage = async function() {
     const json = await res.json();
     if (json.success) {
       document.getElementById('mil-result').innerHTML =
-        `<span class="text-success">✅ Logged: ${purpose} — ${miles} mi ($${(miles * 0.70).toFixed(2)} deduction)</span>`;
+        `<span class="text-success">✅ Logged: ${escapeHtml(purpose)} — ${miles} mi ($${(miles * 0.70).toFixed(2)} deduction)</span>`;
       window.loadPage('mileage');
     } else {
       document.getElementById('mil-result').innerHTML = `<span class="text-error">⚠ ${escapeHtml(json.error || "") || 'Failed'}</span>`;

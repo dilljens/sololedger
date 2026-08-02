@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from ..ledger import Ledger
-from .deps import _err, _ok, check_auth, get_config
+from .deps import _read_upload, _err, _ok, check_auth, get_config
 
 router = APIRouter(prefix="/api/v1")
 
@@ -28,7 +28,7 @@ async def import_expenses(
     _ext = Path(file.filename or ".csv").suffix.lower()
     suffix = _ext if _ext in (".csv", ".qbo", ".ofx", ".ofx.gz") else ".csv"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await file.read()
+        content = await _read_upload(file)
         tmp.write(content)
         tmp_path = tmp.name
 
@@ -73,17 +73,21 @@ async def import_csv(
         return _err(f"Config/ledger error: {e}", 500)
 
     from ..importer import Importer
+    from ..db import get_db, get_tenant_db_path
+
+    tenant_dir = get_tenant_db_path(cfg)
+    db = get_db(tenant_dir) if tenant_dir else None
 
     _ext = Path(file.filename or ".csv").suffix.lower()
     suffix = _ext if _ext in (".csv", ".qbo") else ".csv"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await file.read()
+        content = await _read_upload(file)
         tmp.write(content)
         tmp_path = tmp.name
 
     try:
         imp = Importer(cfg, ledger)
-        results = imp.import_csv(tmp_path, preview=preview)
+        results = imp.import_csv(tmp_path, preview=preview, db=db, source="csv")
         return _ok({
             "imported": len(results),
             "preview": preview,
@@ -117,7 +121,7 @@ async def api_ofx_import(
     _ext = Path(file.filename or ".ofx").suffix.lower() if file.filename else ".ofx"
     suffix = _ext if _ext in (".ofx", ".qfx", ".ofx.gz") else ".ofx"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await file.read()
+        content = await _read_upload(file)
         tmp.write(content)
         tmp_path = tmp.name
 

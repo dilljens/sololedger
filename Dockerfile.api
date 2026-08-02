@@ -2,7 +2,7 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-# System deps for weasyprint + tesseract OCR + notify-send
+# System deps for weasyprint + tesseract OCR + notify-send + Node install (curl)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shared-mime-info \
     tesseract-ocr \
     libnotify-bin \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps
@@ -23,6 +24,12 @@ COPY templates/ templates/
 COPY web/ web/
 COPY ledger/ ledger/
 COPY config.toml .
+
+# Build the Vue SPA (no lockfile in repo — use npm install)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+RUN cd web && npm install --no-audit --no-fund && npm run build
 
 # Create output dirs
 RUN mkdir -p output/invoices imports

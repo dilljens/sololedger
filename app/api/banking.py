@@ -37,7 +37,18 @@ async def bank_sync(req: BankSyncRequest):
     except ImportError:
         return _err("plaid-python not installed", 500)
 
-    feed = PlaidFeed(cfg)
+    tenant = _current_tenant.get()
+    # Tenants must use their OWN Plaid access token. The global env token
+    # belongs to the owner and must never be used for a tenant's sync —
+    # otherwise any tenant could pull the owner's bank transactions.
+    if tenant:
+        access_token = (tenant or {}).get("plaid_access_token", "")
+        if not access_token:
+            return _err("No bank connected for this account. Use the 'Connect Bank' flow first.", 400)
+        feed = PlaidFeed(cfg, access_token=access_token)
+    else:
+        feed = PlaidFeed(cfg)
+
     if not feed.enabled:
         return _err("Plaid not configured (set PLAID_* env vars)", 400)
 
@@ -64,6 +75,7 @@ async def bank_sync(req: BankSyncRequest):
         })
 
     results = feed.import_transactions(txns)
+    feed.commit_cursor()  # only advance after the ledger write succeeded
     income_count = sum(1 for r in results if r["type"] == "income")
     expense_count = sum(1 for r in results if r["type"] == "expense")
     total = sum(r["amount"] for r in results)
@@ -88,7 +100,13 @@ async def bank_accounts():
         return _err("plaid-python not installed", 500)
 
     tenant = _current_tenant.get()
-    access_token = (tenant or {}).get("plaid_access_token", "") or os.environ.get("PLAID_ACCESS_TOKEN", "")
+    # Tenant accounts come only from the tenant's own Plaid token; the
+    # global env token is the owner's and must not be exposed to tenants.
+    access_token = (tenant or {}).get("plaid_access_token", "")
+    if tenant and not access_token:
+        return _err("No bank connected for this account. Use the 'Connect Bank' flow first.", 400)
+    if not tenant:
+        access_token = access_token or os.environ.get("PLAID_ACCESS_TOKEN", "")
     if not access_token:
         return _err("No bank connected. Use the 'Connect Bank' button in the Import page.", 400)
 
@@ -165,7 +183,8 @@ async def bank_exchange_token(req: ExchangeTokenRequest):
 async def bank_status():
     tenant = _current_tenant.get()
     access_token = (tenant or {}).get("plaid_access_token", "")
-    has_main_token = bool(os.environ.get("PLAID_ACCESS_TOKEN", ""))
+    # The global PLAID_ACCESS_TOKEN only counts for the owner (no tenant).
+    has_main_token = not tenant and bool(os.environ.get("PLAID_ACCESS_TOKEN", ""))
 
     if access_token:
         try:
@@ -181,7 +200,7 @@ async def bank_status():
                 ],
             })
         except Exception:
-            return _ok({"connected": True, "account_count": 0, "accounts": []})
+            return _err("Bank status check failed", 502)
 
     if has_main_token:
         return _ok({"connected": True, "account_count": -1, "accounts": [], "note": "Using global PLAID_ACCESS_TOKEN"})

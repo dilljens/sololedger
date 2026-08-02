@@ -6,10 +6,7 @@ These tests verify that each API endpoint:
   - Returns the expected data shape
   - Handles edge cases (empty ledger, no profit, etc.)
 """
-import json
 import os
-from decimal import Decimal
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,44 +15,22 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def api_client(sample_config):
-    """Create a TestClient with a fixed config path so get_config() works."""
+def api_client(isolated_environment):
+    """Create a TestClient with the isolated tmp config so get_config() works."""
     from app.api import app as api_app
-    os.environ["API_CONFIG"] = str(sample_config._raw_path) if hasattr(
-        sample_config, '_raw_path'
-    ) else _find_config(sample_config)
     return TestClient(api_app)
 
 
-def _find_config(cfg):
-    """Find the config path from a Config instance."""
-    # Config._find_config walks parent dirs — use the project's config.toml
-    import tempfile
-    from app.config import Config
-    # Check if Config stored the raw path
-    if hasattr(cfg, '_raw_path'):
-        return cfg._raw_path
-    return str(Path(__file__).resolve().parent.parent / "config.toml")
-
-
 @pytest.fixture
-def api_client_no_auth():
-    """TestClient when no auth is configured (open mode)."""
+def api_client_no_auth(isolated_environment):
+    """TestClient when no auth is configured (open mode), isolated tmp state."""
     from app.api import app as api_app
     # Ensure no API keys are set (open mode)
-    old_keys = os.environ.pop("API_KEYS", None)
-    old_google = os.environ.pop("GOOGLE_CLIENT_ID", None)
-    # Set config path
-    os.environ["API_CONFIG"] = str(
-        Path(__file__).resolve().parent.parent / "config.toml"
-    )
+    # Fail-closed auth: explicitly opt into open mode for these tests
+    os.environ["SOLOLEDGER_OPEN_MODE"] = "true"
     client = TestClient(api_app)
     yield client
-    # Restore env
-    if old_keys is not None:
-        os.environ["API_KEYS"] = old_keys
-    if old_google is not None:
-        os.environ["GOOGLE_CLIENT_ID"] = old_google
+    os.environ.pop("SOLOLEDGER_OPEN_MODE", None)
 
 
 # ── Response Envelope Helpers ────────────────────────────────────────────

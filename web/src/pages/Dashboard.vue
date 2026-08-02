@@ -107,7 +107,27 @@ async function fetchData() {
     netProfit.value = data.net_profit || 0
     entityLabel.value = data.entity_label || ''
     tax.value = data.tax || null
-    attentionItems.value = data.deadlines || []
+
+    // Attention items: prefer the dedicated /attention endpoint; fall back
+    // to mapping the dashboard's deadline fields.
+    const fallback = (data.deadlines || []).slice(0, 3).map(d => ({
+      id: `deadline-${d.label || d.due}`,
+      severity: d.status === 'overdue' ? 'critical' : 'warning',
+      message: `${d.label || 'Deadline'} — due ${d.due} (${d.days_until} days)`,
+    }))
+    try {
+      const att = await apiGet('/attention')
+      const items = att.items || []
+      attentionItems.value = items.length
+        ? items.map(it => ({
+            id: it.type,
+            severity: it.severity === 'critical' ? 'critical' : 'warning',
+            message: it.detail ? `${it.label}: ${it.detail}` : it.label,
+          }))
+        : fallback
+    } catch {
+      attentionItems.value = fallback
+    }
   } catch (err) {
     error.value = err.message || 'Failed to load dashboard'
   } finally {

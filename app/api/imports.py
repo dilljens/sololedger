@@ -9,11 +9,11 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import HTTPException, APIRouter, Depends, File, Form, UploadFile
 
-from ..db import get_db, get_tenant_db_path, make_fingerprint
+from ..db import get_db, get_tenant_db_path
 from ..ledger import Ledger
-from .deps import _err, _ok, check_auth, get_config
+from .deps import _read_upload, _err, _ok, check_auth, get_config
 
 router = APIRouter(prefix="/api/v1/import")
 
@@ -29,8 +29,8 @@ async def import_ofx(
 ):
     """Import an OFX/QFX bank statement.
 
-    Parses the file, deduplicates by FITID, stores fingerprint in SQLite
-    for cross-source duplicate detection, and appends to Beancount ledger.
+    Parses the file, deduplicates by FITID and cross-source fingerprint
+    (checked before the ledger append), and appends to Beancount ledger.
     """
     try:
         cfg = get_config()
@@ -46,47 +46,20 @@ async def import_ofx(
 
     suffix = Path(file.filename or ".ofx").suffix.lower() if file.filename else ".ofx"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await file.read()
+        content = await _read_upload(file)
         tmp.write(content)
         tmp_path = tmp.name
 
     try:
+        # Dedup (FITID + cross-source fingerprint) happens inside the
+        # importer BEFORE any ledger write; the importer records the
+        # fingerprint trail itself.
         result = importer.import_file(
             tmp_path,
             account=account or cfg.checking_account,
             preview=preview,
+            db=db,
         )
-
-        # Store fingerprints in SQLite for cross-source dedup
-        if db and result.get("transactions"):
-            batch_id = None
-            for txn in result["transactions"]:
-                fp = make_fingerprint(
-                    "ofx", account or cfg.checking_account,
-                    txn["date"], int(abs(txn["amount"]) * 100), txn["payee"],
-                )
-
-                if not preview:
-                    if batch_id is None:
-                        db.execute(
-                            "INSERT INTO import_batches (source, account, filename, status) VALUES (?, ?, ?, ?)",
-                            ("ofx", account or cfg.checking_account, file.filename or "statement.ofx", "committed"),
-                        )
-                        batch_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-                    try:
-                        db.execute(
-                            """INSERT OR IGNORE INTO imported_transactions
-                               (batch_id, source, account, external_id, date, amount_cents, description, fingerprint)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                            (batch_id, "ofx", account or cfg.checking_account, txn.get("fitid", ""),
-                             txn["date"], int(abs(txn["amount"]) * 100), txn["payee"][:200], fp),
-                        )
-                    except Exception:
-                        pass  # Don't fail the import if dedup fails
-
-            if batch_id is not None:
-                db.commit()
 
         result.pop("transactions", None)  # Don't return full list in response
         return _ok(result)
@@ -104,12 +77,14 @@ async def preview_citi(file: UploadFile = File(...)):
         from ..importers.citi import preview_citi_csv
 
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
 
         preview = preview_citi_csv(tmp_path)
         return _ok(preview)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:
@@ -134,14 +109,18 @@ async def run_citi_import(
 
     try:
         from ..importers.citi import import_citi_csv
+        from ..ledger import Ledger
 
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
 
-        result = import_citi_csv(db, tmp_path, account_label=account, dry_run=dry_run)
+        result = import_citi_csv(db, tmp_path, account_label=account, dry_run=dry_run,
+                                 ledger=Ledger(cfg), cfg=cfg)
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:
@@ -157,11 +136,13 @@ async def preview_wave(file: UploadFile = File(...)):
     try:
         from ..importers.wave import parse_wave_csv
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
         txns = parse_wave_csv(tmp_path)
         return _ok({"total": len(txns), "sample": txns[:10]})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:
@@ -181,12 +162,16 @@ async def run_wave_import(
             return _err("No tenant directory configured", 500)
         db = get_db(tenant_dir)
         from ..importers.wave import import_wave_csv
+        from ..ledger import Ledger
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
-        result = import_wave_csv(db, tmp_path, dry_run=dry_run)
+        result = import_wave_csv(db, tmp_path, dry_run=dry_run,
+                                 ledger=Ledger(cfg), cfg=cfg)
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:
@@ -211,13 +196,15 @@ async def file_statement(
 
         suffix = Path(file.filename or "statement.pdf").suffix.lower()
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
 
         from ..statements import file_statement as fs
         result = fs(db, tmp_path, institution=institution, account_mask=account_mask, period=period)
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:

@@ -7,12 +7,21 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(
     title="SoloLedger API",
     description="Self-hosted accounting, invoicing, and tax API for your consulting LLC.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
+# CORS is locked down: same-origin by default (the web UI is served from
+# this app). Cross-origin clients must opt in via CORS_ORIGINS (comma-
+# separated). Wildcard + credentials is never allowed — browsers reject it
+# and it widens the trust boundary for Bearer-token auth.
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,7 +39,7 @@ async def serve_js(rest_of_path: str):
     """Serve JS files through API path so Cloudflare treats them as dynamic."""
     file_path = (_js_dir / rest_of_path).resolve()
     _js_root = _js_dir.resolve()
-    if not str(file_path).startswith(str(_js_root)):
+    if not (file_path == _js_root or file_path.is_relative_to(_js_root)):
         from fastapi.responses import PlainTextResponse
         return PlainTextResponse("Forbidden", status_code=403)
     if not file_path.exists() or not file_path.is_file():

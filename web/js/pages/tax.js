@@ -90,12 +90,12 @@ export async function renderTax(content) {
       <div class="summary-row"><span>Suggested next payment</span><span><strong>${money(nextPayment)}</strong></span></div>
       <div class="summary-row"><span>Effective rate</span><span>${tax.effective_tax_rate != null ? tax.effective_tax_rate.toFixed(1) : '0.0'}%</span></div>
       <div class="summary-row" style="border:none;">
-        <span>${tax.note || ''}</span>
+        <span>${escapeHtml(tax.note || '')}</span>
         <span><button class="btn btn-outline btn-sm" onclick="apiDownload('/tax/voucher?quarter=${window.getCurrentQuarter()}&amount=${nextPayment}', '1040-ES-${window.getCurrentQuarter()}.pdf')">📄 Voucher PDF</button></span>
       </div>
     </div>
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:0.8rem;color:#8d6e00;">
-      ⚠️ ${tax.disclaimer || 'This is an estimate for planning purposes only. Consult a qualified CPA.'}
+      ⚠️ ${escapeHtml(tax.disclaimer || 'This is an estimate for planning purposes only. Consult a qualified CPA.')}
     </div>
     <div style="display:flex;gap:12px;margin-top:8px;">
       <button class="btn btn-primary" onclick="window.open('https://www.irs.gov/payments/direct-pay-with-bank-account','_blank')">💳 Pay $${fmt(nextPayment)} via IRS Direct Pay</button>
@@ -110,7 +110,7 @@ export async function renderDeadlines(content) {
   content.innerHTML = `
     <div class="page-header">
       <h1>Tax Deadlines</h1>
-      <p>As of ${dl.as_of || 'today'}</p>
+      <p>As of ${escapeHtml(dl.as_of || 'today')}</p>
     </div>
     <div class="card">
       <ul class="deadline-list">
@@ -118,8 +118,8 @@ export async function renderDeadlines(content) {
           <li>
             <span class="dot ${d.status === 'overdue' ? 'dot-red' : d.status === 'upcoming' ? 'dot-yellow' : 'dot-green'}"></span>
             <div style="flex:1;">
-              <strong>${d.label || ''}</strong>
-              <span class="text-muted">${d.due || ''}</span>
+              <strong>${escapeHtml(d.label || '')}</strong>
+              <span class="text-muted">${escapeHtml(d.due || '')}</span>
             </div>
             <span style="font-weight:600;color:${(d.days_until || 0) < 0 ? '#dc3545' : (d.days_until || 0) <= 30 ? '#ffc107' : '#28a745'};">
               ${(d.days_until || 0) < 0 ? 'OVERDUE (' + (d.days_until || 0) + ' days)' : (d.days_until || 0) === 0 ? 'Due today!' : (d.days_until || 0) + ' days away'}

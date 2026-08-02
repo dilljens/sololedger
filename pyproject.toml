@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sololedger"
-version = "0.3.0"
+version = "0.4.0"
 description = "Open-source accounting, invoicing, and tax tools for your consulting LLC"
 readme = "README.md"
 license = { text = "MIT" }
@@ -58,6 +58,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "-m \"not e2e\""
 filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient"]
 # E2E tests require Playwright + browser — run explicitly via -m e2e
 markers = [

@@ -56,12 +56,13 @@ class ReceiptScanner:
         path = Path(filepath).resolve()
         if not path.exists():
             return {"success": False, "error": f"File not found: {path}"}
-        # Restrict source to ledger dir or temp dir
+        # Restrict source to ledger dir or temp dir (exact containment, not
+        # string prefix — a sibling dir must not pass).
         _allowed_base = self.cfg.ledger_dir.resolve()
-        if not str(path).startswith(str(_allowed_base)):
+        if not (path == _allowed_base or path.is_relative_to(_allowed_base)):
             import tempfile
             _tmp_dir = Path(tempfile.gettempdir()).resolve()
-            if not str(path).startswith(str(_tmp_dir)):
+            if not (path == _tmp_dir or path.is_relative_to(_tmp_dir)):
                 return {"success": False, "error": "File path is outside allowed directories"}
 
         # Determine file type
@@ -88,7 +89,11 @@ class ReceiptScanner:
         return parsed
 
     def _extract_pdf(self, path: Path) -> str:
-        """Extract text from a PDF receipt using pdfplumber."""
+        """Extract text from a PDF receipt using pdfplumber.
+
+        Iteration is capped at 50 pages so a malicious page-bomb PDF can't
+        exhaust CPU/memory (uploads are also size-capped at the API layer).
+        """
         try:
             import pdfplumber
         except ImportError:
@@ -97,7 +102,7 @@ class ReceiptScanner:
         try:
             text_parts = []
             with pdfplumber.open(str(path)) as pdf:
-                for page in pdf.pages:
+                for page in pdf.pages[:50]:
                     text = page.extract_text()
                     if text:
                         text_parts.append(text)

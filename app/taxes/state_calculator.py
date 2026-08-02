@@ -86,7 +86,7 @@ class StateTaxCalculator:
             if remaining <= 0:
                 break
 
-            taxable_in_bracket = min(remaining, ceiling - floor + 1)
+            taxable_in_bracket = min(remaining, ceiling - floor)
             taxable_in_bracket = max(taxable_in_bracket, Decimal("0"))
             bracket_tax = taxable_in_bracket * rate
             tax += bracket_tax
@@ -220,7 +220,7 @@ class StateTaxCalculator:
                     rate = Decimal(str(bracket["rate"]))
                     if remaining <= 0:
                         break
-                    taxable_in_bracket = min(remaining, ceiling - floor + 1)
+                    taxable_in_bracket = min(remaining, ceiling - floor)
                     taxable_in_bracket = max(taxable_in_bracket, Decimal("0"))
                     tax += taxable_in_bracket * rate
                     remaining -= taxable_in_bracket
@@ -318,7 +318,10 @@ class StateTaxCalculator:
         # 1. State income tax
         income = self.state_income_tax(net_profit, adjusted_net)
 
-        # 2. Franchise tax (based on revenue)
+        # 2. Franchise tax (based on revenue) — LLC-only. S-Corps pay the
+        #    S-Corp franchise tax (scorp_tax: 1.5% of net, min $800) instead;
+        #    stacking both double-counts the $800 minimum and mis-applies the
+        #    LLC revenue-based fee to an S-Corp.
         franchise = self.franchise_tax(net_profit, total_revenue)
 
         # 3. Gross receipts tax
@@ -333,7 +336,11 @@ class StateTaxCalculator:
         # 6. S-Corp specific tax (only for scorp)
         scorp = self.scorp_tax(net_profit) if entity_type == "scorp" else {"tax": Decimal("0"), "type": "none"}
 
-        total = income["tax"] + franchise["tax"] + gross_receipts["tax"] + local["tax"] + annual_fee + scorp["tax"]
+        if entity_type == "scorp":
+            # S-Corp: the S-Corp franchise tax replaces the LLC franchise/fee
+            total = income["tax"] + gross_receipts["tax"] + local["tax"] + annual_fee + scorp["tax"]
+        else:
+            total = income["tax"] + franchise["tax"] + gross_receipts["tax"] + local["tax"] + annual_fee + scorp["tax"]
 
         return {
             "state_code": self.state_code,

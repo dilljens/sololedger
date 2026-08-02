@@ -46,8 +46,8 @@ def _to_cents(s: str) -> Optional[int]:
     if not cleaned:
         return None
     try:
-        return int(round(float(cleaned) * 100))
-    except (ValueError, OverflowError):
+        return int((Decimal(cleaned) * 100).quantize(Decimal("1")))
+    except (ValueError, ArithmeticError, InvalidOperation):
         return None
 
 
@@ -75,13 +75,21 @@ def _read_csv(path: str | Path) -> list[dict]:
     """Read Amazon order history CSV from a path or ZIP file."""
     path = Path(path)
     if path.suffix.lower() == ".zip":
+        # Guard against zip bombs: cap member count and decompressed size.
+        max_members = 64
+        max_decompressed = 64 * 1024 * 1024  # 64 MB
         with zipfile.ZipFile(path) as zf:
-            names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
-            if not names:
+            infos = zf.infolist()
+            if len(infos) > max_members:
+                raise ValueError("ZIP archive has too many members")
+            csv_infos = [i for i in infos if i.filename.lower().endswith(".csv")]
+            if not csv_infos:
                 raise ValueError("No CSV found in ZIP archive")
-            names.sort(key=lambda n: 0 if "order" in n.lower() else 1)  # prefer order CSV
-            with zf.open(names[0]) as f:
-                text = f.read().decode("utf-8-sig", errors="replace")
+            if sum((i.file_size or 0) for i in csv_infos) > max_decompressed:
+                raise ValueError("ZIP archive too large to decompress")
+            csv_infos.sort(key=lambda i: 0 if "order" in i.filename.lower() else 1)  # prefer order CSV
+            with zf.open(csv_infos[0]) as f:
+                text = f.read(max_decompressed + 1).decode("utf-8-sig", errors="replace")
     else:
         text = path.read_text(encoding="utf-8-sig", errors="replace")
 
@@ -163,6 +171,8 @@ def import_amazon_csv(
     path: str | Path,
     card_filter: Optional[list[str]] = None,
     dry_run: bool = False,
+    ledger=None,
+    cfg=None,
 ) -> dict:
     """Import Amazon order history CSV into the database.
 
@@ -171,10 +181,14 @@ def import_amazon_csv(
         path: Path to CSV or ZIP file
         card_filter: Only import orders matching these card masks (e.g. ["9642"])
         dry_run: If True, don't write anything
+        ledger: Optional Ledger — when provided, NEW orders are also posted
+            to the Beancount ledger as credit-card expenses.
+        cfg: Optional Config — used for categorization when posting
 
     Returns:
         dict with {imported, skipped, cancelled, errors, warnings}
     """
+    from . import post_imported_txn
     rows = _read_csv(path)
     orders = _parse_orders(rows)
 
@@ -264,12 +278,24 @@ def import_amazon_csv(
                     )
                 result["imported"] += 1
 
+                # Post the new order to the ledger (only NEW orders — updates
+                # to existing receipts must not double-post)
+                if ledger is not None and cfg is not None and order["receipt"]["total_cents"]:
+                    post_imported_txn(
+                        ledger, cfg, order["receipt"]["receipt_date"],
+                        "Amazon.com", order["receipt"]["total_cents"],
+                        source_account="Liabilities:CreditCard",
+                        category="Expenses:Amazon",
+                    )
+
         except Exception as e:
             result["errors"] += 1
             result["warnings"].append(f"Order {order_id}: {e}")
 
     if not dry_run:
         db.commit()
+        if ledger is not None:
+            ledger.reload(force=True)
 
     return result
 

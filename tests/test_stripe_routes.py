@@ -13,13 +13,12 @@ Usage:
     '
 """
 import os
-from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client():
+def client(isolated_environment):
     """Create TestClient. API_KEYS must be set in env before running tests."""
     # Don't pop/reset — caller must set API_KEYS in env before pytest
     from app.api import app as api_app

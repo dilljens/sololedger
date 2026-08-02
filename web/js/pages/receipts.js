@@ -1,5 +1,7 @@
 import { apiFetch, escapeHtml, showToast, fmt } from '../api.js';
 
+const escAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+
 export async function renderReceipts(content) {
   content.innerHTML = `
       <div class="page-header">
@@ -34,9 +36,9 @@ export async function renderReceipts(content) {
           <tbody>
             ${docs.map(d => `
               <tr>
-                <td>${d.date}</td>
-                <td><span class="tag tag-blue">${d.account}</span></td>
-                <td><code style="font-size:0.75rem;">${(d.path || '').split('/').pop()}</code></td>
+                <td>${escapeHtml(d.date)}</td>
+                <td><span class="tag tag-blue">${escapeHtml(d.account)}</span></td>
+                <td><code style="font-size:0.75rem;">${escapeHtml((d.path || '').split('/').pop())}</code></td>
               </tr>
             `).join('')}
           </tbody>
@@ -135,14 +137,14 @@ window.handleReceiptUpload = async function(input) {
 
     previewDiv.innerHTML = `
       <table>
-        <tr><td style="width:120px;"><strong>Merchant</strong></td><td>${data.merchant || 'Unknown'}</td></tr>
-        <tr><td><strong>Date</strong></td><td>${data.date || 'Unknown'}</td></tr>
+        <tr><td style="width:120px;"><strong>Merchant</strong></td><td>${escapeHtml(data.merchant || 'Unknown')}</td></tr>
+        <tr><td><strong>Date</strong></td><td>${escapeHtml(data.date || 'Unknown')}</td></tr>
         <tr><td><strong>Total</strong></td><td><strong>$${fmt(data.total || 0)}</strong></td></tr>
         ${data.line_items && data.line_items.length ? `
-        <tr><td><strong>Items</strong></td><td>${data.line_items.slice(0,5).map(i => `<span style="display:block;">· ${i.description}: $${fmt(i.amount)}</span>`).join('')}${data.line_items.length > 5 ? `<span class="text-muted-light">...and ${data.line_items.length-5} more</span>` : ''}</td></tr>
+        <tr><td><strong>Items</strong></td><td>${data.line_items.slice(0,5).map(i => `<span style="display:block;">· ${escapeHtml(i.description)}: $${fmt(i.amount)}</span>`).join('')}${data.line_items.length > 5 ? `<span class="text-muted-light">...and ${data.line_items.length-5} more</span>` : ''}</td></tr>
         ` : ''}
       </table>
-      <p class="text-muted text-sm mt-3">${file.name} (${(file.size/1024).toFixed(0)} KB)</p>`;
+      <p class="text-muted text-sm mt-3">${escapeHtml(file.name)} (${(file.size/1024).toFixed(0)} KB)</p>`;
 
     let suggestedAccount = '';
     if (data.merchant) {
@@ -154,8 +156,8 @@ window.handleReceiptUpload = async function(input) {
         const confLabel = conf === 'high' ? '✅' : conf === 'medium' ? '⚠️' : '❓';
         categoryDiv.innerHTML = `
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <span>${confLabel} Suggested: <strong>${suggestedAccount}</strong></span>
-            <input type="text" id="receipt-account" value="${suggestedAccount}" class="border">
+            <span>${confLabel} Suggested: <strong>${escapeHtml(suggestedAccount)}</strong></span>
+            <input type="text" id="receipt-account" value="${escAttr(suggestedAccount)}" class="border">
             <button class="btn btn-outline btn-sm" onclick="learnCategory()">✓ Learn</button>
           </div>`;
       } else {
@@ -182,7 +184,7 @@ window.handleReceiptUpload = async function(input) {
         matchesDiv.innerHTML = matchJson.data.matches.slice(0,3).map(m => `
           <label class="border">
             <input type="radio" name="receipt-match" value='${JSON.stringify(m).replace(/'/g, "&#39;")}'>
-            <span>${m.date} — <strong>${m.description}</strong> — $${fmt(m.amount)}</span>
+            <span>${escapeHtml(m.date)} — <strong>${escapeHtml(m.description)}</strong> — $${fmt(m.amount)}</span>
             <span class="tag ${(m.match_score || 0) > 0.95 ? 'tag-green' : 'tag-blue'}">${((m.match_score || 0) * 100).toFixed(0)}% match</span>
           </label>
         `).join('');

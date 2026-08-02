@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel
 
 from ..ledger import Ledger
-from .deps import _err, _ok, check_auth, get_config, require_plan
+from .deps import _read_upload, _err, _ok, check_auth, get_config, require_plan
 
 router = APIRouter(prefix="/api/v1")
 
@@ -35,7 +35,7 @@ async def scan_receipt(
     _ext = Path(file.filename or ".pdf").suffix.lower()
     suffix = _ext if _ext in (".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp") else ".pdf"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await file.read()
+        content = await _read_upload(file)
         tmp.write(content)
         tmp_path = tmp.name
 
@@ -113,7 +113,7 @@ async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
                             "description": desc,
                             "amount": float(pos_amt),
                             "account": posting.account,
-                            "match_score": round(float(1.0 - abs(pos_amt - Decimal(str(amount))) / max(pos_amt, Decimal("0.01"))), 3),
+                            "match_score": round(1.0 - abs(float(pos_amt) - amount) / max(float(pos_amt), 0.01), 3),
                         })
 
     txns.sort(key=lambda x: -x["match_score"])

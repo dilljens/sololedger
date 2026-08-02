@@ -71,9 +71,14 @@
       </div>
       <div class="mt-3 action-row">
         <button class="btn btn-outline" @click="reset">← Scan Another</button>
-        <a v-if="!result.appended" :href="result.path ? `/app/#receipts` : '#'" class="btn btn-primary">
+        <template v-if="!result.appended">
+          <button class="btn btn-primary" @click="append" :disabled="appending">
+            {{ appending ? '⏳ Appending...' : '✅ Append to Ledger' }}
+          </button>
+        </template>
+        <router-link v-else to="/receipts" class="btn btn-primary">
           ✅ Done
-        </a>
+        </router-link>
       </div>
     </div>
 
@@ -97,11 +102,12 @@ const router = useRouter()
 const step = ref('upload')
 const selectedFile = ref(null)
 const scanning = ref(false)
+const appending = ref(false)
 const result = ref(null)
 const error = ref('')
 
-function onFileSelect(file) {
-  selectedFile.value = file
+function onFileSelect(files) {
+  selectedFile.value = files && files[0] ? files[0] : files
   step.value = 'upload'
   result.value = null
   error.value = ''
@@ -134,6 +140,20 @@ async function scan() {
     error.value = e.message || 'Scan failed'
   } finally {
     scanning.value = false
+  }
+}
+
+async function append() {
+  if (!selectedFile.value) return
+  appending.value = true
+  error.value = ''
+  try {
+    const data = await apiUpload('/receipts/scan', selectedFile.value, { preview: 'false' })
+    result.value = { ...result.value, ...data }
+  } catch (e) {
+    error.value = e.message || 'Append failed'
+  } finally {
+    appending.value = false
   }
 }
 

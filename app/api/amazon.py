@@ -2,11 +2,12 @@
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import HTTPException, APIRouter, Depends, File, Form, UploadFile
 
 from ..db import get_db, get_tenant_db_path
 from ..importers.amazon import import_amazon_csv, preview_amazon_csv
-from .deps import _err, _ok, check_auth, get_config
+from ..ledger import Ledger
+from .deps import _read_upload, _err, _ok, check_auth, get_config
 
 router = APIRouter(prefix="/api/v1/import/amazon")
 
@@ -17,12 +18,14 @@ async def preview_import(file: UploadFile = File(...)):
     try:
         suffix = Path(file.filename or "orders.csv").suffix.lower()
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
 
         preview = preview_amazon_csv(tmp_path)
         return _ok(preview)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:
@@ -47,12 +50,15 @@ async def run_import(
 
         suffix = Path(file.filename or "orders.csv").suffix.lower()
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            content = await file.read()
+            content = await _read_upload(file)
             tmp.write(content)
             tmp_path = tmp.name
 
-        result = import_amazon_csv(db, tmp_path, card_filter=filters, dry_run=dry_run)
+        result = import_amazon_csv(db, tmp_path, card_filter=filters, dry_run=dry_run,
+                                   ledger=Ledger(cfg), cfg=cfg)
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 400)
     finally:

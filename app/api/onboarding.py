@@ -67,6 +67,16 @@ async def onboarding_demo():
     cfg = Config(str(cfg_path))
     ledger = Ledger(cfg)
 
+    # Idempotency guard: never overwrite real ledger data. Demo loads only
+    # into an empty ledger (no transaction entries yet).
+    ledger.reload()
+    existing_txns = [
+        e for e in (ledger.entries or [])
+        if getattr(e, "postings", None)
+    ]
+    if existing_txns:
+        return _err("Ledger already has transactions — demo data not loaded", 409)
+
     # Write demo transactions
     demo_txns = """2026-01-01 * "Opening balance"
   Assets:Bank:BusinessChecking  25000.00 USD

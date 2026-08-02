@@ -95,7 +95,7 @@ class TaxEstimator:
             if remaining <= 0:
                 break
 
-            taxable_in_bracket = min(remaining, ceiling - floor + 1)
+            taxable_in_bracket = min(remaining, ceiling - floor)
             taxable_in_bracket = max(taxable_in_bracket, Decimal("0"))
             bracket_tax = taxable_in_bracket * rate
             tax += bracket_tax
@@ -155,10 +155,12 @@ class TaxEstimator:
         except Exception as e:
             import sys
             print(f"⚠ State tax calculation failed: {e}", file=sys.stderr)
+            # Never silently understate liability: surface the failure in
+            # the response instead of just returning $0.
             return {
                 "state_code": self.state_code,
                 "total_state_tax": Decimal("0"),
-                "note": "State calculator unavailable",
+                "error": f"State calculator unavailable: {e}",
             }
 
     def fica_tax(self, salary: Decimal) -> dict:
