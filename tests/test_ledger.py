@@ -1,5 +1,6 @@
 """Tests for app/ledger.py — Beancount ledger wrapper."""
 
+import datetime
 import time
 from decimal import Decimal
 
@@ -94,3 +95,37 @@ class TestLedgerAppend:
         clean_ledger.reload(force=True)
         errors = clean_ledger.check()
         assert errors == []
+
+
+class TestSharedCache:
+    """The process-wide ledger cache is shared across Ledger instances."""
+
+    def test_second_instance_reuses_parse(self, sample_config):
+        from app import ledger as ledger_mod
+        from app.ledger import Ledger, _LEDGER_CACHE
+
+        ledger_mod._LEDGER_CACHE.clear()
+        l1 = Ledger(sample_config)
+        l1.reload(force=True)
+        assert len(_LEDGER_CACHE) == 1
+
+        # A fresh instance within TTL reuses the cached parse
+        l2 = Ledger(sample_config)
+        l2.reload()
+        assert l2._last_loaded == l1._last_loaded, "cache not shared between instances"
+
+    def test_append_invalidates_cache(self, sample_config):
+        from app import ledger as ledger_mod
+        from app.ledger import Ledger
+
+        ledger_mod._LEDGER_CACHE.clear()
+        l1 = Ledger(sample_config)
+        l1.reload(force=True)
+        before = len(ledger_mod._LEDGER_CACHE)
+
+        l1.append(
+            datetime.date(2026, 3, 1), "Cache test", "Invalidate",
+            [(sample_config.income_account, "-100.00 USD"), (sample_config.ar_account, "100.00 USD")],
+        )
+        # The write must drop the shared entry so the next reload re-parses
+        assert len(ledger_mod._LEDGER_CACHE) < before or ledger_mod._LEDGER_CACHE.get(str(sample_config.ledger_path)) is None

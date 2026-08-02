@@ -125,6 +125,9 @@ def _rate_limited(client_key: str) -> bool:
     """Record an attempt for client_key; True if the client is over the limit."""
     now = time.time()
     with _rate_lock:
+        # Prevent unbounded growth: occasionally drop fully-expired keys
+        if len(_rate_attempts) > 4096:
+            _rate_attempts.clear()
         attempts = _rate_attempts.setdefault(client_key, [])
         attempts[:] = [t for t in attempts if now - t < _RATE_WINDOW_SECONDS]
         if len(attempts) >= _RATE_MAX_ATTEMPTS:

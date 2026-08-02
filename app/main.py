@@ -1792,6 +1792,16 @@ def import_cmd():
     """Import transactions from other tools (Wave, QuickBooks, CSV)."""
 
 
+def _tenant_db(cfg):
+    """Resolve the tenant metadata DB for a config (None if not available)."""
+    try:
+        from .db import get_db, get_tenant_db_path
+        tenant_dir = get_tenant_db_path(cfg)
+        return get_db(tenant_dir) if tenant_dir else None
+    except Exception:
+        return None
+
+
 @import_cmd.command("wave")
 @click.argument("filepath", type=click.Path(exists=True))
 @click.option("--preview", is_flag=True, help="Preview only")
@@ -1802,7 +1812,7 @@ def import_wave(ctx, filepath, preview):
     ledger = ctx["ledger"]
     from .importer import Importer
     imp = Importer(cfg, ledger)
-    results = imp.import_wave_csv(filepath, preview=preview)
+    results = imp.import_wave_csv(filepath, preview=preview, db=_tenant_db(cfg))
 
     if results and "error" in results[0]:
         click.echo(f"⚠ {results[0]['error']}")
@@ -1823,7 +1833,7 @@ def import_qbo(ctx, filepath, preview):
     ledger = ctx["ledger"]
     from .importer import Importer
     imp = Importer(cfg, ledger)
-    results = imp.import_qbo_csv(filepath, preview=preview)
+    results = imp.import_qbo_csv(filepath, preview=preview, db=_tenant_db(cfg))
 
     if results and "error" in results[0]:
         click.echo(f"⚠ {results[0]['error']}")
@@ -1842,7 +1852,7 @@ def import_csv_generic(ctx, filepath, preview):
     ledger = ctx["ledger"]
     from .importer import Importer
     imp = Importer(cfg, ledger)
-    results = imp.import_csv(filepath, preview=preview)
+    results = imp.import_csv(filepath, preview=preview, db=_tenant_db(cfg))
 
     if results and "error" in results[0]:
         click.echo(f"⚠ {results[0]['error']}")

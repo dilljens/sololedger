@@ -17,8 +17,18 @@ from beancount.ops.summarize import balance_by_account
 
 from .config import Config
 
-# Cache timeout in seconds — avoids re-parsing the ledger on rapid API calls
+# Cache timeout in seconds — avoids re-parsing the ledger on rapid API calls.
+# The cache is process-wide and keyed by ledger path: every API request
+# constructs a fresh Ledger instance, so a per-instance cache never hits.
 _CACHE_TTL = 5.0
+
+# {ledger_path: (entries, errors, options_map, balances, last_loaded)}
+_LEDGER_CACHE: dict[str, tuple] = {}
+
+
+def _invalidate_cache(path: Path):
+    """Drop the shared cache entry for a ledger after a write."""
+    _LEDGER_CACHE.pop(str(path), None)
 
 
 def _esc_beancount(value: str) -> str:
@@ -79,11 +89,22 @@ class Ledger:
         """(Re)load the ledger file from disk.
 
         Skips reload if called within _CACHE_TTL seconds of last load,
-        unless force=True.
+        unless force=True. Uses a process-wide cache keyed by ledger path
+        so short-lived per-request Ledger instances share parsed entries.
         """
+        now = time.time()
         if not force and self._last_loaded is not None:
-            elapsed = time.time() - self._last_loaded
-            if elapsed < _CACHE_TTL:
+            if now - self._last_loaded < _CACHE_TTL:
+                return
+
+        cache_key = str(self.cfg.ledger_path)
+        cached = _LEDGER_CACHE.get(cache_key)
+        if cached is not None and not force:
+            entries, errors, options, balances, loaded_at = cached
+            if now - loaded_at < _CACHE_TTL:
+                self._entries, self._errors, self._options_map = entries, errors, options
+                self._balances = balances
+                self._last_loaded = loaded_at
                 return
 
         self._entries, self._errors, self._options_map = loader.load_file(
@@ -91,7 +112,10 @@ class Ledger:
         )
         bal_result = balance_by_account(self._entries)
         self._balances = bal_result[0]  # dict[account -> Inventory]
-        self._last_loaded = time.time()
+        self._last_loaded = now
+        _LEDGER_CACHE[cache_key] = (
+            self._entries, self._errors, self._options_map, self._balances, now,
+        )
 
     @property
     def entries(self):
@@ -233,6 +257,8 @@ class Ledger:
 
         doc_path = self.cfg.ledger_dir / "transactions.beancount"
         _append_locked(doc_path, entry)
+        _invalidate_cache(doc_path)
+        _invalidate_cache(self.cfg.ledger_path)
 
         self._entries = None
         self._balances = None
@@ -259,6 +285,9 @@ class Ledger:
         # Append to transactions file
         tx_path = self.cfg.ledger_dir / "transactions.beancount"
         _append_locked(tx_path, entry)
+        _invalidate_cache(tx_path)
+        _invalidate_cache(self.cfg.ledger_path)
+        _invalidate_cache(self.cfg.ledger_path)
 
         # Invalidate cached entries
         self._entries = None
@@ -291,6 +320,8 @@ class Ledger:
 
         tx_path = self.cfg.ledger_dir / "transactions.beancount"
         _append_locked(tx_path, entry)
+        _invalidate_cache(tx_path)
+        _invalidate_cache(self.cfg.ledger_path)
 
         self._entries = None
         self._balances = None

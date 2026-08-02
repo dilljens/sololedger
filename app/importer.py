@@ -27,7 +27,8 @@ class Importer:
         self.cfg = cfg
         self.ledger = ledger
 
-    def import_wave_csv(self, filepath: str | Path, preview: bool = False) -> list[dict]:
+    def import_wave_csv(self, filepath: str | Path, preview: bool = False,
+                        db=None, source: str = "wave") -> list[dict]:
         """Import a Wave Accounting CSV export.
 
         Wave exports have columns: Transaction Date, Transaction Description,
@@ -50,9 +51,11 @@ class Importer:
         amount_col = self._find_col(columns, ["amount", "transaction amount", "total"])
         account_col = self._find_col(columns, ["account name", "account", "category"])
 
-        return self._process_rows(rows, date_col, desc_col, amount_col, preview=preview)
+        return self._process_rows(rows, date_col, desc_col, amount_col, preview=preview,
+                                  db=db, source=source)
 
-    def import_qbo_csv(self, filepath: str | Path, preview: bool = False) -> list[dict]:
+    def import_qbo_csv(self, filepath: str | Path, preview: bool = False,
+                       db=None, source: str = "qbo") -> list[dict]:
         """Import a QuickBooks Online CSV export.
 
         QBO exports have columns: Date, Description, Amount, Name, Account, etc.
@@ -74,7 +77,8 @@ class Importer:
         amount_col = self._find_col(columns, ["amount", "total", "sum"])
         account_col = self._find_col(columns, ["account", "category", "account name"])
 
-        return self._process_rows(rows, date_col, desc_col, amount_col, account_col=account_col, preview=preview)
+        return self._process_rows(rows, date_col, desc_col, amount_col, account_col=account_col,
+                                  preview=preview, db=db, source=source)
 
     def import_csv(self, filepath: str | Path, preview: bool = False,
                    db=None, source: str = "csv") -> list[dict]:
