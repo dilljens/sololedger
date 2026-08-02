@@ -34,6 +34,9 @@ const routes = [
   { path: '/reports', name: 'reports', component: apiPage('/reports/profit-loss', 'Reports', 'Expense and P&L reports', '📊') },
   { path: '/payroll', name: 'payroll', component: apiPage('/payroll/summary', 'Payroll', 'Payroll runs and history', '💰') },
   { path: '/settings', name: 'settings', component: () => import('../pages/PlaceholderPage.vue') },
+  { path: '/upgrade', name: 'upgrade', component: () => import('../pages/Upgrade.vue') },
+  { path: '/verify-email', name: 'verify-email', component: () => import('../pages/VerifyEmail.vue') },
+  { path: '/reset-password', name: 'reset-password', component: () => import('../pages/ResetPassword.vue') },
   // Feature pages
   { path: '/amazon', name: 'amazon', component: () => import('../pages/AmazonOrders.vue') },
   { path: '/coa', name: 'chart-of-accounts', component: () => import('../pages/ChartOfAccounts.vue') },

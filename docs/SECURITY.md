@@ -1,72 +1,99 @@
 # SoloLedger Security
 
-## Authentication
+SoloLedger is a multi-tenant SaaS: every account gets an isolated workspace
+(its own Beancount ledger + SQLite metadata DB under `SOLOLEDGER_DATA_DIR/ledgers/<user_id>/`),
+and paid features are gated by plan + billing status.
 
-SoloLedger supports three auth methods, configured via environment variables:
+## Authentication
 
 | Method | Env Var | Notes |
 |--------|---------|-------|
-| **Google OAuth** | `GOOGLE_CLIENT_ID` | Token verified server-side against Google's `tokeninfo` endpoint. Requires `GOOGLE_CLIENT_ID` to be set. |
-| **Email/password** | (built-in) | Always active unless `API_KEYS` is set and `GOOGLE_CLIENT_ID` is unset (see below). Passwords hashed with PBKDF2-SHA256 (100k iterations, random salt). Stored in `users.json`. |
-| **API keys** | `API_KEYS` | Comma-separated static keys prefixed with `sl_`. Stored in env var only. Keys authenticate via `Authorization: Bearer <key>`. |
+| **Email/password** | (built-in) | Always available. PBKDF2-SHA256 (100k iterations, random salt). Requires **email verification** before the workspace is provisioned. |
+| **Google OAuth** | `GOOGLE_CLIENT_ID` | ID token verified server-side against Google's `tokeninfo`; requires `email_verified=true` in the token. Creates a verified user + tenant directly. |
+| **API keys** | `API_KEYS` | Comma-separated static keys for server-to-server access. Bearer auth, no tenant (owner scope). |
 
-When `GOOGLE_CLIENT_ID` is set, Google OAuth is the primary login and email/password signup is also available.
-When only `API_KEYS` is set (no `GOOGLE_CLIENT_ID`), the app enters "API key mode" — email/password routes are unavailable and the session-based UI is not accessible.
+**Auth is fail-closed.** Unauthenticated access is denied unless
+`SOLOLEDGER_OPEN_MODE=true` is set — an explicit opt-in for open (demo)
+deployments. Never set it in production.
 
-**Auth is fail-closed.** Unauthenticated access is denied unless `SOLOLEDGER_OPEN_MODE=true` is set — an explicit opt-in for open (demo) deployments. Never set it in production.
+**Signup flow (production):**
+1. `POST /auth/signup` creates an *unverified* user and emails a verification
+   link (Resend). No workspace is provisioned yet — this blocks signup spam.
+2. `GET /auth/verify-email?token=...` marks the email verified and provisions
+   the isolated tenant workspace.
+3. Paid access additionally requires a **card on file**: `POST
+   /subscription/create-checkout` opens Stripe Checkout with a 14-day trial
+   (`trial_period_days`), collecting the card before any paid feature unlocks.
 
-## Token Storage (XSS Risk)
+When `RESEND_API_KEY` is not configured and `SOLOLEDGER_REQUIRE_EMAIL_VERIFY`
+is not set, signup auto-verifies (development / test mode only).
 
-Session tokens, user profile data, and LLM API keys (OpenAI/Anthropic) are stored in **localStorage**:
+## Session & Data Storage
 
-| Key | Contents |
-|-----|----------|
-| `sololedger_session` | Random session token (32 bytes url-safe base64) |
-| `sololedger_user` | User email, name, avatar URL (JSON) |
-| `sololedger_llm_key` | LLM provider API key (OpenAI / Anthropic) |
+Sessions, users, and tenants live in a **global SQLite database**
+(`<SOLOLEDGER_DATA_DIR>/app.db`) — multi-worker safe. Per-tenant accounting
+data (Beancount files, `feature.db`, statement documents) lives under the
+tenant's ledger directory, which is confined to `SOLOLEDGER_DATA_DIR`.
 
-Sessions are persisted server-side to `sessions.json` with a **30-day expiry enforced on every request** — an expired token is rejected even if it is still present in localStorage.
+| Store | Location | Notes |
+|-------|----------|-------|
+| users / sessions / tenants | `app.db` (SQLite) | sessions expire after 30 days, enforced on every request; password reset invalidates all sessions |
+| tenant ledger | `<DATA_DIR>/ledgers/<user_id>/` | Beancount files + config |
+| tenant metadata | `<DATA_DIR>/ledgers/<user_id>/feature.db` | imports, receipts, rules, reconciliation marks, usage counters |
+| statement documents | `<tenant>/documents/statements/` | per-tenant (never the process CWD) |
 
-**Risk:** localStorage is accessible to any JavaScript running on the same origin. A single XSS vulnerability (injected script, third-party CDN compromise, SVG upload, etc.) would allow an attacker to exfiltrate all stored tokens and API keys. This is a [known trade-off](https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url) for SPAs without a backend-for-frontend (BFF) proxy.
+The **browser** stores the session token in `localStorage`
+(`auth_token` / `sololedger_session`) — accessible to any same-origin JS, so
+XSS = token theft. The `escapeHtml()` helper, CSP headers, and server-side
+session validation are the mitigations.
 
-**Mitigations already in place:**
-- `escapeHtml()` helper in `api.js` for safe DOM insertion
-- No session token in URL query strings
-- Session tokens validated server-side against `sessions.json`; 30-day expiry enforced per request
-- LLM API key is masked in API responses (first 8 chars shown, remainder redacted)
-- Uploads are size-capped at 25 MB (rejected with HTTP 413)
-- CORS is locked down: same-origin by default; cross-origin clients must opt in via `CORS_ORIGINS`
-- Stripe webhooks always require a valid `Stripe-Signature` (verified with `STRIPE_WEBHOOK_SECRET`)
+## Multi-tenancy
 
-**Recommendations for production:**
-1. **Set `API_KEYS`** env var and **remove `GOOGLE_CLIENT_ID`** to disable email/password auth entirely, switching to API-key-only mode. This eliminates session storage in localStorage (API keys are held by the caller, not the browser).
-2. **Add a Content-Security-Policy** header to restrict script sources.
-3. **Use HTTPS** — without TLS, localStorage values and auth tokens are trivially intercepted on any network path.
+- Every request resolves the caller's tenant from the session → the tenant's
+  `config.toml` and `feature.db`. A non-owner session with no tenant is 403.
+- Tenant `ledger_dir` is validated with `is_relative_to(SOLOLEDGER_DATA_DIR)`
+  (no string-prefix bypass).
+- Plan gating: `require_plan()` checks plan level AND billing status
+  (`past_due`/`canceled`/`suspended` drops to free; an active trial grants
+  Professional). Free tier has usage caps (10 invoices, 5 receipt scans/mo)
+  enforced in the tenant DB.
+- Plaid access tokens are per-tenant; the global env token is owner-only.
+- LLM settings are per-tenant.
 
-## Environment Variables
+## Admin
 
-The following environment variables carry secrets. None are hardcoded in the repository — all are read from `os.environ` at runtime.
+`/api/v1/admin/*` (list tenants, tenant detail, cancel, deprovision, stats)
+requires `Authorization: Bearer $ADMIN_API_KEY`. When `ADMIN_API_KEY` is
+unset the routes return 404.
+
+## Environment Variables (secrets)
 
 | Env Var | Purpose |
 |---------|---------|
-| `API_KEYS` | Comma-separated static API keys for server-to-server access |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `STRIPE_SECRET_KEY` | Stripe API key (payments) |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ACCESS_TOKEN` | Plaid bank feed credentials |
-| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | LLM provider keys (marketing, categorizer) |
-| `SL_LLM_API_KEY` | Alternative LLM key for categorizer |
-| `CLOCKIFY_API_KEY` / `TOGGL_API_TOKEN` | Time tracking integrations |
-| `NOTIFY_SMTP_PASSWORD` | SMTP password for email notifications |
+| `ADMIN_API_KEY` | Bearer token for `/api/v1/admin/*` |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe API + webhook signing secret (webhooks ALWAYS verified) |
+| `RESEND_API_KEY` | Transactional email (verification, password reset) |
+| `GOOGLE_CLIENT_ID` | Google OAuth |
+| `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ACCESS_TOKEN` | Plaid bank feeds |
+| `API_KEYS` | Server-to-server API keys (owner scope) |
+| `SOLOLEDGER_DATA_DIR` | Where app.db + tenant ledgers live (must be a persistent volume in Docker) |
 
-**Recommendation:** Use a secrets manager or `.env` file (not committed) in development. In production, inject via the orchestration platform (Docker secrets, Kubernetes secrets, systemd `EnvironmentFile=` with `0600` permissions).
+None are hardcoded — all read from `os.environ`. Inject via secrets manager,
+Docker secrets, or systemd `EnvironmentFile=` with `0600` permissions.
 
 ## Production Checklist
 
-- [ ] Set `API_KEYS` and unset `GOOGLE_CLIENT_ID` for API-key-only mode
-- [ ] Enable HTTPS (reverse proxy with certbot/Let's Encrypt or cloud LB)
-- [ ] Set a restrictive `Content-Security-Policy` header
-- [ ] Use environment secrets (not config files) for all credentials
-- [ ] Review `users.json` permissions — should be readable only by the app user
-- [ ] Configure regular log rotation (session tokens logged in request logs)
-- [x] Session expiry — sessions persist to `sessions.json` with 30-day expiry enforced per request (implemented)
+- [x] Fail-closed auth (open mode requires explicit `SOLOLEDGER_OPEN_MODE=true`)
+- [x] Email verification required for new accounts
+- [x] Card required for paid plans (Stripe Checkout trial captures the card)
+- [x] Stripe webhook signature verification (no dev-mode bypass)
+- [x] Webhook idempotency (event-id dedup)
+- [x] Free-tier usage caps (invoices, receipt scans)
+- [x] Session expiry (30 days, per request) + password-reset session revocation
+- [x] CORS locked down (`CORS_ORIGINS`), docs disabled outside open mode
+- [x] Upload size caps (25 MB) + zip/PDF bomb guards
+- [x] Persistent volume for `SOLOLEDGER_DATA_DIR` in Docker (accounts survive rebuilds)
+- [ ] HTTPS (reverse proxy / Let's Encrypt)
+- [ ] Restrictive `Content-Security-Policy` (present in the SPA; verify after deploy)
+- [ ] Regular log rotation (do not log Bearer tokens)
+- [ ] Backups of `SOLOLEDGER_DATA_DIR` (off-site; `app/backup.py` covers ledger/config)

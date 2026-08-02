@@ -49,6 +49,9 @@ def server_base_url():
     env["API_CONFIG"] = str(project_root / "config.toml")
     # Auth is fail-closed; E2E runs against the local demo in open mode.
     env["SOLOLEDGER_OPEN_MODE"] = "true"
+    # Isolate the app DB (sessions/users/tenants) from the repo.
+    import tempfile as _tmp
+    env["SOLOLEDGER_DATA_DIR"] = _tmp.mkdtemp(prefix="sololedger-e2e-")
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app.api:app",

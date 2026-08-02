@@ -123,6 +123,7 @@ const navItems = [
   { path: '/health', label: 'Health', icon: '🔍' },
   { path: '/reports', label: 'Reports', icon: '📊' },
   { path: '/payroll', label: 'Payroll', icon: '💰' },
+  { path: '/upgrade', label: 'Upgrade', icon: '⭐' },
   { path: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 

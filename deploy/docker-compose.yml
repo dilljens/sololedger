@@ -33,12 +33,20 @@ services:
       - /opt/sololedger/config.toml:/app/config.toml:ro
       - output_data:/app/output
       - imports_data:/app/imports
+      # CRITICAL: app.db + tenant ledgers live under SOLOLEDGER_DATA_DIR —
+      # a named volume so accounts/sessions/ledgers survive rebuilds.
+      - sololedger_data:/data
     environment:
       - API_PORT=8100
       - API_CONFIG=/app/config.toml
+      # All user/tenant data (app.db, ledgers/) in the persistent volume
+      - SOLOLEDGER_DATA_DIR=/data
+      # Fail-closed: unauthenticated access is REJECTED unless this is set.
+      # Never set it in production.
+      - SOLOLEDGER_OPEN_MODE=false
+      - SOLOLEDGER_REQUIRE_EMAIL_VERIFY=true
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
-      - STRIPE_DEV_MODE=${STRIPE_DEV_MODE:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - RESEND_FROM=${RESEND_FROM:-SoloLedger <welcome@sololedger.ferrumeng.com>}
@@ -49,6 +57,8 @@ services:
       - TOGGL_API_TOKEN=${TOGGL_API_TOKEN:-}
       - NOTIFY_SMTP_PASSWORD=${NOTIFY_SMTP_PASSWORD:-}
       - SL_HOST_DOMAIN=${SL_HOST_DOMAIN:-sololedger.ferrumeng.com}
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+      - APP_URL=${APP_URL:-https://sololedger.ferrumeng.com}
 
   # ── PoolSplat 3D viewer + AI photo editor ────────────────────────
   poolsplat:
@@ -122,3 +132,4 @@ volumes:
   netdata_cache:
   caddy_data:
   caddy_config:
+  sololedger_data:

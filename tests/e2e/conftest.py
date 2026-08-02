@@ -40,6 +40,9 @@ def api_server(api_port):
     env["API_CONFIG"] = str(config_path)
     # Auth is fail-closed; E2E runs against the local demo in open mode.
     env["SOLOLEDGER_OPEN_MODE"] = "true"
+    # Isolate the app DB (sessions/users/tenants) from the repo.
+    import tempfile
+    env["SOLOLEDGER_DATA_DIR"] = tempfile.mkdtemp(prefix="sololedger-e2e-")
 
     import tempfile
     log_path = project_root / "tests" / "e2e" / "server.log"
