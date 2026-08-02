@@ -7,7 +7,7 @@ The goal is to catch the 5 categories of bugs we've been hitting:
 | Bug Type | Example | How to Catch |
 |----------|---------|-------------|
 | **Python crash** | `datetime.now()` instead of `datetime.datetime.now()` | `pytest` + local `uvicorn --reload` |
-| **JS runtime error** | Service worker caching POST requests | Local browser test + `eslint` |
+| **JS runtime error** | Service worker caching POST requests | Local browser test + `node --check web/js/**/*.js` (CI) |
 | **Auth timing** | API calls before session is ready | Browser test (incognito load) |
 | **API contract** | Endpoint returns wrong status code | `pytest tests/test_api.py` |
 | **Missing template** | Docker image missing ledger files | `bash bin/preflight.sh` |

@@ -23,6 +23,14 @@ jobs:
             echo "🚀 Deploying sololedger..."
             cd /opt/sololedger/deploy
             git pull origin main
+
+            # Pre-deploy health check on the VPS before switching traffic
+            if [ -f /opt/sololedger/bin/preflight.sh ]; then
+              bash /opt/sololedger/bin/preflight.sh
+            else
+              echo "⚠ preflight.sh not found — skipping preflight"
+            fi
+
             docker compose up -d --build
 
             # Wait for the API to actually come up before declaring success
