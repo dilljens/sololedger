@@ -45,7 +45,75 @@ def get_conn() -> sqlite3.Connection:
         conn.execute("PRAGMA busy_timeout=5000")
         _conn = conn
         migrate(conn)
+        _migrate_legacy_json(conn)
     return _conn
+
+
+def _migrate_legacy_json(conn: sqlite3.Connection):
+    """One-time import of the pre-SaaS JSON stores (users.json /
+    sessions.json / tenants.json) into the DB, if the DB is empty and the
+    legacy files exist. Lets existing self-hosted installs keep their
+    accounts and workspaces."""
+    from pathlib import Path
+    data_dir = Path(os.environ.get("SOLOLEDGER_DATA_DIR", str(Path(__file__).resolve().parent.parent)))
+
+    count = conn.execute("SELECT count(*) AS c FROM users").fetchone()["c"]
+    if count > 0:
+        return  # DB already populated
+
+    import json as _json
+
+    users_path = data_dir / "users.json"
+    tenants_path = data_dir / "tenants.json"
+    sessions_path = data_dir / "sessions.json"
+
+    users: dict = {}
+    tenants: dict = {}
+    sessions: dict = {}
+
+    for path, dest in ((users_path, users), (tenants_path, tenants), (sessions_path, sessions)):
+        if path.exists():
+            try:
+                data = _json.loads(path.read_text())
+                if isinstance(data, dict):
+                    dest.update(data)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    if not users and not tenants and not sessions:
+        return
+
+    with _write_lock:
+        with conn:
+            for email, u in users.items():
+                conn.execute(
+                    "INSERT OR IGNORE INTO users (email, password_hash, name, created, email_verified)"
+                    " VALUES (?, ?, ?, ?, 1)",
+                    (email.lower(), u.get("password_hash", "") or u.get("password", ""),
+                     u.get("name", ""), u.get("created", _now())),
+                )
+            for email, t in tenants.items():
+                conn.execute(
+                    "INSERT OR IGNORE INTO tenants (email, user_id, name, plan, status,"
+                    " stripe_customer_id, stripe_subscription_id, ledger_dir, created,"
+                    " trial_ends, onboarding_complete, plaid_access_token)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (email.lower(), t.get("user_id", ""), t.get("name", ""),
+                     t.get("plan", "free"), t.get("status", "active"),
+                     t.get("stripe_customer_id", ""), t.get("stripe_subscription_id", ""),
+                     t.get("ledger_dir", ""), t.get("created", _now()),
+                     t.get("trial_ends", ""), int(t.get("onboarding_complete", 0)),
+                     t.get("plaid_access_token", "")),
+                )
+            for token, s in sessions.items():
+                conn.execute(
+                    "INSERT OR IGNORE INTO sessions (token, email, name, picture, method, created, expires_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (token, s.get("email", "").lower(), s.get("name", ""), s.get("picture", ""),
+                     s.get("method", "local"), s.get("created", _now()),
+                     _add_iso(30) if s.get("created") else _add_iso(30)),
+                )
+    # Keep the legacy files (harmless); the DB is now authoritative.
 
 
 def migrate(conn: sqlite3.Connection):
@@ -198,7 +266,13 @@ def get_tenant(email: str) -> dict | None:
 
 def create_tenant_row(email: str, user_id: str, name: str, ledger_dir: str,
                       plan: str = "free", status: str = "pending",
-                      trial_days: int = 14) -> dict:
+                      trial_days: int = 0) -> dict:
+    """Insert a tenant row.
+
+    trial_days defaults to 0: a trial only starts when the tenant completes
+    Stripe Checkout (card collected). New signups get the free tier until
+    they subscribe — paid access requires email verification AND a card.
+    """
     conn = get_conn()
     email = email.lower()
     trial_ends = _add_iso(trial_days) if trial_days else ""

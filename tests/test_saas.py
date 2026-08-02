@@ -257,3 +257,22 @@ class TestDbSessions:
         # Deleted sessions vanish
         appdb.delete_session("db-tok")
         assert appdb.get_session("db-tok") is None
+
+
+class TestTrialOnlyViaBilling:
+    """New tenants get NO automatic trial — a trial requires a card on file
+    (granted by the Stripe checkout webhook), not mere signup."""
+
+    def test_new_tenant_has_no_trial(self, closed_client):
+        from app.api.deps import create_tenant, _tenant_effective_level
+        appdb.create_user("notrial@example.com", password_hash="x", name="NoTrial",
+                          email_verified=True)
+        create_tenant("notrial@example.com", "NoTrial")
+        tenant = appdb.get_tenant("notrial@example.com")
+        assert tenant["trial_ends"] == ""
+        assert _tenant_effective_level(tenant) == 0
+
+        appdb.create_session("notrial-tok", "notrial@example.com", name="NoTrial")
+        resp = closed_client.get(
+            "/api/v1/bank/accounts", headers={"Authorization": "Bearer notrial-tok"})
+        assert resp.status_code == 402, resp.text

@@ -36,4 +36,6 @@ RUN mkdir -p output/invoices imports
 
 EXPOSE 8100
 
-CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8100"]
+# Sessions/users/tenants live in SQLite (app.db) so multiple workers are safe.
+# UVICORN_WORKERS defaults to 1; scale horizontally per CPU with caution on small VMs.
+CMD ["sh", "-c", "uvicorn app.api:app --host 0.0.0.0 --port 8100 --workers ${UVICORN_WORKERS:-1}"]

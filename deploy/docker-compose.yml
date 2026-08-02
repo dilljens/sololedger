@@ -59,6 +59,7 @@ services:
       - SL_HOST_DOMAIN=${SL_HOST_DOMAIN:-sololedger.ferrumeng.com}
       - ADMIN_API_KEY=${ADMIN_API_KEY:-}
       - APP_URL=${APP_URL:-https://sololedger.ferrumeng.com}
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-1}
 
   # ── PoolSplat 3D viewer + AI photo editor ────────────────────────
   poolsplat:
