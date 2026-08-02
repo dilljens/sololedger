@@ -240,11 +240,7 @@ async def verify_email(token: str = Query(...)):
     if not token:
         return _err("Missing verification token", 400)
 
-    user = None
-    for u in appdb.all_users().values():
-        if u.get("verify_token") == token:
-            user = u
-            break
+    user = appdb.get_user_by_verify_token(token)
     if user is None:
         return _err("Invalid or expired verification token", 400)
 
@@ -384,11 +380,7 @@ async def reset_password(req: ResetPasswordRequest):
     if len(req.password) < 8:
         return _err("Password must be at least 8 characters", 400)
 
-    user = None
-    for u in appdb.all_users().values():
-        if u.get("reset_token") == req.token:
-            user = u
-            break
+    user = appdb.get_user_by_reset_token(req.token)
     if user is None:
         return _err("Invalid or expired reset token", 400)
 

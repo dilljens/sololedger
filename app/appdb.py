@@ -204,6 +204,20 @@ def all_users() -> dict[str, dict]:
     return {r["email"]: dict(r) for r in rows}
 
 
+def get_user_by_verify_token(token: str) -> dict | None:
+    row = get_conn().execute(
+        "SELECT * FROM users WHERE verify_token = ?", (token,)
+    ).fetchone()
+    return _row_to_dict(row)
+
+
+def get_user_by_reset_token(token: str) -> dict | None:
+    row = get_conn().execute(
+        "SELECT * FROM users WHERE reset_token = ?", (token,)
+    ).fetchone()
+    return _row_to_dict(row)
+
+
 # ── Sessions ──────────────────────────────────────────────────────────────
 
 def create_session(token: str, email: str, name: str = "", picture: str = "",

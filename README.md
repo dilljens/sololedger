@@ -115,6 +115,34 @@ Set up daily/weekly/monthly cron jobs:
 
 Hosted version available at [sololedger.ferrumeng.com](https://sololedger.ferrumeng.com). Includes API hosting, mobile web app, and automated daily syncs.
 
+### Deploy as a multi-tenant SaaS
+
+SoloLedger is a multi-tenant SaaS: each account gets an isolated workspace
+(Beancount ledger + metadata DB), gated by plan and billing status.
+
+1. **Set required env vars** (see `deploy/.env.example`): `STRIPE_SECRET_KEY`,
+   `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `ADMIN_API_KEY`,
+   `APP_URL`.
+2. **Register the Stripe webhook** at `https://<app>/api/v1/stripe-webhook`
+   with events: `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
+3. **Deploy with persistent data**: `SOLOLEDGER_DATA_DIR` must point at a
+   persistent volume — `deploy/docker-compose.yml` mounts `sololedger_data`
+   at `/data` so accounts and ledgers survive container rebuilds.
+
+**Tiers** (per market research): Free $0 (10 invoices, 5 receipt scans/mo),
+Professional $19/mo (bank sync, receipt OCR, all importers, tax estimates),
+Business $45/mo (reconciliation, exports). Paid plans start with a 14-day
+trial via Stripe Checkout, which collects the card up front.
+
+**Access gates**: email verification is required before a workspace is
+provisioned; a card is required before paid features unlock. Auth is
+fail-closed — unauthenticated access needs explicit `SOLOLEDGER_OPEN_MODE=true`
+(never set in production).
+
+See `docs/SECURITY.md` for the full security model and `deploy/` for the
+production compose stack.
+
 ## Built With
 
 - [Beancount](https://beancount.github.io/) — double-entry accounting engine
