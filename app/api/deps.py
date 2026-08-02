@@ -404,6 +404,79 @@ def require_plan(min_plan: str):
     return _check
 
 
+# ── Free-tier usage caps ──────────────────────────────────────────────
+# Free tenants get a monthly allowance on a few metered features (receipt
+# scans). Paid tenants are unlimited. Counters live in the tenant DB.
+
+FREE_RECEIPT_SCANS_PER_MONTH = 5
+FREE_MAX_INVOICES = 10
+
+
+def _tenant_db_for_current() -> Optional[object]:
+    """Resolve the current tenant's feature.db (or None in open mode)."""
+    tenant = _current_tenant.get()
+    if not tenant:
+        return None
+    try:
+        from ..db import get_db
+        return get_db(Path(tenant["ledger_dir"]))
+    except Exception:
+        return None
+
+
+def _usage_bucket(name: str, period: str) -> str:
+    return f"{name}:{period}"
+
+
+def usage_count(db, name: str, period: str) -> int:
+    """Current usage counter value for a bucket (0 if none)."""
+    try:
+        row = db.execute(
+            "SELECT count FROM usage_counts WHERE bucket = ?",
+            (_usage_bucket(name, period),),
+        ).fetchone()
+        return row["count"] if row else 0
+    except Exception:
+        return 0
+
+
+def increment_usage(db, name: str, period: str) -> int:
+    """Increment a usage counter; returns the new count."""
+    bucket = _usage_bucket(name, period)
+    try:
+        db.execute(
+            "INSERT INTO usage_counts (bucket, count) VALUES (?, 1) "
+            "ON CONFLICT(bucket) DO UPDATE SET count = count + 1",
+            (bucket,),
+        )
+        db.commit()
+        return usage_count(db, name, period)
+    except Exception:
+        return 0
+
+
+def enforce_free_cap(name: str, cap: int, db=None, detail: str = ""):
+    """Dependency-usable check: free tenants are capped, paid tenants free.
+
+    Raises 402 when a free tenant is at/over the cap. Returns True when
+    the request may proceed (no tenant / paid tenant / under cap).
+    """
+    tenant = _current_tenant.get()
+    if not tenant:
+        return True  # open mode / owner
+    if _tenant_effective_level(tenant) > 0:
+        return True  # paid or trial — unlimited
+    if db is None:
+        db = _tenant_db_for_current()
+    if db is None:
+        return True
+    now = datetime.datetime.now(datetime.timezone.utc)
+    period = now.strftime("%Y-%m")
+    if usage_count(db, name, period) >= cap:
+        raise HTTPException(status_code=402, detail=detail or f"Free plan limited to {cap} per month")
+    return True
+
+
 def check_auth(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):

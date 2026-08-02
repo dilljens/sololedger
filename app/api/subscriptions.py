@@ -1,20 +1,33 @@
-"""Subscription / SaaS routes."""
+"""Subscription / SaaS routes — Stripe checkout with trial + card capture,
+billing portal, and signature-verified webhooks with idempotent processing.
+
+Tier model (usage-first hybrid, per market research):
+  free          $0     — capped invoices/receipts, basic imports, tax estimates
+  professional  $19/mo — bank sync, receipt OCR, all importers, tax schedule-c
+  business      $45/mo — reconciliation, exports, multi-entity
+
+Signup requires email verification; paid access requires a card on file,
+which Stripe Checkout collects at trial start (trial_period_days) so the
+card is verified before any paid features are unlocked.
+"""
 import datetime
-import json
 import os
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from .deps import _current_tenant, _err, _load_tenants, _ok, _save_tenants, check_auth
+from .. import appdb
+from .deps import _current_tenant, _err, _ok, check_auth
 
 router = APIRouter(prefix="/api/v1")
 
 PLANS = {
     "free": {"name": "Free", "price_monthly": 0, "price_annual": 0},
-    "professional": {"name": "Professional", "price_monthly": 1500, "price_annual": 15000},
-    "business": {"name": "Business", "price_monthly": 2900, "price_annual": 29000},
+    "professional": {"name": "Professional", "price_monthly": 1900, "price_annual": 15000},  # $19/mo, $150/yr
+    "business": {"name": "Business", "price_monthly": 4500, "price_annual": 40000},           # $45/mo, $400/yr
 }
+
+TRIAL_DAYS = 14
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -47,7 +60,7 @@ async def subscription_status():
 
     trial_ends = tenant.get("trial_ends", "")
     trial_active = False
-    if trial_ends and tenant.get("plan") == "free":
+    if trial_ends:
         try:
             ends = datetime.datetime.fromisoformat(trial_ends)
             trial_active = ends > datetime.datetime.now(datetime.timezone.utc)
@@ -59,7 +72,7 @@ async def subscription_status():
         "status": tenant.get("status", "active"),
         "trial_ends": trial_ends,
         "trial_active": trial_active,
-        "trial_days_remaining": (ends - datetime.datetime.now(datetime.timezone.utc)).days if trial_active and trial_ends else 0,
+        "trial_days_remaining": (ends - datetime.datetime.now(datetime.timezone.utc)).days if trial_active else 0,
         "stripe_customer_id": bool(tenant.get("stripe_customer_id")),
         "stripe_subscription_id": tenant.get("stripe_subscription_id", ""),
         "email": tenant.get("email", ""),
@@ -68,6 +81,9 @@ async def subscription_status():
 
 @router.post("/subscription/create-checkout", dependencies=[Depends(check_auth)])
 async def create_subscription_checkout(req: CreateCheckoutRequest):
+    """Start a paid plan. Collects the card via Stripe Checkout and begins a
+    14-day trial (charged at trial end). Card capture verifies the payment
+    method before paid features unlock."""
     stripe_key = os.environ.get("STRIPE_SECRET_KEY", "")
     if not stripe_key:
         return _err("Stripe not configured. Set STRIPE_SECRET_KEY.", 503)
@@ -76,8 +92,8 @@ async def create_subscription_checkout(req: CreateCheckoutRequest):
     if not tenant:
         return _err("Not authenticated", 401)
 
-    if req.plan not in PLANS:
-        return _err(f"Unknown plan: {req.plan}", 400)
+    if req.plan not in PLANS or req.plan == "free":
+        return _err(f"Unknown or non-billable plan: {req.plan}", 400)
 
     plan_info = PLANS[req.plan]
     if req.interval not in ("month", "year"):
@@ -98,12 +114,20 @@ async def create_subscription_checkout(req: CreateCheckoutRequest):
 
         customer_id = tenant.get("stripe_customer_id", "")
         if not customer_id:
-            customer = stripe_lib.Customer.create(email=tenant["email"], metadata={"user_id": tenant["user_id"]})
+            customer = stripe_lib.Customer.create(
+                email=tenant["email"], metadata={"user_id": tenant["user_id"]}
+            )
             customer_id = customer.id
-            tenants = _load_tenants()
-            if tenant["email"] in tenants:
-                tenants[tenant["email"]]["stripe_customer_id"] = customer_id
-                _save_tenants(tenants)
+            appdb.update_tenant(tenant["email"], stripe_customer_id=customer_id)
+
+        # New subscribers get a trial that starts immediately; the card is
+        # collected up front and charged at trial end. Existing subscribers
+        # (already have a subscription) just get a fresh checkout without
+        # another trial.
+        already_subscribed = bool(tenant.get("stripe_subscription_id"))
+        checkout_kwargs = {}
+        if not already_subscribed:
+            checkout_kwargs["subscription_data"] = {"trial_period_days": TRIAL_DAYS}
 
         session = stripe_lib.checkout.Session.create(
             mode="subscription",
@@ -128,8 +152,9 @@ async def create_subscription_checkout(req: CreateCheckoutRequest):
             },
             success_url=base_url + req.success_url,
             cancel_url=base_url + req.cancel_url,
+            **checkout_kwargs,
         )
-        return _ok({"url": session.url, "session_id": session.id})
+        return _ok({"url": session.url, "session_id": session.id, "trial_days": None if already_subscribed else TRIAL_DAYS})
     except Exception as e:
         return _err(f"Stripe error: {e}", 500)
 
@@ -162,6 +187,9 @@ async def billing_portal():
         return _err(f"Stripe error: {e}", 500)
 
 
+# ── Webhook ───────────────────────────────────────────────────────────────
+
+
 @router.post("/stripe-webhook", include_in_schema=False)
 async def stripe_webhook(request: Request):
     payload = await request.body()
@@ -180,82 +208,89 @@ async def stripe_webhook(request: Request):
     except Exception:
         return _err("Invalid webhook payload", 400)
 
+    # Idempotency: Stripe retries delivery; a duplicate event id must not
+    # re-apply side effects.
+    if not appdb.mark_event_processed(event["id"], event["type"]):
+        return _ok({"received": True, "event": event["type"], "duplicate": True})
+
     event_type = event["type"]
     data = event["data"]["object"]
 
-    def _get_email(obj) -> str:
+    def _find_email(obj) -> str:
         return (
             obj.get("customer_details", {}).get("email", "")
             or obj.get("customer_email", "")
             or obj.get("email", "")
         )
 
-    def _update_tenant(email: str, updates: dict):
-        tenants = _load_tenants()
-        if email in tenants:
-            tenants[email].update(updates)
-            _save_tenants(tenants)
-
-    def _find_tenant_by_customer(customer_id: str) -> str | None:
-        tenants = _load_tenants()
-        for email, t in tenants.items():
-            if t.get("stripe_customer_id") == customer_id:
-                return email
-        return None
-
     if event_type == "checkout.session.completed":
-        email = _get_email(data)
+        email = _find_email(data)
         plan = data.get("metadata", {}).get("plan", "professional")
         sub_id = data.get("subscription", "")
         customer_id = data.get("customer", "")
 
-        if email:
-            _update_tenant(email, {
+        if not email:
+            customer_id = data.get("customer", "")
+            email = appdb.find_tenant_by_stripe_customer(customer_id) or ""
+
+        if email and appdb.get_tenant(email):
+            updates = {
                 "plan": plan,
                 "status": "active",
                 "stripe_subscription_id": sub_id or "",
                 "stripe_customer_id": customer_id or "",
-            })
+            }
+            # Trial end comes from the subscription object when available
+            if data.get("mode") == "subscription" and data.get("subscription"):
+                try:
+                    sub = stripe_lib.Subscription.retrieve(data["subscription"])
+                    if sub.trial_end:
+                        updates["trial_ends"] = datetime.datetime.fromtimestamp(
+                            sub.trial_end, datetime.timezone.utc
+                        ).isoformat()
+                except Exception:
+                    pass
+            appdb.update_tenant(email, **updates)
 
     elif event_type == "customer.subscription.updated":
         customer_id = data.get("customer", "")
         status = data.get("status", "active")
-        items = data.get("items", {}).get("data", [])
         metadata = data.get("metadata", {})
-        plan = metadata.get("plan", "professional")
+        plan = metadata.get("plan", "")
+        trial_end = data.get("trial_end")
 
-        email = _find_tenant_by_customer(customer_id)
+        email = appdb.find_tenant_by_stripe_customer(customer_id)
         if email:
-            _update_tenant(email, {
-                "plan": plan if status == "active" else "free",
+            updates = {
                 "status": status,
                 "stripe_subscription_id": data.get("id", ""),
-            })
+            }
+            if plan and plan in PLANS:
+                updates["plan"] = plan if status == "active" else "free"
+            if trial_end:
+                updates["trial_ends"] = datetime.datetime.fromtimestamp(
+                    trial_end, datetime.timezone.utc
+                ).isoformat()
+            appdb.update_tenant(email, **updates)
 
     elif event_type == "customer.subscription.deleted":
         customer_id = data.get("customer", "")
-        email = _find_tenant_by_customer(customer_id)
+        email = appdb.find_tenant_by_stripe_customer(customer_id)
         if email:
-            _update_tenant(email, {
-                "plan": "free",
-                "status": "canceled",
-                "stripe_subscription_id": "",
-            })
+            appdb.update_tenant(email, plan="free", status="canceled",
+                                stripe_subscription_id="", trial_ends="")
 
     elif event_type == "invoice.paid":
         customer_id = data.get("customer", "")
-        email = _find_tenant_by_customer(customer_id)
+        email = appdb.find_tenant_by_stripe_customer(customer_id)
         if email:
-            sub_id = data.get("subscription", "")
-            _update_tenant(email, {
-                "status": "active",
-                "stripe_subscription_id": sub_id or "",
-            })
+            appdb.update_tenant(email, status="active",
+                                stripe_subscription_id=data.get("subscription", "") or "")
 
     elif event_type == "invoice.payment_failed":
         customer_id = data.get("customer", "")
-        email = _find_tenant_by_customer(customer_id)
+        email = appdb.find_tenant_by_stripe_customer(customer_id)
         if email:
-            _update_tenant(email, {"status": "past_due"})
+            appdb.update_tenant(email, status="past_due")
 
     return _ok({"received": True, "event": event_type})

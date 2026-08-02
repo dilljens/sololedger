@@ -75,6 +75,7 @@ from . import retainers, notifications, receipts, reports, expenses
 from . import mileage, accounts, reconciliation, attention, onboarding
 from . import subscriptions, settings, payroll
 from . import amazon, coa, rules, imports as import_routes
+from . import admin
 
 app.include_router(health.router)
 app.include_router(auth.router)
@@ -99,6 +100,7 @@ app.include_router(amazon.router)
 app.include_router(import_routes.router)
 app.include_router(coa.router)
 app.include_router(rules.router)
+app.include_router(admin.router)
 
 
 if __name__ == "__main__":

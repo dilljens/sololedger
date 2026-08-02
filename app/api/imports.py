@@ -13,7 +13,7 @@ from fastapi import HTTPException, APIRouter, Depends, File, Form, UploadFile
 
 from ..db import get_db, get_tenant_db_path
 from ..ledger import Ledger
-from .deps import _read_upload, _err, _ok, check_auth, get_config
+from .deps import _read_upload, _err, _ok, check_auth, get_config, require_plan
 
 router = APIRouter(prefix="/api/v1/import")
 
@@ -91,7 +91,7 @@ async def preview_citi(file: UploadFile = File(...)):
         os.unlink(tmp_path)
 
 
-@router.post("/citi/import", dependencies=[Depends(check_auth)])
+@router.post("/citi/import", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def run_citi_import(
     file: UploadFile = File(...),
     account: str = Form("citi"),
@@ -149,7 +149,7 @@ async def preview_wave(file: UploadFile = File(...)):
         os.unlink(tmp_path)
 
 
-@router.post("/wave/import", dependencies=[Depends(check_auth)])
+@router.post("/wave/import", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def run_wave_import(
     file: UploadFile = File(...),
     dry_run: bool = Form(False),
@@ -201,7 +201,8 @@ async def file_statement(
             tmp_path = tmp.name
 
         from ..statements import file_statement as fs
-        result = fs(db, tmp_path, institution=institution, account_mask=account_mask, period=period)
+        result = fs(db, tmp_path, institution=institution, account_mask=account_mask,
+                    period=period, base_dir=cfg.project_root)
         return _ok(result)
     except HTTPException:
         raise

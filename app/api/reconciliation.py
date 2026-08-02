@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..ledger import Ledger
-from .deps import _err, _ok, _PROJECT_ROOT, check_auth, get_config
+from .deps import _err, _ok, _PROJECT_ROOT, check_auth, get_config, require_plan
 
 router = APIRouter(prefix="/api/v1")
 
@@ -21,7 +21,7 @@ class SetupRequest(BaseModel):
     email: str = ""
 
 
-@router.get("/reconciliation", dependencies=[Depends(check_auth)])
+@router.get("/reconciliation", dependencies=[Depends(check_auth), Depends(require_plan("business"))])
 async def get_reconciliation():
     try:
         cfg = get_config()

@@ -9,7 +9,9 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel
 
 from ..ledger import Ledger
-from .deps import _read_upload, _err, _ok, check_auth, get_config, require_plan
+from .deps import (_read_upload, _err, _ok, check_auth, get_config, require_plan,
+                   _tenant_db_for_current, enforce_free_cap, increment_usage,
+                   FREE_RECEIPT_SCANS_PER_MONTH)
 
 router = APIRouter(prefix="/api/v1")
 
@@ -20,15 +22,24 @@ class CategoryLearnRequest(BaseModel):
     correct: bool = False
 
 
-@router.post("/receipts/scan", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+@router.post("/receipts/scan", dependencies=[Depends(check_auth)])
 async def scan_receipt(
     file: UploadFile = File(...),
     preview: bool = Form(True),
 ):
+    """Scan a receipt. Free tier: 5 commits/month; paid: unlimited.
+
+    Preview scans don't count toward the cap (nothing is written).
+    """
     try:
         cfg = get_config()
     except Exception as e:
         return _err(f"Config error: {e}", 500)
+
+    # Free-tier cap applies only to committed (non-preview) scans
+    if not preview:
+        enforce_free_cap("receipt_scan", FREE_RECEIPT_SCANS_PER_MONTH,
+                         detail=f"Free plan limited to {FREE_RECEIPT_SCANS_PER_MONTH} receipt scans/month")
 
     from ..receipts import ReceiptScanner
 
@@ -42,6 +53,13 @@ async def scan_receipt(
     try:
         scanner = ReceiptScanner(cfg)
         result = scanner.process_file(tmp_path, preview=preview)
+
+        # Only count committed scans (preview is free)
+        if result.get("success") and result.get("appended") and not preview:
+            db = _tenant_db_for_current()
+            if db is not None:
+                import datetime as _dt
+                increment_usage(db, "receipt_scan", _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m"))
 
         return _ok({
             "success": result.get("success", False),
@@ -88,7 +106,7 @@ async def category_learn(req: CategoryLearnRequest):
         return _err(str(e), 500)
 
 
-@router.get("/receipts/match", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+@router.get("/receipts/match", dependencies=[Depends(check_auth)])
 async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
     try:
         cfg = get_config()
@@ -120,7 +138,7 @@ async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
     return _ok({"matches": txns[:5], "receipt_amount": amount})
 
 
-@router.get("/receipts/list", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
+@router.get("/receipts/list", dependencies=[Depends(check_auth)])
 async def api_receipt_list(year: Optional[str] = Query(None)):
     try:
         cfg = get_config()

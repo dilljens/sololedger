@@ -75,6 +75,7 @@ def file_statement(
     institution: Optional[str] = None,
     account_mask: Optional[str] = None,
     period: Optional[str] = None,
+    base_dir: Optional[Path] = None,
 ) -> dict:
     """File a PDF statement to the canonical location and record metadata.
 
@@ -84,6 +85,9 @@ def file_statement(
         institution: Override institution name (auto-detected if None)
         account_mask: Account mask (last 4 digits)
         period: Period string (e.g., "2026-01")
+        base_dir: Tenant base dir for the documents/ tree. MUST be provided
+            for multi-tenant deployments — falling back to the process CWD
+            would share one documents/ tree across every tenant.
 
     Returns:
         dict with success, filed_path, institution, metadata
@@ -112,8 +116,10 @@ def file_statement(
     period_str = period or (end_date[:7] if end_date and len(end_date) >= 7 else "unknown")
 
     # Build canonical path: documents/statements/{institution}/{mask or period}/{filename}
-    # Every path component is sanitized against traversal.
-    docs_root = (Path.cwd() / "documents" / "statements").resolve()
+    # Every path component is sanitized against traversal, and the tree is
+    # rooted at the tenant's base dir (never the process CWD).
+    docs_root = (Path(base_dir) / "documents" / "statements").resolve() if base_dir else \
+        (Path.cwd() / "documents" / "statements").resolve()
     docs_dir = docs_root / _safe_component(detected_institution, "unknown")
     if account_mask:
         docs_dir = docs_dir / _safe_component(account_mask, "unknown")

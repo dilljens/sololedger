@@ -35,11 +35,13 @@ router = APIRouter(prefix="/api/v1")
 
 # Email verification is required when the operator configures a mail
 # transport (Resend) or explicitly opts in. Without either (local dev /
-# tests) accounts are verified automatically so flows stay usable.
-_EMAIL_VERIFY_REQUIRED = (
-    os.environ.get("SOLOLEDGER_REQUIRE_EMAIL_VERIFY", "").lower() in ("1", "true", "yes")
-    or bool(os.environ.get("RESEND_API_KEY"))
-)
+# tests) accounts are verified automatically so flows stay usable. Read
+# lazily so it can be toggled at runtime / in tests.
+def _email_verify_required() -> bool:
+    return (
+        os.environ.get("SOLOLEDGER_REQUIRE_EMAIL_VERIFY", "").lower() in ("1", "true", "yes")
+        or bool(os.environ.get("RESEND_API_KEY"))
+    )
 
 
 class GoogleAuthRequest(BaseModel):
@@ -195,16 +197,17 @@ async def auth_signup(req: SignupRequest, request: Request):
     if appdb.get_user(email):
         return _err("An account with this email already exists", 409)
 
-    verify_token = _new_token() if _EMAIL_VERIFY_REQUIRED else ""
+    verify_required = _email_verify_required()
+    verify_token = _new_token() if verify_required else ""
     appdb.create_user(
         email=email,
         password_hash=_hash_password(req.password),
         name=name,
-        email_verified=not _EMAIL_VERIFY_REQUIRED,
+        email_verified=not verify_required,
         verify_token=verify_token,
     )
 
-    if _EMAIL_VERIFY_REQUIRED:
+    if verify_required:
         sent = _send_email(
             email,
             "Verify your SoloLedger email",

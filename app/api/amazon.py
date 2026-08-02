@@ -7,12 +7,12 @@ from fastapi import HTTPException, APIRouter, Depends, File, Form, UploadFile
 from ..db import get_db, get_tenant_db_path
 from ..importers.amazon import import_amazon_csv, preview_amazon_csv
 from ..ledger import Ledger
-from .deps import _read_upload, _err, _ok, check_auth, get_config
+from .deps import _read_upload, _err, _ok, check_auth, get_config, require_plan
 
 router = APIRouter(prefix="/api/v1/import/amazon")
 
 
-@router.post("/preview", dependencies=[Depends(check_auth)])
+@router.post("/preview", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def preview_import(file: UploadFile = File(...)):
     """Preview an Amazon order history CSV/zip without importing."""
     try:
@@ -32,7 +32,7 @@ async def preview_import(file: UploadFile = File(...)):
         Path(tmp_path).unlink(missing_ok=True)
 
 
-@router.post("/import", dependencies=[Depends(check_auth)])
+@router.post("/import", dependencies=[Depends(check_auth), Depends(require_plan("professional"))])
 async def run_import(
     file: UploadFile = File(...),
     card_filter: str = Form(""),

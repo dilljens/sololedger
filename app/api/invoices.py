@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from ..invoice import Invoicer
 from ..ledger import Ledger
-from .deps import _err, _ok, check_auth, get_config
+from .deps import _err, _ok, _current_tenant, _tenant_effective_level, check_auth, get_config, FREE_MAX_INVOICES
 from .shared import _decimal_to_float
 
 router = APIRouter(prefix="/api/v1")
@@ -41,6 +41,12 @@ async def create_invoice(req: InvoiceCreateRequest):
         invoicer = Invoicer(cfg, ledger)
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
+
+    # Free-tier cap: max FREE_MAX_INVOICES total on the free plan
+    tenant = _current_tenant.get()
+    if tenant and _tenant_effective_level(tenant) == 0:
+        if len(invoicer.list_invoices()) >= FREE_MAX_INVOICES:
+            return _err(f"Free plan limited to {FREE_MAX_INVOICES} invoices — upgrade to continue", 402)
 
     inv_date = datetime.date.fromisoformat(req.date) if req.date else datetime.date.today()
 
