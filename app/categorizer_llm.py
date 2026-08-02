@@ -39,13 +39,21 @@ from .config import Config
 
 # ── Configuration ──────────────────────────────────────────────────────────
 
-# Which LLM backends to try, in order
-# Set via env var or app config
-LLM_BACKEND = os.environ.get("SL_LLM_BACKEND", "")  # "ollama", "openai", "anthropic"
-LLM_MODEL = os.environ.get("SL_LLM_MODEL", "gemma3:1b")
-LLM_API_KEY = os.environ.get("SL_LLM_API_KEY", "")
-LLM_API_URL = os.environ.get("SL_LLM_API_URL", "http://localhost:11434")  # Ollama default
-LLM_TIMEOUT = int(os.environ.get("SL_LLM_TIMEOUT", "30"))
+# Which LLM backends to try, in order — read lazily so env changes (and
+# tests) take effect instead of being frozen at import time.
+def _env(key: str, default: str = "") -> str:
+    return os.environ.get(key, default)
+
+
+def llm_config() -> dict:
+    """Read LLM configuration from the environment on each call."""
+    return {
+        "backend": _env("SL_LLM_BACKEND", ""),  # "ollama", "openai", "anthropic"
+        "model": _env("SL_LLM_MODEL", "gemma3:1b"),
+        "api_key": _env("SL_LLM_API_KEY", ""),
+        "api_url": _env("SL_LLM_API_URL", "http://localhost:11434"),  # Ollama default
+        "timeout": int(_env("SL_LLM_TIMEOUT", "30")),
+    }
 
 
 # ── Prompt Template ────────────────────────────────────────────────────────
@@ -108,11 +116,12 @@ def build_prompt(
 # ── Backend Implementations ────────────────────────────────────────────────
 
 
-def _call_ollama(model: str, prompt: str, system: str, timeout: int) -> Optional[dict]:
+def _call_ollama(model: str, prompt: str, system: str, timeout: int,
+                 api_url: str = "http://localhost:11434") -> Optional[dict]:
     """Call a local Ollama model."""
     try:
         import requests
-        url = f"{LLM_API_URL}/api/chat"
+        url = f"{api_url}/api/chat"
         payload = {
             "model": model,
             "messages": [
@@ -135,13 +144,19 @@ def _call_ollama(model: str, prompt: str, system: str, timeout: int) -> Optional
         return None
 
 
-def _call_openai(model: str, prompt: str, system: str, timeout: int) -> Optional[dict]:
-    """Call an OpenAI-compatible API."""
+def _call_openai(model: str, prompt: str, system: str, timeout: int,
+                 api_key: str = "", api_url: str = "") -> Optional[dict]:
+    """Call an OpenAI-compatible API.
+
+    api_url defaults to the OpenAI endpoint; the old code silently posted
+    to the Ollama URL when SL_LLM_API_URL was unset, so OpenAI calls
+    always failed against a local Ollama instance.
+    """
     try:
         import requests
-        url = f"{LLM_API_URL}/v1/chat/completions"
+        url = (api_url or "https://api.openai.com/v1") + "/chat/completions"
         headers = {
-            "Authorization": f"Bearer {LLM_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
         payload = {
@@ -165,13 +180,14 @@ def _call_openai(model: str, prompt: str, system: str, timeout: int) -> Optional
         return None
 
 
-def _call_anthropic(model: str, prompt: str, system: str, timeout: int) -> Optional[dict]:
+def _call_anthropic(model: str, prompt: str, system: str, timeout: int,
+                  api_key: str = "") -> Optional[dict]:
     """Call Anthropic Claude API."""
     try:
         import requests
         url = "https://api.anthropic.com/v1/messages"
         headers = {
-            "x-api-key": LLM_API_KEY,
+            "x-api-key": api_key,
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         }
@@ -241,9 +257,23 @@ class LlmCategorizer:
 
     def __init__(self, cfg: Optional[Config] = None):
         self.cfg = cfg
-        self._backend = LLM_BACKEND
-        self._model = LLM_MODEL
+        self._backend = ""
+        self._model = ""
+        self._api_key = ""
+        self._api_url = ""
+        self._timeout = 30
         self._available: Optional[bool] = None
+        self._reload_config()
+
+    def _reload_config(self):
+        """Read LLM config from the environment (lazy — not frozen at import)."""
+        cfg = llm_config()
+        self._backend = cfg["backend"]
+        self._model = cfg["model"]
+        self._api_key = cfg["api_key"]
+        self._api_url = cfg["api_url"]
+        self._timeout = cfg["timeout"]
+        self._available = None
 
     @property
     def available(self) -> bool:
@@ -260,7 +290,7 @@ class LlmCategorizer:
         if self._backend == "ollama":
             self._available = self._check_ollama()
         elif self._backend in ("openai", "anthropic"):
-            self._available = bool(LLM_API_KEY)
+            self._available = bool(self._api_key)
         else:
             self._available = False
 
@@ -270,7 +300,7 @@ class LlmCategorizer:
         """Check if Ollama is running and has the model."""
         try:
             import requests
-            resp = requests.get(f"{LLM_API_URL}/api/tags", timeout=5)
+            resp = requests.get(f"{self._api_url}/api/tags", timeout=5)
             if resp.status_code != 200:
                 return False
             models = resp.json().get("models", [])
@@ -312,11 +342,11 @@ class LlmCategorizer:
 
         result = None
         if self._backend == "ollama":
-            result = _call_ollama(self._model, prompt, SYSTEM_PROMPT, LLM_TIMEOUT)
+            result = _call_ollama(self._model, prompt, SYSTEM_PROMPT, self._timeout, self._api_url)
         elif self._backend == "openai":
-            result = _call_openai(self._model, prompt, SYSTEM_PROMPT, LLM_TIMEOUT)
+            result = _call_openai(self._model, prompt, SYSTEM_PROMPT, self._timeout, self._api_key, self._api_url)
         elif self._backend == "anthropic":
-            result = _call_anthropic(self._model, prompt, SYSTEM_PROMPT, LLM_TIMEOUT)
+            result = _call_anthropic(self._model, prompt, SYSTEM_PROMPT, self._timeout, self._api_key)
 
         if result and "account" in result:
             result["model"] = self._model

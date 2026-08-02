@@ -59,7 +59,11 @@ class Trip:
 
     def __post_init__(self):
         if not self.id:
-            self.id = f"trip_{self.date}_{abs(hash(self.date + self.purpose + str(self.miles)) % 1000000)}"
+            # Deterministic across processes: Python's built-in hash() is
+            # randomized per process, which made trip ids change on restart.
+            import hashlib
+            key = f"{self.date}|{self.purpose}|{self.miles}"
+            self.id = f"trip_{hashlib.sha256(key.encode()).hexdigest()[:12]}"
 
     @property
     def deduction(self) -> Decimal:

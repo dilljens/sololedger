@@ -159,19 +159,32 @@ class Reconciliation:
         return None
 
     def _log_completion(self, date: datetime.date, account: str, balance: Decimal):
-        """Record a completed reconciliation."""
+        """Record a completed reconciliation (atomic write, no lost updates)."""
         import json
+        import os
+        import threading
         entry = {
             "date": date.isoformat(),
             "account": account,
             "balance": float(balance),
         }
-        if self._log_path.exists():
-            data = json.loads(self._log_path.read_text())
-        else:
-            data = []
-        data.append(entry)
-        self._log_path.write_text(json.dumps(data, indent=2))
+        # Module-level lock so concurrent reconciliations can't corrupt the log
+        lock = getattr(Reconciliation, "_log_lock", None)
+        if lock is None:
+            Reconciliation._log_lock = threading.Lock()
+            lock = Reconciliation._log_lock
+        with lock:
+            if self._log_path.exists():
+                try:
+                    data = json.loads(self._log_path.read_text())
+                except (json.JSONDecodeError, OSError):
+                    data = []
+            else:
+                data = []
+            data.append(entry)
+            tmp = self._log_path.with_suffix(self._log_path.suffix + ".tmp")
+            tmp.write_text(json.dumps(data, indent=2))
+            os.replace(tmp, self._log_path)
 
     def history(self) -> list[dict]:
         """List all completed reconciliations."""

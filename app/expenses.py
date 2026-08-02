@@ -54,16 +54,20 @@ class ExpenseImporter:
 
         imported = []
         skipped = 0
+        warnings = 0
         for row in rows:
             raw_date = row[date_col]
             raw_desc = row[desc_col]
             raw_amount = row[amount_col]
 
             date = self._parse_date(raw_date)
+            if date is None:
+                warnings += 1
+                continue
             desc = raw_desc.strip()
             amount = self._parse_amount(raw_amount)
-
             if amount == 0:
+                warnings += 1
                 continue
 
             # Determine if income or expense
@@ -133,6 +137,8 @@ class ExpenseImporter:
 
         if skipped:
             print(f"⚠  Skipped {skipped} already-imported transaction(s)")
+        if warnings:
+            print(f"⚠  {warnings} row(s) skipped: unparseable date or amount")
         return imported
 
     def _detect_columns(self, columns) -> tuple[str, str, str]:
@@ -161,8 +167,12 @@ class ExpenseImporter:
 
         return date_col, description_col, amount_col
 
-    def _parse_date(self, raw: str) -> datetime.date:
-        """Try common date formats."""
+    def _parse_date(self, raw: str) -> Optional[datetime.date]:
+        """Try common date formats. Returns None if unparseable.
+
+        (Previously fell back to 'today' silently, mis-dating transactions
+        with no warning — the caller counts None as a skipped row.)
+        """
         raw = raw.strip()
         formats = [
             "%Y-%m-%d",
@@ -178,9 +188,7 @@ class ExpenseImporter:
                 return datetime.datetime.strptime(raw, fmt).date()
             except ValueError:
                 continue
-        # Fallback: use today
-        print(f"⚠  Could not parse date '{raw}', using today.")
-        return datetime.date.today()
+        return None
 
     def _parse_amount(self, raw: str) -> Decimal:
         """Parse dollar amount from string.

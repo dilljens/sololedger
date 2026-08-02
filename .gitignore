@@ -49,6 +49,7 @@ ledger/feature.db
 ledger/transactions.beancount
 data/
 tests/e2e/server.log
+*.tmp
 
 # Node / Vue
 web/node_modules/

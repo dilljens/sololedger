@@ -4,10 +4,20 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Interactive docs (OpenAPI schema) expose every endpoint to anonymous
+# callers. They're enabled in explicit open mode and local dev, disabled in
+# authenticated deployments.
+_docs_enabled = os.environ.get("SOLOLEDGER_DOCS", "").lower() in ("1", "true", "yes") or \
+    os.environ.get("SOLOLEDGER_OPEN_MODE", "").lower() in ("1", "true", "yes") or \
+    os.environ.get("ENV", "") == "development"
+
 app = FastAPI(
     title="SoloLedger API",
     description="Self-hosted accounting, invoicing, and tax API for your consulting LLC.",
     version="0.4.0",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
 )
 
 # CORS is locked down: same-origin by default (the web UI is served from
