@@ -3,6 +3,7 @@ import datetime
 
 from fastapi import APIRouter, Depends
 
+from .. import appdb
 from ..ledger import Ledger
 from .deps import (
     check_auth,
@@ -10,7 +11,6 @@ from .deps import (
     _err,
     _ok,
     _api_keys_env,
-    _sessions,
     GOOGLE_CLIENT_ID,
 )
 from .shared import _decimal_to_float
@@ -45,7 +45,7 @@ async def public_status():
         return _ok({
             "needs_setup": False,
             "has_data": has_data,
-            "has_auth": bool(_api_keys_env or GOOGLE_CLIENT_ID or _sessions),
+            "has_auth": bool(_api_keys_env or GOOGLE_CLIENT_ID or appdb.get_conn().execute("SELECT 1 FROM users LIMIT 1").fetchone()),
             "auth_methods": {
                 "local": True,
                 "google": bool(GOOGLE_CLIENT_ID),

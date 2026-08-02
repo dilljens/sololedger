@@ -62,35 +62,32 @@ class TestFailClosedAuth:
         )
         assert resp.status_code == 403, resp.text
 
-    def test_expired_session_rejected(self, closed_client, monkeypatch):
-        """A session older than 30 days must not authenticate."""
-        stale = {
-            "stale-token": {
-                "email": "old@example.com",
-                "created": "2020-01-01T00:00:00+00:00",
-            }
-        }
-        monkeypatch.setattr(deps, "_sessions", stale)
+    def test_expired_session_rejected(self, closed_client):
+        """A session whose expiry is in the past must not authenticate."""
+        from app import appdb
+        if not appdb.get_user("old@example.com"):
+            appdb.create_user("old@example.com", password_hash="x", name="Old")
+        appdb.create_session("stale-token", email="old@example.com",
+                             name="Old", method="local", ttl_days=-1)
         resp = closed_client.get(
             "/api/v1/accounts", headers={"Authorization": "Bearer stale-token"}
         )
         assert resp.status_code == 403, resp.text
 
-    def test_fresh_session_authenticates(self, closed_client, monkeypatch):
+    def test_fresh_session_authenticates(self, closed_client):
         """A current session for the owner's email authenticates."""
-        fresh = {
-            "fresh-token": {
-                "email": "test@testllc.com",  # isolated config's business email
-                "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            }
-        }
-        monkeypatch.setattr(deps, "_sessions", fresh)
+        from app import appdb
+        # isolated config's business email (owner) — no tenant needed
+        if not appdb.get_user("test@testllc.com"):
+            appdb.create_user("test@testllc.com", password_hash="x", name="Test")
+        appdb.create_session("fresh-token", email="test@testllc.com", name="Test")
         resp = closed_client.get(
             "/api/v1/accounts", headers={"Authorization": "Bearer fresh-token"}
         )
         assert resp.status_code == 200, resp.text
 
     def test_api_key_authenticates(self, closed_client, monkeypatch):
+        from app.api import deps
         monkeypatch.setattr(deps, "_valid_api_keys", ["test-key-123"])
         monkeypatch.setattr(deps, "_api_keys_env", "test-key-123")
         resp = closed_client.get(

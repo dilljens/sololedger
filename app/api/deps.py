@@ -2,7 +2,6 @@
 import contextvars
 import datetime
 import hashlib
-import json
 import os
 import secrets
 import shutil
@@ -16,6 +15,7 @@ from fastapi import HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+from .. import appdb
 from ..config import Config
 
 # ── Data paths (always relative to project root, not CWD) ───
@@ -30,57 +30,6 @@ _DATA_DIR = Path(os.environ.get("SOLOLEDGER_DATA_DIR", str(_PROJECT_ROOT)))
 security = HTTPBearer(auto_error=False)
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
-
-_SESSIONS_PATH = _DATA_DIR / "sessions.json"
-
-_sessions: dict[str, dict] = {}
-
-# Serialize all JSON-store reads-modify-writes so concurrent requests
-# (logins, signups, webhooks) can't lose updates or corrupt the file.
-_json_lock = threading.RLock()
-
-
-def _atomic_write_json(path: Path, data: dict):
-    """Write a JSON dict atomically (temp file + rename) under a lock."""
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2))
-    os.replace(tmp, path)
-
-
-def _load_sessions() -> dict[str, dict]:
-    """Load sessions from disk. Called once at module init."""
-    if _SESSIONS_PATH.exists():
-        try:
-            data: dict = json.loads(_SESSIONS_PATH.read_text())
-            # Only keep sessions under 30 days old
-            now = datetime.datetime.now(datetime.timezone.utc)
-            cutoff = now - datetime.timedelta(days=30)
-            fresh = {}
-            for token, info in data.items():
-                created = info.get("created", "")
-                if created:
-                    try:
-                        ct = datetime.datetime.fromisoformat(created)
-                        if ct < cutoff:
-                            continue  # expired
-                    except (ValueError, TypeError):
-                        pass
-                fresh[token] = info
-            return fresh
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
-
-
-def _save_sessions():
-    """Persist sessions to disk (atomic, locked)."""
-    with _json_lock:
-        _atomic_write_json(_SESSIONS_PATH, _sessions)
-
-
-# Load persisted sessions on startup
-_sessions = _load_sessions()
 
 # ── Auth posture ─────────────────────────────────────────────────
 # Auth is FAIL-CLOSED: an unauthenticated request is rejected unless the
@@ -99,13 +48,14 @@ def _is_open_mode() -> bool:
 def _session_valid(token: str) -> bool:
     """A token is valid only if it exists and is younger than _SESSION_MAX_AGE.
 
-    Enforced on every request (not just at module load), so expired or
-    stolen tokens stop working even on long-running servers.
+    Backed by the app database (multi-worker safe) and enforced on every
+    request, so expired or stolen tokens stop working even on long-running
+    servers.
     """
-    info = _sessions.get(token)
-    if not info:
+    session = appdb.get_session(token)
+    if session is None:
         return False
-    created = info.get("created", "")
+    created = session.get("created", "")
     try:
         created_dt = datetime.datetime.fromisoformat(created)
     except (ValueError, TypeError):
@@ -179,22 +129,33 @@ _api_keys_env = os.environ.get("API_KEYS", "")
 _valid_api_keys = [k.strip() for k in _api_keys_env.split(",") if k.strip()] if _api_keys_env else []
 
 # ── Built-in user store (email/password) ────────────────────
+# DB-backed (app.db) — the old users.json is replaced. Kept names match the
+# previous dict interface so route modules don't change.
 
-_USERS_PATH = _DATA_DIR / "users.json"
+_json_lock = threading.RLock()  # kept for compat; DB has its own write lock
 
 
 def _load_users() -> dict:
-    if _USERS_PATH.exists():
-        try:
-            return json.loads(_USERS_PATH.read_text())
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
+    """All users as {email: user_dict}."""
+    return appdb.all_users()
 
 
 def _save_users(users: dict):
+    """Replace all users with the given dict (transactional)."""
+    conn = appdb.get_conn()
     with _json_lock:
-        _atomic_write_json(_USERS_PATH, users)
+        with conn:
+            conn.execute("DELETE FROM users")
+            for email, u in users.items():
+                conn.execute(
+                    "INSERT INTO users (email, password_hash, name, created, email_verified,"
+                    " verify_token, verify_token_expires, reset_token, reset_token_expires)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (email.lower(), u.get("password_hash", ""), u.get("name", ""),
+                     u.get("created", ""), int(u.get("email_verified", 0)),
+                     u.get("verify_token", ""), u.get("verify_token_expires", ""),
+                     u.get("reset_token", ""), u.get("reset_token_expires", "")),
+                )
 
 
 def _hash_password(password: str) -> str:
@@ -216,21 +177,31 @@ def _verify_password(password: str, stored: str) -> bool:
 
 _current_tenant: contextvars.ContextVar[dict | None] = contextvars.ContextVar("current_tenant", default=None)
 
-_TENANTS_PATH = _DATA_DIR / "tenants.json"
-
 
 def _load_tenants() -> dict:
-    if _TENANTS_PATH.exists():
-        try:
-            return json.loads(_TENANTS_PATH.read_text())
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
+    """All tenants as {email: tenant_dict}."""
+    return appdb.all_tenants()
 
 
 def _save_tenants(tenants: dict):
+    """Replace all tenants with the given dict (transactional)."""
+    conn = appdb.get_conn()
     with _json_lock:
-        _atomic_write_json(_TENANTS_PATH, tenants)
+        with conn:
+            conn.execute("DELETE FROM tenants")
+            for email, t in tenants.items():
+                conn.execute(
+                    "INSERT INTO tenants (email, user_id, name, plan, status,"
+                    " stripe_customer_id, stripe_subscription_id, ledger_dir, created,"
+                    " trial_ends, onboarding_complete, plaid_access_token)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (email.lower(), t.get("user_id", ""), t.get("name", ""),
+                     t.get("plan", "free"), t.get("status", "pending"),
+                     t.get("stripe_customer_id", ""), t.get("stripe_subscription_id", ""),
+                     t.get("ledger_dir", ""), t.get("created", ""),
+                     t.get("trial_ends", ""), int(t.get("onboarding_complete", 0)),
+                     t.get("plaid_access_token", "")),
+                )
 
 
 def _tenant_dir(user_id: str) -> Path:
@@ -246,58 +217,45 @@ def _generate_tenant_config(email: str, name: str) -> str:
 def create_tenant(email: str, name: str = "") -> dict:
     """Create a new tenant with an isolated ledger directory.
 
-    Held under the JSON-store lock so two concurrent signups with the same
-    email can't race (double user_id, orphan dirs, lost update).
+    Idempotent (returns the existing tenant). The tenant row lives in
+    app.db; the ledger files in <DATA_DIR>/ledgers/<user_id>/.
     """
-    with _json_lock:
-        tenants = _load_tenants()
-        if email in tenants:
-            return tenants[email]
+    existing = appdb.get_tenant(email)
+    if existing:
+        return existing
 
-        user_id = secrets.token_hex(16)
-        tdir = _tenant_dir(user_id)
-        tdir.mkdir(parents=True, exist_ok=True)
+    user_id = secrets.token_hex(16)
+    tdir = _tenant_dir(user_id)
+    tdir.mkdir(parents=True, exist_ok=True)
 
-        # Copy template ledger
-        template_dir = _PROJECT_ROOT / "ledger"
-        if template_dir.exists():
-            for fname in ["accounts.beancount", "transactions.beancount"]:
-                src = template_dir / fname
-                if src.exists():
-                    shutil.copy2(src, tdir / fname)
+    # Copy template ledger
+    template_dir = _PROJECT_ROOT / "ledger"
+    if template_dir.exists():
+        for fname in ["accounts.beancount", "transactions.beancount"]:
+            src = template_dir / fname
+            if src.exists():
+                shutil.copy2(src, tdir / fname)
 
-        (tdir / "main.beancount").write_text(
-            f'include "accounts.beancount"\ninclude "transactions.beancount"\n'
-        )
+    (tdir / "main.beancount").write_text(
+        f'include "accounts.beancount"\ninclude "transactions.beancount"\n'
+    )
 
-        display_name = name or email.split("@")[0]
-        config_toml = _generate_tenant_config(email, display_name)
-        (tdir / "config.toml").write_text(config_toml.strip())
+    display_name = name or email.split("@")[0]
+    config_toml = _generate_tenant_config(email, display_name)
+    (tdir / "config.toml").write_text(config_toml.strip())
 
-        trial_end = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=14)
-        tenant = {
-            "user_id": user_id,
-            "email": email,
-            "name": display_name,
-            "plan": "free",
-            "status": "active",
-            "stripe_customer_id": "",
-            "stripe_subscription_id": "",
-            "ledger_dir": str(tdir),
-            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "trial_ends": trial_end.isoformat(),
-            "onboarding_complete": True,  # template has sample data, skip onboarding
-            "plaid_access_token": "",
-        }
-        tenants[email] = tenant
-        _save_tenants(tenants)
-        return tenant
+    appdb.create_tenant_row(
+        email=email, user_id=user_id, name=display_name,
+        ledger_dir=str(tdir), plan="free", status="pending",
+    )
+    return appdb.get_tenant(email)
 
 
 def resolve_email_from_token(token: str) -> Optional[str]:
     """Extract user email from any token (session, API key)."""
-    if token in _sessions and _session_valid(token):
-        return _sessions[token].get("email", "")
+    session = appdb.get_session(token)
+    if session:
+        return session.get("email", "")
     if _valid_api_keys and token in _valid_api_keys:
         return "api-key-user"
     return None
@@ -310,19 +268,20 @@ async def tenant_middleware(request: Request, call_next):
     """Resolve tenant from auth token or session for the current request.
 
     Sets _current_tenant and _current_email for use by get_config(),
-    require_plan(), and the email-based tenant guards.
+    require_plan(), and the email-based tenant guards. Reads the session
+    from app.db so sessions work across uvicorn workers.
     """
-    from app.api.deps import _current_tenant, _current_email, _load_tenants, _sessions, _valid_api_keys, _session_valid
+    from app.api.deps import _current_tenant, _current_email, _valid_api_keys
 
     tenant = None
     email = None
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        if _sessions and token in _sessions and _session_valid(token):
-            email = _sessions[token].get("email", "")
-            tenants = _load_tenants()
-            tenant = tenants.get(email)
+        session = appdb.get_session(token)
+        if session:
+            email = session.get("email", "")
+            tenant = appdb.get_tenant(email)
         elif _valid_api_keys and token in _valid_api_keys:
             pass  # Global API key — no specific tenant
     _current_tenant.set(tenant)
@@ -385,6 +344,9 @@ def _is_owner_email(email: str) -> bool:
         return False
 
 
+PLAN_ORDER = {"free": 0, "professional": 1, "business": 2}
+
+
 def get_plan() -> str:
     """Get the plan name for the current tenant. 'free' if no tenant."""
     tenant = _current_tenant.get()
@@ -393,49 +355,51 @@ def get_plan() -> str:
     return "free"
 
 
+def _tenant_effective_level(tenant: dict) -> int:
+    """Effective plan level for a tenant, considering status and trial.
+
+    - 'active' status: full plan level
+    - an active trial grants professional level
+    - 'past_due' / 'canceled' / 'pending': paid levels revoked (free only)
+    """
+    plan = tenant.get("plan", "free")
+    status = tenant.get("status", "active")
+    level = PLAN_ORDER.get(plan, 0)
+
+    if status in ("past_due", "canceled", "suspended"):
+        return 0  # billing problem → paid features off
+
+    if level < 1:
+        trial_ends = tenant.get("trial_ends", "")
+        if trial_ends:
+            try:
+                ends = datetime.datetime.fromisoformat(trial_ends)
+                if ends > datetime.datetime.now(datetime.timezone.utc):
+                    level = 1  # trial = professional access
+            except (ValueError, TypeError):
+                pass
+    return level
+
+
 def require_plan(min_plan: str):
     """Dependency: require a minimum plan level to access an endpoint.
 
     Plans (in order): free < professional < business
-    Users with an active trial period get the professional plan level.
+    Users with an active trial get professional-level access. Tenants whose
+    billing is in trouble (past_due/canceled) are dropped to free.
     """
-    PLAN_ORDER = {"free": 0, "professional": 1, "business": 2}
     min_level = PLAN_ORDER.get(min_plan, 0)
 
     def _check():
         tenant = _current_tenant.get()
         if not tenant:
-            return  # open mode — allow all
-        user_plan = tenant.get("plan", "free")
-        effective_level = PLAN_ORDER.get(user_plan, 0)
-
-        # Active trial grants professional-level access
-        if effective_level < 1:
-            trial_ends = tenant.get("trial_ends", "")
-            if trial_ends:
-                try:
-                    ends = datetime.datetime.fromisoformat(trial_ends)
-                    if ends > datetime.datetime.now(datetime.timezone.utc):
-                        effective_level = 1  # trial = professional access
-                except (ValueError, TypeError):
-                    pass
+            return  # open mode / owner — allow all
+        effective_level = _tenant_effective_level(tenant)
 
         if effective_level < min_level:
-            days_left = ""
-            if user_plan == "free":
-                trial_ends = tenant.get("trial_ends", "")
-                if trial_ends:
-                    try:
-                        ends = datetime.datetime.fromisoformat(trial_ends)
-                        remaining = (ends - datetime.datetime.now(datetime.timezone.utc)).days
-                        if remaining > 0:
-                            days_left = f" ({remaining} days left in trial)"
-                    except (ValueError, TypeError):
-                        pass
-
             raise HTTPException(
                 status_code=402,
-                detail=f"Upgrade to {min_plan} plan required{days_left}",
+                detail=f"Upgrade to {min_plan} plan required",
             )
     return _check
 
@@ -447,7 +411,7 @@ def check_auth(
 
     Fail-closed: unauthenticated access requires SOLOLEDGER_OPEN_MODE=true
     to be explicitly set. Session tokens are validated for age on every
-    request.
+    request (DB-backed, multi-worker safe).
     """
     if _is_open_mode():
         return  # explicitly-opened demo mode
@@ -460,7 +424,7 @@ def check_auth(
     if _valid_api_keys and token in _valid_api_keys:
         return
 
-    if _sessions and token in _sessions and _session_valid(token):
+    if _session_valid(token):
         return
 
     raise HTTPException(status_code=403, detail="Invalid or expired token")

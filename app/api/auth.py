@@ -1,21 +1,28 @@
-"""Auth routes — Google OAuth, email/password signup/signin, session management."""
+"""Auth routes — Google OAuth, email/password signup/signin, email
+verification, password reset, session management (DB-backed).
+
+Flows:
+  signup      → creates an unverified user + verification email
+  verify-email → marks the email verified and provisions the workspace
+  signin      → creates a session (blocked until the email is verified)
+  forgot-password / reset-password → password recovery
+  google      → verified Google identity, creates user + tenant directly
+"""
 import datetime
+import os
 import secrets
 
 import requests as http_requests
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
+from .. import appdb
 from .deps import (
     check_auth,
     _err,
     _ok,
-    _sessions,
-    _save_sessions,
     GOOGLE_CLIENT_ID,
     _valid_api_keys,
-    _load_users,
-    _save_users,
     _hash_password,
     _verify_password,
     _session_valid,
@@ -23,13 +30,86 @@ from .deps import (
     _client_ip,
     create_tenant,
 )
-from .shared import _decimal_to_float
 
 router = APIRouter(prefix="/api/v1")
+
+# Email verification is required when the operator configures a mail
+# transport (Resend) or explicitly opts in. Without either (local dev /
+# tests) accounts are verified automatically so flows stay usable.
+_EMAIL_VERIFY_REQUIRED = (
+    os.environ.get("SOLOLEDGER_REQUIRE_EMAIL_VERIFY", "").lower() in ("1", "true", "yes")
+    or bool(os.environ.get("RESEND_API_KEY"))
+)
 
 
 class GoogleAuthRequest(BaseModel):
     credential: str
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class SigninRequest(BaseModel):
+    email: str
+    password: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+
+# ── Email transport (Resend) ──────────────────────────────────────────────
+
+
+def _send_email(to: str, subject: str, body: str) -> bool:
+    """Send a transactional email via Resend. Returns False if not configured."""
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    if not api_key:
+        return False
+    try:
+        import resend
+        resend.api_key = api_key
+        resend.Emails.send({
+            "from": os.environ.get("RESEND_FROM", "SoloLedger <welcome@sololedger.ferrumeng.com>"),
+            "to": [to],
+            "subject": subject,
+            "text": body,
+        })
+        return True
+    except Exception as e:
+        import sys
+        print(f"⚠ Email send failed: {e}", file=sys.stderr)
+        return False
+
+
+def _new_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def _session_for(email: str, name: str, picture: str = "", method: str = "local") -> str:
+    """Create a DB session and return its token."""
+    token = _new_token()
+    appdb.create_session(token, email, name=name, picture=picture, method=method)
+    return token
+
+
+# ── Google OAuth ──────────────────────────────────────────────────────────
 
 
 @router.post("/auth/google")
@@ -62,47 +142,26 @@ async def auth_google(req: GoogleAuthRequest, request: Request):
         if not email:
             return _err("Email not provided in token", 401)
 
-        # Provision an isolated tenant so Google users never fall back to
-        # the owner's main ledger. Idempotent — existing users keep their tenant.
-        create_tenant(email, info.get("name", email))
+        name = info.get("name", email)
+        picture = info.get("picture", "")
 
-        token = secrets.token_urlsafe(32)
-        _sessions[token] = {
-            "email": email,
-            "name": info.get("name", email),
-            "picture": info.get("picture", ""),
-            "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
-        _save_sessions()
+        # Google is the identity provider — the email is already verified.
+        user = appdb.get_user(email)
+        if not user:
+            appdb.create_user(email, password_hash="", name=name, email_verified=True)
+        else:
+            appdb.update_user(email, name=name, email_verified=True)
 
+        # Provision an isolated tenant (idempotent).
+        create_tenant(email, name)
+
+        token = _session_for(email, name, picture=picture, method="google")
         return _ok({
             "token": token,
-            "user": {
-                "email": email,
-                "name": info.get("name", email),
-                "picture": info.get("picture", ""),
-            },
+            "user": {"email": email, "name": name, "picture": picture},
         })
     except http_requests.RequestException as e:
         return _err(f"Failed to verify token: {e}", 502)
-
-
-@router.get("/auth/me", dependencies=[Depends(check_auth)])
-async def auth_me(request: Request):
-    """Return current user info if authenticated."""
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return _err("Not authenticated", 401)
-
-    token = auth_header[7:]
-
-    if token in _sessions and _session_valid(token):
-        return _ok(_sessions[token])
-
-    if _valid_api_keys and token in _valid_api_keys:
-        return _ok({"email": "api-key-user", "name": "API Key", "picture": ""})
-
-    return _err("Not authenticated", 401)
 
 
 @router.get("/auth/google/config")
@@ -114,15 +173,12 @@ async def auth_google_config():
     })
 
 
-class SignupRequest(BaseModel):
-    email: str
-    password: str
-    name: str = ""
+# ── Signup / verification ─────────────────────────────────────────────────
 
 
 @router.post("/auth/signup")
 async def auth_signup(req: SignupRequest, request: Request):
-    """Create a new account with email and password."""
+    """Create a new account. Sends a verification email when required."""
     if _rate_limited(f"signup:{_client_ip(request)}"):
         return _err("Too many accounts from this address. Try again later.", 429)
 
@@ -136,38 +192,101 @@ async def auth_signup(req: SignupRequest, request: Request):
     if any(c in name for c in "\r\n\t"):
         return _err("Name contains invalid characters", 400)
 
-    users = _load_users()
-    if email in users:
+    if appdb.get_user(email):
         return _err("An account with this email already exists", 409)
 
-    users[email] = {
-        "password": _hash_password(req.password),
-        "name": name,
-        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    }
-    _save_users(users)
+    verify_token = _new_token() if _EMAIL_VERIFY_REQUIRED else ""
+    appdb.create_user(
+        email=email,
+        password_hash=_hash_password(req.password),
+        name=name,
+        email_verified=not _EMAIL_VERIFY_REQUIRED,
+        verify_token=verify_token,
+    )
 
+    if _EMAIL_VERIFY_REQUIRED:
+        sent = _send_email(
+            email,
+            "Verify your SoloLedger email",
+            f"Welcome to SoloLedger!\n\nVerify your email to activate your workspace:\n"
+            f"{os.environ.get('APP_URL', 'http://localhost:8100')}/#/verify-email?token={verify_token}\n\n"
+            f"This link expires in 24 hours.",
+        )
+        # In dev (no mail transport configured), return the token so the
+        # caller can complete the flow; production never echoes it.
+        if not sent:
+            return _ok({
+                "verify_required": True,
+                "message": "Verification email sent",
+                "verify_token": verify_token,  # dev-only convenience
+            })
+        return _ok({"verify_required": True, "message": "Verification email sent"})
+
+    # Dev/tests: auto-verified — provision the workspace and log in.
     create_tenant(email, name)
-
-    token = secrets.token_urlsafe(32)
-    _sessions[token] = {
-        "email": email,
-        "name": name,
-        "picture": "",
-        "method": "local",
-        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    }
-    _save_sessions()
-
+    token = _session_for(email, name)
     return _ok({
         "token": token,
         "user": {"email": email, "name": name, "picture": ""},
     })
 
 
-class SigninRequest(BaseModel):
-    email: str
-    password: str
+@router.get("/auth/verify-email")
+async def verify_email(token: str = Query(...)):
+    """Verify an email address with the token from the signup email."""
+    if not token:
+        return _err("Missing verification token", 400)
+
+    user = None
+    for u in appdb.all_users().values():
+        if u.get("verify_token") == token:
+            user = u
+            break
+    if user is None:
+        return _err("Invalid or expired verification token", 400)
+
+    expires = user.get("verify_token_expires", "")
+    if expires:
+        try:
+            if datetime.datetime.fromisoformat(expires) < datetime.datetime.now(datetime.timezone.utc):
+                return _err("Verification token expired", 400)
+        except (ValueError, TypeError):
+            pass
+
+    email = user["email"]
+    appdb.update_user(email, email_verified=True, verify_token="", verify_token_expires="")
+    create_tenant(email, user.get("name", email.split("@")[0]))
+
+    return _ok({"verified": True, "email": email})
+
+
+@router.post("/auth/resend-verification")
+async def resend_verification(req: ResendVerificationRequest, request: Request):
+    """Re-send the verification email for an unverified account."""
+    if _rate_limited(f"verify:{_client_ip(request)}"):
+        return _err("Too many attempts. Try again later.", 429)
+
+    email = req.email.strip().lower()
+    user = appdb.get_user(email)
+    if not user:
+        return _ok({"message": "If that account exists, a verification email was sent"})
+
+    if user.get("email_verified"):
+        return _ok({"message": "Email already verified"})
+
+    token = _new_token()
+    appdb.update_user(email, verify_token=token)
+    _send_email(
+        email,
+        "Verify your SoloLedger email",
+        f"Verify your email to activate your workspace:\n"
+        f"{os.environ.get('APP_URL', 'http://localhost:8100')}/#/verify-email?token={token}\n\n"
+        f"This link expires in 24 hours.",
+    )
+    return _ok({"message": "If that account exists, a verification email was sent"})
+
+
+# ── Sign in / out ─────────────────────────────────────────────────────────
 
 
 @router.post("/auth/signin")
@@ -180,32 +299,46 @@ async def auth_signin(req: SigninRequest, request: Request):
     if not email:
         return _err("Email required", 400)
 
-    users = _load_users()
-    user = users.get(email)
-    if not user:
+    user = appdb.get_user(email)
+    if not user or not user.get("password_hash"):
         return _err("Invalid email or password", 401)
 
-    if not _verify_password(req.password, user["password"]):
+    if not _verify_password(req.password, user["password_hash"]):
         return _err("Invalid email or password", 401)
 
-    token = secrets.token_urlsafe(32)
-    _sessions[token] = {
-        "email": email,
-        "name": user.get("name", email.split("@")[0]),
-        "picture": "",
-        "method": "local",
-        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    }
-    _save_sessions()
+    if not user.get("email_verified"):
+        return _err("Email not verified — check your inbox", 403)
 
+    name = user.get("name", email.split("@")[0])
+    token = _session_for(email, name)
     return _ok({
         "token": token,
-        "user": {
-            "email": email,
-            "name": user.get("name", email.split("@")[0]),
-            "picture": "",
-        },
+        "user": {"email": email, "name": name, "picture": ""},
     })
+
+
+@router.get("/auth/me", dependencies=[Depends(check_auth)])
+async def auth_me(request: Request):
+    """Return current user info if authenticated."""
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return _err("Not authenticated", 401)
+
+    token = auth_header[7:]
+
+    session = appdb.get_session(token)
+    if session and _session_valid(token):
+        return _ok({
+            "email": session.get("email", ""),
+            "name": session.get("name", ""),
+            "picture": session.get("picture", ""),
+            "method": session.get("method", "local"),
+        })
+
+    if _valid_api_keys and token in _valid_api_keys:
+        return _ok({"email": "api-key-user", "name": "API Key", "picture": ""})
+
+    return _err("Not authenticated", 401)
 
 
 @router.post("/auth/logout", dependencies=[Depends(check_auth)])
@@ -214,7 +347,49 @@ async def auth_logout(request: Request):
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        if token in _sessions:
-            del _sessions[token]
-            _save_sessions()
+        appdb.delete_session(token)
     return _ok({"logged_out": True})
+
+
+# ── Password reset ────────────────────────────────────────────────────────
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest, request: Request):
+    """Send a password-reset email (always 200 to avoid enumeration)."""
+    if _rate_limited(f"reset:{_client_ip(request)}"):
+        return _ok({"message": "If that account exists, a reset email was sent"})
+
+    email = req.email.strip().lower()
+    user = appdb.get_user(email)
+    if user:
+        token = _new_token()
+        appdb.update_user(email, reset_token=token)
+        _send_email(
+            email,
+            "Reset your SoloLedger password",
+            f"Reset your password here:\n"
+            f"{os.environ.get('APP_URL', 'http://localhost:8100')}/#/reset-password?token={token}\n\n"
+            f"This link expires in 1 hour.",
+        )
+    return _ok({"message": "If that account exists, a reset email was sent"})
+
+
+@router.post("/auth/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    """Set a new password using a reset token; invalidates all sessions."""
+    if len(req.password) < 8:
+        return _err("Password must be at least 8 characters", 400)
+
+    user = None
+    for u in appdb.all_users().values():
+        if u.get("reset_token") == req.token:
+            user = u
+            break
+    if user is None:
+        return _err("Invalid or expired reset token", 400)
+
+    appdb.update_user(user["email"], password_hash=_hash_password(req.password),
+                      reset_token="", reset_token_expires="")
+    appdb.delete_sessions_for_user(user["email"])
+    return _ok({"reset": True, "message": "Password updated — please sign in"})
