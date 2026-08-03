@@ -137,3 +137,9 @@ export function clearAuth() {
   localStorage.removeItem('sololedger_session')
   localStorage.removeItem('user_email')
 }
+
+// Sign in with a Google ID token (from the GSI credential response).
+// The server verifies the token and provisions a tenant on first use.
+export async function apiSignInWithGoogle(credential) {
+  return apiPost('/auth/google', { credential })
+}

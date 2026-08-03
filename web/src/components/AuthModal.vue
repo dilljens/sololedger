@@ -50,6 +50,16 @@
       <!-- Sign in / Sign up -->
       <form v-else @submit.prevent="submit">
         <div class="modal-body">
+          <!-- Google sign-in -->
+          <div v-if="googleEnabled" class="google-section">
+            <div id="google-signin-container" class="google-btn-container"></div>
+            <div class="divider">
+              <span class="divider-line"></span>
+              <span class="divider-text">or</span>
+              <span class="divider-line"></span>
+            </div>
+          </div>
+
           <div class="form-group">
             <label for="auth-email">Email</label>
             <input
@@ -101,8 +111,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { apiPost, setAuthToken, isAuthenticated } from '../api.js'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { apiGet, apiPost, setAuthToken, isAuthenticated, apiSignInWithGoogle } from '../api.js'
 
 const isOpen = ref(false)
 const isSignUp = ref(false)
@@ -110,6 +120,10 @@ const email = ref('')
 const password = ref('')
 const error = ref('')
 const submitting = ref(false)
+
+const googleEnabled = ref(false)
+let _googleClientId = ''
+let _gsiInitialized = false
 
 const verifyPending = ref(false)
 const isForgot = ref(false)
@@ -129,13 +143,69 @@ const modalTitle = computed(() => {
 let listener = null
 
 onMounted(() => {
-  listener = () => { isOpen.value = true; error.value = '' }
+  listener = () => {
+    isOpen.value = true
+    error.value = ''
+    nextTick(renderGoogleButton)
+  }
   document.addEventListener('show-auth-modal', listener)
+  checkGoogleConfig()
 })
 
 onUnmounted(() => {
   if (listener) document.removeEventListener('show-auth-modal', listener)
 })
+
+// ── Google sign-in (GSI) ────────────────────────────────────────────
+
+async function checkGoogleConfig() {
+  try {
+    const cfg = await apiGet('/auth/google/config')
+    googleEnabled.value = !!(cfg?.enabled && cfg?.client_id)
+    if (cfg?.client_id) _googleClientId = cfg.client_id
+  } catch {
+    googleEnabled.value = false
+  }
+}
+
+async function renderGoogleButton() {
+  if (!googleEnabled.value || !_googleClientId) return
+  if (!window.google?.accounts) {
+    // GSI script still loading — retry shortly
+    setTimeout(renderGoogleButton, 300)
+    return
+  }
+  const container = document.getElementById('google-signin-container')
+  if (!container || _gsiInitialized) return
+  _gsiInitialized = true
+  window.google.accounts.id.initialize({
+    client_id: _googleClientId,
+    callback: handleGoogleCredential,
+  })
+  window.google.accounts.id.renderButton(container, {
+    theme: 'outline',
+    size: 'large',
+    width: 300,
+    text: 'continue_with',
+  })
+}
+
+async function handleGoogleCredential(response) {
+  error.value = ''
+  submitting.value = true
+  try {
+    const data = await apiSignInWithGoogle(response.credential)
+    setAuthToken(data.token)
+    localStorage.setItem('user_email', data.user?.email || '')
+    close()
+    window.location.reload()
+  } catch (err) {
+    error.value = err.data?.error || err.message || 'Google sign-in failed'
+  } finally {
+    submitting.value = false
+  }
+}
+window.handleGoogleCredential = handleGoogleCredential
 
 function close() {
   isOpen.value = false
@@ -256,5 +326,35 @@ async function submit() {
 
 .resend-hint {
   margin-top: 6px;
+}
+
+.google-section {
+  margin-bottom: 4px;
+}
+
+.google-btn-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-color, #e2e8f0);
+}
+
+.divider-text {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 </style>
