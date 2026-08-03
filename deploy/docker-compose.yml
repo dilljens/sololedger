@@ -75,6 +75,9 @@ services:
     environment:
       - POOLSPLAT_PORT=3138
       - FAL_KEY=${FAL_KEY:-}
+      # AI photo editor backends (values from .env, gitignored)
+      - AGNES_API_KEY=${AGNES_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NODE_ENV=production
 
   # ── Caddy — reverse proxy + auto TLS ─────────────────────────────
