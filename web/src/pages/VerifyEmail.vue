@@ -140,6 +140,6 @@ function openSignIn() {
 
 .resend-error {
   margin-top: 10px;
-  color: #dc2626;
+  color: var(--danger);
 }
 </style>

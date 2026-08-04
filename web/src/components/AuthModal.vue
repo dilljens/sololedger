@@ -303,8 +303,8 @@ async function submit() {
 }
 
 .alert-error {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--danger-bg);
+  color: var(--danger);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -312,8 +312,8 @@ async function submit() {
 }
 
 .alert-success {
-  background: #f0fdf4;
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 0.85rem;

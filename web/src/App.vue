@@ -158,17 +158,21 @@ function toggleTheme() {
   applyTheme(t)
 }
 
+// Resolve the effective theme. 'system' follows the OS preference via
+// matchMedia (kept live with a change listener below).
+function effectiveTheme() {
+  const t = themeCycle[themeIndex.value] || 'system'
+  if (t !== 'system') return t
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 function applyTheme(t) {
   const html = document.documentElement
-  if (t === 'dark') {
-    html.setAttribute('data-theme', 'dark')
-  } else if (t === 'light') {
-    html.removeAttribute('data-theme')
-  } else {
-    html.removeAttribute('data-theme')
-    // system: respect prefers-color-scheme (handled by CSS media query)
-  }
+  const eff = t === 'system' ? effectiveTheme() : t
+  html.setAttribute('data-theme', eff)
 }
+
+let systemMediaListener = null
 
 // ── Auth ──────────────────────────────────────────────────────────
 
@@ -207,9 +211,24 @@ onMounted(() => {
   applyTheme(saved)
   themeIndex.value = themeCycle.indexOf(saved)
 
+  // Keep 'system' mode in sync with OS theme changes
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  systemMediaListener = (e) => {
+    if ((localStorage.getItem('theme') || 'system') === 'system') {
+      applyTheme('system')
+    }
+  }
+  mq.addEventListener('change', systemMediaListener)
+
   // Listen for loading events (can be triggered by API calls)
   window.addEventListener('api-loading-start', () => { isLoading.value = true })
   window.addEventListener('api-loading-end', () => { isLoading.value = false })
+})
+
+onUnmounted(() => {
+  if (systemMediaListener) {
+    window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', systemMediaListener)
+  }
 })
 </script>
 

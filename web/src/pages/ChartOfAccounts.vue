@@ -35,5 +35,5 @@ onMounted(async () => {
 .coa-row:hover { background: var(--gray-50); }
 .coa-name { font-family: monospace; font-size: 0.82rem; }
 .coa-balance { font-weight: 600; }
-.coa-balance.negative { color: #dc2626; }
+.coa-balance.negative { color: var(--danger); }
 </style>

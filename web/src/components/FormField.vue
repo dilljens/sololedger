@@ -81,10 +81,10 @@ const inputId = computed(() => `field-${++idCounter}`)
 .form-group { margin-bottom: 16px; }
 .form-group.inline { display: flex; align-items: center; gap: 12px; }
 .form-label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--gray-700); margin-bottom: 4px; }
-.required-mark { color: #dc2626; margin-left: 2px; }
+.required-mark { color: var(--danger); margin-left: 2px; }
 .form-hint { display: block; font-size: 0.78rem; color: var(--gray-400); margin-top: 2px; }
-.form-error { display: block; font-size: 0.78rem; color: #dc2626; margin-top: 2px; }
-.input-error { border-color: #dc2626 !important; }
+.form-error { display: block; font-size: 0.78rem; color: var(--danger); margin-top: 2px; }
+.input-error { border-color: var(--danger) !important; }
 
 .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
 

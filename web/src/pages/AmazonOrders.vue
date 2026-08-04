@@ -208,7 +208,7 @@ function reset() {
 .result-item { padding: 12px; background: var(--gray-50); border-radius: 6px; }
 
 .warnings { margin-top: 12px; }
-.text-warning { color: #92400e; font-size: 0.85rem; }
+.text-warning { color: var(--warning); font-size: 0.85rem; }
 
 .card-filter-section { margin-top: 12px; max-width: 300px; }
 

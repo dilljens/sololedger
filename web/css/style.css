@@ -858,9 +858,8 @@ code, .code {
 /* ════════════════════════════════════════════════════
    Dark Mode
    ════════════════════════════════════════════════════ */
-@media (prefers-color-scheme: dark) {
-  :root { --dark-override: true; }
-}
+/* Dark theme is applied via data-theme="dark" on <html>, resolved by the
+   app (system mode follows prefers-color-scheme through matchMedia). */
 [data-theme="dark"] {
   --primary: #60a5fa;
   --primary-hover: #93bbfd;
@@ -901,6 +900,14 @@ code, .code {
   color: var(--gray-800);
 }
 [data-theme="dark"] body { background: #0f172a; color: var(--gray-800); }
+/* The sidebar is intentionally dark in BOTH themes; the flipped gray scale
+   (--gray-900 → near-white) would otherwise blow it out to white-on-white. */
+[data-theme="dark"] .sidebar { background: #0f172a; }
+[data-theme="dark"] .sidebar nav a { color: #9ca3af; }
+[data-theme="dark"] .sidebar nav a:hover { color: #e2e8f0; background: rgba(255,255,255,0.06); }
+[data-theme="dark"] .sidebar nav a.active { color: #fff; background: rgba(59,130,246,0.18); border-left-color: var(--primary); }
+[data-theme="dark"] .sidebar-footer { color: #64748b; }
+[data-theme="dark"] .logo { color: #fff; border-bottom-color: rgba(255,255,255,0.08); }
 [data-theme="dark"] .card,
 [data-theme="dark"] .stat-card,
 [data-theme="dark"] .skeleton-card { background: #1e293b; border-color: #334155; }

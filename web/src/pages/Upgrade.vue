@@ -249,7 +249,7 @@ onMounted(fetchData)
   padding: 8px 18px;
   border-radius: 999px;
   border: 1px solid var(--gray-200);
-  background: #fff;
+  background: var(--gray-50);
   color: var(--gray-600);
   font-size: 0.875rem;
   font-weight: 500;

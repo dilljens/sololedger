@@ -133,8 +133,8 @@ function openSignIn() {
 }
 
 .alert-error {
-  background: #fef2f2;
-  color: #dc2626;
+  background: var(--danger-bg);
+  color: var(--danger);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 0.85rem;
