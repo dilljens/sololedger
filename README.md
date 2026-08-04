@@ -2,37 +2,61 @@
 
 **Open-source accounting, invoicing, and tax tools for your single-member consulting LLC.**
 
-CLI on your laptop, API in the cloud, mobile app in your pocket. Built on [Beancount](https://beancount.github.io/) (double-entry accounting from plain text files).
+A web app, REST API, and CLI — built on [Beancount](https://beancount.github.io/)
+(double-entry accounting from plain-text files you own).
 
-```bash
-# Quick start
-pip install -r requirements.txt
-python -m app.main status
-```
+**Try it live:** [sololedger.ferrumeng.com](https://sololedger.ferrumeng.com)
+— free to start, no credit card, 14-day trial on paid plans.
 
 [![Test](https://github.com/dilljens/sololedger/actions/workflows/test.yml/badge.svg)](https://github.com/dilljens/sololedger/actions/workflows/test.yml)
 
 ## What It Does
 
-| Command | What |
+| Feature | What |
 |---|---|
-| `llc status` | Dashboard: cash, P&L, tax deadlines |
-| `llc invoice create` | Invoice + PDF + Stripe payment link |
-| `llc invoice ar` | Accounts Receivable check |
-| `llc expense import` | Bank CSV → auto-categorize → ledger |
-| `llc receipt scan` | Receipt PDF/image → OCR → categorize |
-| `llc tax estimate` | Federal + state tax estimate (WY, CA, TX, NY, FL) |
-| `llc bank sync` | Plaid bank feed → auto-import |
-| `llc time fetch` | Toggl/Clockify hours → invoice |
-| `llc retainer process` | Auto-generate recurring invoices |
-| `llc notify check` | Desktop + email deadline alerts |
+| **Web dashboard** | Cash, P&L, AR, tax deadlines — live from your ledger |
+| **Invoicing** | Invoice + PDF + Stripe payment link, AR tracking |
+| **Receipt capture** | Receipt PDF/image → OCR → auto-categorize |
+| **Bank & expense import** | Bank CSV → auto-categorize → ledger; Plaid bank feeds |
+| **Tax estimates** | Federal + state estimate (WY, CA, TX, NY, FL), 1040-ES voucher |
+| **Reconciliation** | Bank statement matching (Business plan) |
+| **Time tracking** | Toggl/Clockify hours → invoice |
+| **Retainers** | Auto-generate recurring invoices |
+
+## Quick Start (cloud)
+
+1. Open [sololedger.ferrumeng.com](https://sololedger.ferrumeng.com)
+2. Sign in with Google or email
+3. Start entering transactions — a workspace is provisioned for you
+
+## Self-Host / Deploy
+
+SoloLedger runs as a CLI, a single-process API, or a full multi-tenant SaaS.
+The web app is a Vue SPA served by the FastAPI backend.
+
+```bash
+git clone https://github.com/dilljens/sololedger
+cd sololedger
+pip install -r requirements.txt
+
+# CLI
+python -m app.main status
+
+# API + web app (http://localhost:8100/app/)
+uvicorn app.api:app --port 8100
+```
+
+Or Docker Compose (production stack with Caddy + TLS in `deploy/`):
+```bash
+cd deploy && cp .env.example .env && docker compose up -d
+```
 
 ## Architecture
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   CLI (llc)  │     │  REST API    │     │  Mobile/Web  │
-│  Terminal    │     │  FastAPI     │     │  Expo (soon) │
+│   CLI (llc)  │     │  REST API    │     │  Vue web app │
+│  Terminal    │     │  FastAPI     │     │  (browser)   │
 └──────┬───────┘     └──────┬───────┘     └──────┬───────┘
        │                    │                    │
        └────────────────────┼────────────────────┘
@@ -51,23 +75,10 @@ python -m app.main status
     └────────┘       └──────────┘       └──────────┘
 ```
 
-## Quick Start
+## CLI Reference
 
-### Prerequisites
-- Python 3.11+
-- Docker + Docker Compose (optional, for Fava web UI)
+The `python -m app.main` CLI covers the same features as the web app from the terminal:
 
-### Install
-```bash
-git clone https://github.com/dilljens/sololedger
-cd sololedger
-pip install -r requirements.txt
-```
-
-### Configure
-Edit `config.toml` with your business info and state.
-
-### Run
 ```bash
 # Dashboard
 python -m app.main status
@@ -82,7 +93,7 @@ python -m app.main invoice create \
 # Tax estimate (California)
 python -m app.main tax estimate --state CA
 
-# Start the API server (for mobile/web app)
+# Start the API server (serves the web app at /app/)
 uvicorn app.api:app --port 8100
 ```
 
@@ -111,9 +122,11 @@ Set up daily/weekly/monthly cron jobs:
 0 8 * * 1 cd /path/to/sololedger && python -m app.main bank sync --days 14
 ```
 
-## Cloud
+## Hosted SaaS
 
-Hosted version available at [sololedger.ferrumeng.com](https://sololedger.ferrumeng.com). Includes API hosting, mobile web app, and automated daily syncs.
+The hosted version — [sololedger.ferrumeng.com](https://sololedger.ferrumeng.com) —
+includes the Vue web app, Google + email auth, Stripe billing, and persistent
+per-account workspaces.
 
 ### Deploy as a multi-tenant SaaS
 

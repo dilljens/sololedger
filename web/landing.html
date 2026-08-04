@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoloLedger — Accounting for Solo Consulting LLCs</title>
+  <meta name="description" content="Open-source accounting, invoicing, and tax tools for your single-member consulting LLC. Double-entry bookkeeping on plain text, with a web app, billing, and receipts." />
+  <meta property="og:title" content="SoloLedger — Accounting for Solo Consulting LLCs" />
+  <meta property="og:description" content="Bookkeeping, invoicing, tax estimates, and receipt capture for your solo LLC. Self-hosted or cloud." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/svg+xml" href="/app/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --primary-light: #eff6ff;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --success: #16a34a;
+      --border: #e5e7eb;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.05);
+      --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--gray-800); line-height: 1.6; background: #fff; -webkit-font-smoothing: antialiased; }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--border); }
+    .logo { font-size: 1.2rem; font-weight: 800; color: var(--gray-900); letter-spacing: -0.3px; }
+    .logo span { color: var(--primary); }
+    .nav-links { display: flex; align-items: center; gap: 24px; font-size: 0.9rem; font-weight: 500; }
+    .nav-links a { color: var(--gray-600); }
+    .nav-links a:hover { color: var(--gray-900); text-decoration: none; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.12s; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); text-decoration: none; }
+    .btn-outline { background: transparent; color: var(--gray-700); border: 1px solid var(--gray-200); }
+    .btn-outline:hover { border-color: var(--gray-500); text-decoration: none; }
+    .btn-lg { padding: 14px 28px; font-size: 1rem; }
+
+    /* Hero */
+    .hero { padding: 72px 0 56px; text-align: center; background: linear-gradient(180deg, var(--primary-light) 0%, #fff 100%); }
+    .hero h1 { font-size: 2.75rem; font-weight: 800; letter-spacing: -1.2px; line-height: 1.15; color: var(--gray-900); max-width: 720px; margin: 0 auto 16px; }
+    .hero p.lead { font-size: 1.2rem; color: var(--gray-600); max-width: 620px; margin: 0 auto 32px; }
+    .hero-cta { display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap; }
+    .hero .sub { margin-top: 24px; font-size: 0.85rem; color: var(--gray-500); }
+
+    /* Features */
+    .features { padding: 72px 0; }
+    .features h2 { text-align: center; font-size: 1.9rem; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .features .section-sub { text-align: center; color: var(--gray-500); margin-bottom: 48px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    .card { border: 1px solid var(--border); border-radius: 12px; padding: 24px; background: #fff; box-shadow: var(--shadow); }
+    .card .icon { font-size: 1.6rem; margin-bottom: 12px; }
+    .card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .card p { font-size: 0.9rem; color: var(--gray-600); }
+
+    /* Pricing */
+    .pricing { padding: 72px 0; background: var(--gray-50); }
+    .pricing h2 { text-align: center; font-size: 1.9rem; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .pricing .section-sub { text-align: center; color: var(--gray-500); margin-bottom: 48px; }
+    .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; align-items: stretch; }
+    @media (max-width: 768px) { .plans { grid-template-columns: 1fr; } }
+    .plan { border: 1px solid var(--border); border-radius: 12px; padding: 32px 28px; background: #fff; display: flex; flex-direction: column; }
+    .plan.featured { border-color: var(--primary); box-shadow: var(--shadow-lg); }
+    .plan h3 { font-size: 1.1rem; font-weight: 700; }
+    .plan .price { font-size: 2.2rem; font-weight: 800; margin: 12px 0 4px; letter-spacing: -1px; }
+    .plan .price small { font-size: 0.9rem; font-weight: 500; color: var(--gray-500); }
+    .plan ul { list-style: none; margin: 20px 0 24px; flex: 1; }
+    .plan li { padding: 6px 0; font-size: 0.9rem; color: var(--gray-600); }
+    .plan li::before { content: "✓ "; color: var(--success); font-weight: 700; }
+    .plan .btn { text-align: center; }
+    .trial-note { text-align: center; margin-top: 32px; font-size: 0.9rem; color: var(--gray-500); }
+
+    /* CTA */
+    .cta { padding: 72px 0; text-align: center; }
+    .cta h2 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
+    .cta p { color: var(--gray-500); margin-bottom: 28px; }
+
+    /* Footer */
+    .footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; font-size: 0.82rem; color: var(--gray-500); }
+    .footer a { color: var(--gray-500); }
+    .footer a:hover { color: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <header class="nav container">
+    <div class="logo">Solo<span>Ledger</span></div>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://github.com/dilljens/sololedger" target="_blank" rel="noopener">GitHub</a>
+      <a class="btn btn-primary" href="/app/">Sign In</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <h1>Accounting for your solo consulting LLC</h1>
+      <p class="lead">
+        Bookkeeping, invoicing, tax estimates, and receipt capture — built on
+        double-entry plain-text ledgers. Runs in your browser, backed by your data.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="/app/">Get Started Free</a>
+        <a class="btn btn-outline btn-lg" href="https://github.com/dilljens/sololedger" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+      <p class="sub">Open source · Self-hostable · 14-day free trial · No credit card to start</p>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="container">
+      <h2>Everything your business needs</h2>
+      <p class="section-sub">Purpose-built for single-member consulting LLCs.</p>
+      <div class="grid">
+        <div class="card"><div class="icon">📊</div><h3>Dashboard</h3><p>Cash, profit &amp; loss, and tax deadlines at a glance — updated from your ledger in real time.</p></div>
+        <div class="card"><div class="icon">🧾</div><h3>Invoicing &amp; Payments</h3><p>Create invoices with PDF download, track accounts receivable, and collect payment via Stripe links.</p></div>
+        <div class="card"><div class="icon">📥</div><h3>Bank &amp; Expense Imports</h3><p>Import bank CSVs, auto-categorize transactions, and match them against your ledger.</p></div>
+        <div class="card"><div class="icon">📷</div><h3>Receipt Capture</h3><p>Scan receipt PDFs and images — OCR pulls out the details and categorizes them automatically.</p></div>
+        <div class="card"><div class="icon">💰</div><h3>Tax Estimates</h3><p>Federal and state tax estimates with quarterly payment suggestions and 1040-ES vouchers.</p></div>
+        <div class="card"><div class="icon">🔓</div><h3>Your Data, Open Format</h3><p>Plain-text Beancount ledgers you own — git-versioned, portable, and self-hostable anytime.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="pricing" id="pricing">
+    <div class="container">
+      <h2>Simple, honest pricing</h2>
+      <p class="section-sub">Start free. Upgrade when it pays for itself.</p>
+      <div class="plans">
+        <div class="plan">
+          <h3>Free</h3>
+          <div class="price">$0<small>/mo</small></div>
+          <ul>
+            <li>Full ledger &amp; dashboard</li>
+            <li>Invoicing with PDF</li>
+            <li>Tax estimates</li>
+            <li>Bank CSV imports</li>
+          </ul>
+          <a class="btn btn-outline" href="/app/">Get Started</a>
+        </div>
+        <div class="plan featured">
+          <h3>Professional</h3>
+          <div class="price">$19<small>/mo</small></div>
+          <ul>
+            <li>Everything in Free</li>
+            <li>Receipt capture &amp; OCR</li>
+            <li>Advanced importers (Amazon, Citi, Wave)</li>
+            <li>Notifications &amp; reminders</li>
+          </ul>
+          <a class="btn btn-primary" href="/app/">Start 14-Day Trial</a>
+        </div>
+        <div class="plan">
+          <h3>Business</h3>
+          <div class="price">$45<small>/mo</small></div>
+          <ul>
+            <li>Everything in Professional</li>
+            <li>Bank reconciliation</li>
+            <li>Multiple workspaces</li>
+            <li>Priority support</li>
+          </ul>
+          <a class="btn btn-outline" href="/app/">Contact Us</a>
+        </div>
+      </div>
+      <p class="trial-note">Annual billing available — 2 months free. Card required only when you start a trial.</p>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="container">
+      <h2>Ready to get your books in order?</h2>
+      <p>Create a free account in under a minute. No credit card required.</p>
+      <a class="btn btn-primary btn-lg" href="/app/">Get Started</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      SoloLedger · Open source under the MIT license · <a href="https://github.com/dilljens/sololedger" target="_blank" rel="noopener">github.com/dilljens/sololedger</a>
+    </div>
+  </footer>
+
+</body>
+</html>

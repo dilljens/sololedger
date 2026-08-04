@@ -63,6 +63,17 @@ async def serve_js(rest_of_path: str):
 # Vue app at /app/ (index.html), classic app at /app/index-classic.html.
 if _web_dir.exists():
     from fastapi.staticfiles import StaticFiles
+
+    # Marketing landing page at the site root (before the /app mount so it
+    # wins for exact "/").
+    _landing = _web_dir / "landing.html"
+
+    @app.get("/", include_in_schema=False)
+    async def landing():
+        if _landing.exists():
+            return FileResponse(_landing, headers={"Cache-Control": "no-cache"})
+        return FileResponse(_web_dir / "index.html")
+
     app.mount("/app", StaticFiles(directory=str(_web_dir), html=True), name="web")
 
 # Register tenant middleware
