@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..invoice import Invoicer
@@ -66,6 +66,8 @@ async def time_to_invoice(req: TimeInvoiceRequest):
         cfg = get_config()
         ledger = Ledger(cfg)
         from ..time_tracking import TimeTracker
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Error: {e}", 500)
 

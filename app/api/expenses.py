@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 
 from ..ledger import Ledger
 from .deps import _read_upload, _err, _ok, check_auth, get_config
@@ -20,6 +20,8 @@ async def import_expenses(
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 
@@ -69,6 +71,8 @@ async def import_csv(
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 
@@ -109,6 +113,8 @@ async def api_ofx_import(
 ):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 

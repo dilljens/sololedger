@@ -39,6 +39,8 @@ async def create_invoice(req: InvoiceCreateRequest):
         cfg = get_config()
         ledger = Ledger(cfg)
         invoicer = Invoicer(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 
@@ -81,6 +83,8 @@ async def list_invoices(year: Optional[int] = Query(None), ar_only: bool = Query
         cfg = get_config()
         ledger = Ledger(cfg)
         invoicer = Invoicer(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 
@@ -106,6 +110,8 @@ async def accounts_receivable():
         cfg = get_config()
         ledger = Ledger(cfg)
         invoicer = Invoicer(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 
@@ -124,6 +130,8 @@ async def mark_invoice_paid(number: str, req: MarkInvoicePaidRequest):
         cfg = get_config()
         ledger = Ledger(cfg)
         invoicer = Invoicer(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config/ledger error: {e}", 500)
 

@@ -276,3 +276,82 @@ class TestTrialOnlyViaBilling:
         resp = closed_client.get(
             "/api/v1/bank/accounts", headers={"Authorization": "Bearer notrial-tok"})
         assert resp.status_code == 402, resp.text
+
+
+# ── Tenant ledger access (regression) ────────────────────────────────────
+# Google sign-in succeeded but the dashboard 500'd: get_config() confined
+# tenant ledger_dir to the PROJECT root, while create_tenant() puts ledgers
+# under SOLOLEDGER_DATA_DIR (=/data on the SaaS VPS, a tmp dir in tests) —
+# outside the project root — so every provisioned tenant was rejected and
+# dashboard/attention flattened the resulting 403 into a 500.
+
+
+class TestTenantLedgerAccess:
+    # deps._DATA_DIR is computed at import (before fixtures set the env), so
+    # patch it directly to a tmp root: this reproduces the SaaS deployment
+    # where SOLOLEDGER_DATA_DIR=/data puts tenant ledgers OUTSIDE the project
+    # root — the exact shape that 500'd the dashboard after Google sign-in.
+
+    def test_signup_provisions_working_dashboard(self, closed_client, monkeypatch, tmp_path):
+        """Full signup flow: the new tenant's ledger lives under the data
+        root (outside the project root), and the dashboard must load."""
+        data_root = tmp_path / "data"
+        data_root.mkdir()
+        monkeypatch.setattr(deps, "_DATA_DIR", data_root)
+
+        resp = closed_client.post(
+            "/api/v1/auth/signup",
+            json={"email": "tenant@example.com", "password": "password123", "name": "Tenant"},
+        )
+        assert resp.status_code == 200, resp.text
+        token = resp.json()["data"]["token"]
+        tenant = appdb.get_tenant("tenant@example.com")
+        assert tenant is not None
+        # The regression shape: ledger_dir is under the data root, which is
+        # outside the project root.
+        assert Path(tenant["ledger_dir"]).is_relative_to(data_root.resolve())
+        assert not Path(tenant["ledger_dir"]).is_relative_to(
+            Path(__file__).resolve().parent.parent)
+
+        headers = {"Authorization": f"Bearer {token}"}
+        dash = closed_client.get("/api/v1/dashboard", headers=headers)
+        assert dash.status_code == 200, dash.text
+        assert "cash" in dash.json()["data"]
+
+        attn = closed_client.get("/api/v1/attention", headers=headers)
+        assert attn.status_code == 200, attn.text
+
+    def test_existing_tenant_dashboard_ok(self, closed_client, monkeypatch, tmp_path):
+        """A returning user (user + tenant already provisioned, exactly the
+        state after a prior Google sign-in) gets a working dashboard."""
+        data_root = tmp_path / "data"
+        data_root.mkdir()
+        monkeypatch.setattr(deps, "_DATA_DIR", data_root)
+
+        appdb.create_user("returning@example.com", password_hash="", name="Returning",
+                          email_verified=True)
+        from app.api.deps import create_tenant
+        create_tenant("returning@example.com", "Returning")
+        token = appdb.create_session("returning-tok", "returning@example.com",
+                                     name="Returning", method="google")["token"]
+        resp = closed_client.get("/api/v1/dashboard",
+                                 headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200, resp.text
+
+    def test_ledger_dir_outside_data_root_still_rejected(self, closed_client, monkeypatch, tmp_path):
+        """Security property preserved: a tenant whose ledger_dir points
+        outside the data root is rejected — and the 403 surfaces instead of
+        being masked as a 500."""
+        data_root = tmp_path / "data"
+        data_root.mkdir()
+        monkeypatch.setattr(deps, "_DATA_DIR", data_root)
+
+        appdb.create_user("evil@example.com", password_hash="", name="Evil",
+                          email_verified=True)
+        from app.api.deps import create_tenant
+        create_tenant("evil@example.com", "Evil")
+        appdb.update_tenant("evil@example.com", ledger_dir="/etc")
+        token = appdb.create_session("evil-tok", "evil@example.com", name="Evil")["token"]
+        resp = closed_client.get("/api/v1/dashboard",
+                                 headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403, resp.text

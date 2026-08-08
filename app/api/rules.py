@@ -1,5 +1,5 @@
 """Categorization rules API — CRUD for pattern-based rules."""
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
@@ -41,6 +41,8 @@ async def list_rules():
             "SELECT * FROM categorization_rules ORDER BY priority ASC, created_at DESC"
         ).fetchall()
         return _ok({"rules": [dict(r) for r in rules], "count": len(rules)})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -63,6 +65,8 @@ async def create_rule(rule: RuleCreate):
         db.commit()
         rule_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         return _ok({"id": rule_id})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -97,6 +101,8 @@ async def update_rule(rule_id: int, rule: RuleUpdate):
         )
         db.commit()
         return _ok({"updated": True})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -114,6 +120,8 @@ async def delete_rule(rule_id: int):
         db.execute("DELETE FROM categorization_rules WHERE id = ?", (rule_id,))
         db.commit()
         return _ok({"deleted": True})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 

@@ -1,7 +1,7 @@
 """Health, status, and dashboard routes."""
 import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from .. import appdb
 from ..ledger import Ledger
@@ -68,6 +68,8 @@ async def get_status():
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 
@@ -118,6 +120,8 @@ async def get_dashboard():
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 

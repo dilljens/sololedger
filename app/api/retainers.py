@@ -2,7 +2,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from ..invoice import Invoicer, RetainerConfig
@@ -26,6 +26,8 @@ class RetainerRequest(BaseModel):
 async def list_retainers():
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -52,6 +54,8 @@ async def list_retainers():
 async def add_retainer(req: RetainerRequest):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -83,6 +87,8 @@ async def process_retainers(preview: bool = Query(True)):
         cfg = get_config()
         ledger = Ledger(cfg)
         invoicer = Invoicer(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Error: {e}", 500)
 

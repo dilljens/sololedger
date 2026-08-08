@@ -1,5 +1,5 @@
 """Notification routes."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..ledger import Ledger
 from .deps import _err, _ok, check_auth, get_config, require_plan
@@ -13,6 +13,8 @@ async def notify_check():
         cfg = get_config()
         ledger = Ledger(cfg)
         from ..notify import Notifier
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Error: {e}", 500)
 

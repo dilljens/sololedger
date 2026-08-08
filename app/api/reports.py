@@ -1,7 +1,7 @@
 """Report routes."""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 
 from ..ledger import Ledger
 from .deps import _err, _ok, check_auth, get_config
@@ -14,6 +14,8 @@ async def get_expenses_report(year: Optional[int] = Query(None), format: str = Q
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 
@@ -36,6 +38,8 @@ async def get_profit_loss(year: Optional[int] = Query(None)):
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 

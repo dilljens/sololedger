@@ -3,7 +3,7 @@ import os
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from .deps import _current_tenant, _err, _load_tenants, _ok, _save_tenants, check_auth, get_config, require_plan
@@ -29,6 +29,8 @@ class ExchangeTokenRequest(BaseModel):
 async def bank_sync(req: BankSyncRequest):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 

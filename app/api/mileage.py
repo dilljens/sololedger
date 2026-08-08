@@ -2,7 +2,7 @@
 import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from ..ledger import Ledger
@@ -31,6 +31,8 @@ async def api_mileage_list(
 ):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)
@@ -43,6 +45,8 @@ async def api_mileage_list(
 async def api_mileage_add(req: MileageAddRequest):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)
@@ -68,6 +72,8 @@ async def api_mileage_report(year: Optional[int] = Query(None)):
         year = datetime.date.today().year
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)

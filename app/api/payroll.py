@@ -32,6 +32,8 @@ async def payroll_import(file: UploadFile = File(...), preview: bool = Form(Fals
         cfg = get_config()
         ledger = Ledger(cfg)
         from ..payroll import PayrollImporter
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Payroll error: {e}", 500)
 
@@ -90,6 +92,8 @@ async def payroll_summary():
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 
@@ -131,6 +135,8 @@ async def payroll_disburse(req: PayrollDisburseRequest):
         cfg = get_config()
         ledger = Ledger(cfg)
         from ..payroll import PayrollImporter
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Payroll error: {e}", 500)
 

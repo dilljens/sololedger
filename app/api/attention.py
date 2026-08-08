@@ -1,5 +1,5 @@
 """Attention/alerts route."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..invoice import Invoicer
 from ..ledger import Ledger
@@ -13,6 +13,8 @@ async def get_attention():
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 

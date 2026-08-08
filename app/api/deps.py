@@ -295,9 +295,12 @@ async def tenant_middleware(request: Request, call_next):
 def get_config() -> Config:
     """Load Config for the current tenant, falling back to main config.
 
-    The tenant ledger_dir is confined to the project root via an exact
-    containment check (is_relative_to, not a string-prefix check), so a
-    tenant cannot point its config at a sibling directory.
+    The tenant ledger_dir is confined to the data root (SOLOLEDGER_DATA_DIR,
+    which defaults to the project root when unset) via an exact containment
+    check (is_relative_to, not a string-prefix check), so a tenant cannot
+    point its config at a sibling directory. Tenant ledgers are created
+    under the data root by create_tenant(), so this is the correct boundary
+    for both self-hosted (project root) and SaaS (/data volume) installs.
 
     When no tenant is resolved, the main config is served only to
     unauthenticated (open-mode) requests, the global API key, or the
@@ -306,9 +309,9 @@ def get_config() -> Config:
     tenant = _current_tenant.get()
     if tenant:
         tdir = Path(tenant["ledger_dir"]).resolve()
-        project_root = _PROJECT_ROOT.resolve()
-        if not (tdir == project_root or tdir.is_relative_to(project_root)):
-            raise HTTPException(status_code=403, detail="Tenant ledger_dir is outside project root")
+        data_root = _DATA_DIR.resolve()
+        if not (tdir == data_root or tdir.is_relative_to(data_root)):
+            raise HTTPException(status_code=403, detail="Tenant ledger_dir is outside data root")
         cfg_path = tdir / "config.toml"
         if cfg_path.exists():
             try:

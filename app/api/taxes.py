@@ -86,6 +86,8 @@ async def tax_estimate(projected_income: Optional[float] = Query(None)):
         ledger = Ledger(cfg)
         from ..taxes import TaxEstimator as TE
         taxer = TE(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Tax engine error: {e}", 500)
 
@@ -113,6 +115,8 @@ async def tax_deadlines():
         ledger = Ledger(cfg)
         from ..taxes import TaxEstimator
         taxer = TaxEstimator(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Tax engine error: {e}", 500)
 
@@ -127,6 +131,8 @@ async def tax_schedule_c():
         ledger = Ledger(cfg)
         from ..taxes import TaxEstimator
         taxer = TaxEstimator(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Tax engine error: {e}", 500)
 
@@ -156,6 +162,8 @@ async def tax_form_1120s(projected_income: Optional[float] = Query(None)):
         ledger = Ledger(cfg)
         from ..taxes import TaxEstimator
         taxer = TaxEstimator(cfg, ledger)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Tax engine error: {e}", 500)
 
