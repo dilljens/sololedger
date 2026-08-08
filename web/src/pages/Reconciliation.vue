@@ -24,12 +24,26 @@
           <div class="stat-value">{{ fmt(data.cleared_balance) }}</div>
         </div>
         <div class="stat-card">
+          <div class="stat-label">Statement Balance</div>
+          <div class="stat-value">{{ data.statement_balance != null ? fmt(data.statement_balance) : '—' }}</div>
+          <div v-if="data.reconciled_through" class="stat-sub">through {{ data.reconciled_through }}</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-label">Uncleared Items</div>
           <div class="stat-value">{{ data.uncleared_count }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Uncleared Total</div>
           <div class="stat-value text-danger">{{ fmt(data.uncleared_total) }}</div>
+        </div>
+        <div class="stat-card" :class="{ 'stat-diff-ok': difference === 0, 'stat-diff-bad': difference !== 0 }">
+          <div class="stat-label">Difference</div>
+          <div class="stat-value" :class="difference === 0 ? 'text-success' : 'text-danger'">
+            {{ difference != null ? fmt(difference) : '—' }}
+          </div>
+          <div v-if="difference != null" class="stat-sub">
+            {{ difference === 0 ? 'reconciled ✓' : 'statement − cleared' }}
+          </div>
         </div>
       </div>
 
@@ -72,7 +86,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { apiGet } from '../api.js'
 import DataTable from '../components/DataTable.vue'
 
@@ -90,6 +104,14 @@ function fmt(cents) {
   const abs = Math.abs(cents)
   return (cents < 0 ? '-' : '') + '$' + abs.toFixed(2)
 }
+
+// Difference = statement balance − cleared balance (what still needs to be
+// explained). Null when no statement balance has been locked yet.
+const difference = computed(() => {
+  const d = data.value
+  if (!d || d.statement_balance == null || d.cleared_balance == null) return null
+  return Math.round((d.statement_balance - d.cleared_balance) * 100) / 100
+})
 
 async function load() {
   loading.value = true

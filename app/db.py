@@ -128,6 +128,130 @@ class TenantDB:
     def commit(self):
         self.conn.commit()
 
+    # ── Convenience: cross-source dedup ───────────────────────────────
+
+    def classify_fingerprint(self, fingerprint: str, source: str,
+                             account: str = "", date: str = "",
+                             amount_cents: int = 0, description: str = "") -> str:
+        """Classify a fingerprint against the dedup trail.
+
+        Returns:
+          'new'           — fingerprint not recorded yet (caller proceeds)
+          'same_source'   — already recorded from THIS source (skip silently)
+          'cross_source'  — already recorded from a DIFFERENT source; a
+                            duplicate_warnings row is flagged and the caller
+                            should skip AND surface the overlap for review
+
+        The caller is responsible for inserting the 'new' fingerprint after
+        a successful ledger write (keeps the trail single-writer per flow).
+        """
+        row = self.execute(
+            "SELECT source FROM imported_transactions WHERE fingerprint = ?",
+            (fingerprint,),
+        ).fetchone()
+        if row is None:
+            return "new"
+        if row["source"] == source:
+            return "same_source"
+        try:
+            self.execute(
+                "INSERT OR IGNORE INTO duplicate_warnings"
+                " (fingerprint, existing_source, attempted_source, account,"
+                "  date, amount_cents, description)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (fingerprint, row["source"], source, account, date,
+                 amount_cents, (description or "")[:200]),
+            )
+            self.commit()
+        except Exception:
+            pass  # flagging is best-effort; dedup still enforced by UNIQUE
+        return "cross_source"
+
+    def find_duplicates(self, limit: int = 100) -> list[dict]:
+        """Return cross-source duplicates flagged during import, newest first.
+
+        Each row is a fingerprint that was seen from more than one source —
+        the same transaction imported via OFX and CSV, for example. The
+        UNIQUE constraint already prevented double-posting; this is the
+        review surface (GET /import/duplicates).
+        """
+        rows = self.execute(
+            """
+            SELECT fingerprint,
+                   MAX(existing_source)         AS existing_source,
+                   COUNT(DISTINCT attempted_source) AS attempted_source_count,
+                   GROUP_CONCAT(DISTINCT attempted_source) AS attempted_sources,
+                   COUNT(*)                     AS attempts,
+                   MAX(date)                    AS latest_date,
+                   MAX(description)             AS description
+            FROM duplicate_warnings
+            GROUP BY fingerprint
+            ORDER BY attempts DESC, latest_date DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_import_batches(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """List import batches (newest first) — the import-history surface."""
+        rows = self.execute(
+            "SELECT * FROM import_batches ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── Convenience: reconciliation locking ──────────────────────────
+
+    def reconciliation_marks(self, account: Optional[str] = None) -> list[dict]:
+        """All reconciliation marks (locks), optionally filtered by account."""
+        if account:
+            rows = self.execute(
+                "SELECT * FROM reconciliation_marks WHERE account = ? ORDER BY statement_date DESC",
+                (account,),
+            ).fetchall()
+        else:
+            rows = self.execute(
+                "SELECT * FROM reconciliation_marks ORDER BY statement_date DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def is_period_locked(self, account: str, date: str) -> bool:
+        """True if a transaction dated `date` (ISO) falls inside a locked period.
+
+        A reconciliation mark with statement_date D means everything through
+        D has been verified for that account — so writes dated <= D must be
+        rejected to keep the reconciled balance intact.
+        """
+        row = self.execute(
+            "SELECT MAX(statement_date) AS latest FROM reconciliation_marks WHERE account = ?",
+            (account,),
+        ).fetchone()
+        if not row or not row["latest"]:
+            return False
+        return date <= row["latest"]
+
+    def lock_period(self, account: str, statement_date: str, balance_cents: int = 0,
+                    notes: str = "") -> dict:
+        """Upsert a reconciliation mark (soft-lock a period)."""
+        self.execute(
+            "INSERT OR REPLACE INTO reconciliation_marks"
+            " (account, statement_date, balance_cents, notes) VALUES (?, ?, ?, ?)",
+            (account, statement_date, balance_cents, notes),
+        )
+        self.commit()
+        return {"account": account, "statement_date": statement_date, "locked": True}
+
+    def unlock_period(self, account: str, statement_date: str) -> dict:
+        """Remove a reconciliation mark (unlock a period)."""
+        cur = self.execute(
+            "DELETE FROM reconciliation_marks WHERE account = ? AND statement_date = ?",
+            (account, statement_date),
+        )
+        self.commit()
+        return {"account": account, "statement_date": statement_date,
+                "unlocked": cur.rowcount > 0}
+
     # ── Convenience: fingerprinting ───────────────────────────────────
 
     @staticmethod

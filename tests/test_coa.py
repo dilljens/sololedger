@@ -29,3 +29,47 @@ class TestCOA:
         data = resp.json()
         assert data["success"] is True
         assert len(data["data"]["tree"]) > 0
+
+    def test_get_single_account(self, client):
+        resp = client.get("/api/v1/coa/Assets:Bank:BusinessChecking")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["account"] == "Assets:Bank:BusinessChecking"
+
+        resp = client.get("/api/v1/coa/Does:Not:Exist")
+        assert resp.status_code == 404
+
+    def test_put_opens_new_account(self, client):
+        resp = client.put("/api/v1/coa/Expenses:Marketing",
+                          json={"name": "Marketing", "tag": "advertising"})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["created"] is True
+
+        resp = client.get("/api/v1/coa")
+        accounts = [a["account"] for a in resp.json()["data"]["accounts"]]
+        assert "Expenses:Marketing" in accounts
+
+        # opened-but-empty account appears in the tree at balance 0
+        resp = client.get("/api/v1/coa/tree")
+        tree = resp.json()["data"]["tree"]
+        expenses = next(g for g in tree if g["root"] == "Expenses")
+        assert any(a["account"] == "Expenses:Marketing" and a["balance"] == 0.0
+                   for a in expenses["accounts"])
+
+    def test_put_existing_account_is_noop(self, client):
+        resp = client.put("/api/v1/coa/Expenses:Software:SaaS", json={"name": "SaaS"})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["already_exists"] is True
+        assert data["created"] is False
+
+    def test_put_invalid_account(self, client):
+        resp = client.put("/api/v1/coa/NotAnAccount", json={})
+        assert resp.status_code == 400
+
+        resp = client.put("/api/v1/coa/Expenses:lowercase", json={})
+        assert resp.status_code == 400
+
+        resp = client.put("/api/v1/coa/Expenses:Has Space", json={})
+        assert resp.status_code == 400

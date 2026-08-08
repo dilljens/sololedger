@@ -25,6 +25,19 @@ _CACHE_TTL = 5.0
 # {ledger_path: (entries, errors, options_map, balances, last_loaded)}
 _LEDGER_CACHE: dict[str, tuple] = {}
 
+# Beancount account names: capitalized components joined by ':', no spaces,
+# quotes, or control characters. Enforced on every write so a caller-supplied
+# account can never inject directive text into the ledger files.
+ACCOUNT_RE = re.compile(r"^[A-Z][A-Za-z0-9\-]*(?::[A-Z][A-Za-z0-9\-]*)+$")
+
+
+def validate_account(account: str) -> Optional[str]:
+    """Return an error message if `account` is not a valid Beancount account."""
+    if not account or not ACCOUNT_RE.match(account):
+        return (f"Invalid account: {account!r} — use capitalized components"
+                f" separated by ':' (e.g. Expenses:Software:SaaS)")
+    return None
+
 
 def _invalidate_cache(path: Path):
     """Drop the shared cache entry for a ledger after a write."""
@@ -151,6 +164,13 @@ class Ledger:
         self.reload()
         return [str(e) for e in self._errors]
 
+    def opened_accounts(self) -> set[str]:
+        """All accounts with an Open directive, whether or not they have
+        postings (an opened-but-empty account has no balance yet but is
+        still a legitimate chart-of-accounts member)."""
+        self.reload()
+        return {e.account for e in self._entries if isinstance(e, Open)}
+
     def registered_accounts(self) -> dict:
         """Return all accounts with their balances.
 
@@ -272,6 +292,14 @@ class Ledger:
         Amount strings like 'USD 500.00' or 'USD -500.00'.
         Returns the beancount entry string (which was also appended to file).
         """
+        # Validate every account before writing — a malformed account name
+        # (spaces, quotes, newlines) would inject arbitrary Beancount into
+        # the ledger. This is the single choke point for all writes.
+        for account, _amount in postings:
+            err = validate_account(account)
+            if err:
+                raise ValueError(err)
+
         date_str = date.isoformat()
         payee_escaped = _esc_beancount(payee)
         nar_escaped = _esc_beancount(narration)
@@ -360,3 +388,62 @@ class Ledger:
             narration=f"Split: {merchant}",
             postings=postings,
         )
+
+    # ── Chart of Accounts ────────────────────────────────────────────────
+
+    def _open_file(self) -> Path:
+        """Pick the file an Open directive should be appended to.
+
+        The decision keys off what main.beancount actually INCLUDES, not
+        which files happen to exist (an orphaned transactions.beancount that
+        the main file never includes would silently swallow the directive).
+        Standard layout: main includes accounts.beancount then
+        transactions.beancount — opens go to accounts.beancount. A single-
+        file ledger (e.g. tests) gets the directive appended to itself.
+        """
+        main = Path(self.cfg.ledger_path)
+        try:
+            main_text = main.read_text()
+        except OSError:
+            main_text = ""
+        for name in ("accounts.beancount", "transactions.beancount"):
+            if f'include "{name}"' in main_text:
+                return self.cfg.ledger_dir / name
+        return main
+
+    def open_account(self, account: str, currency: str = "USD",
+                     date: Optional[datetime.date] = None,
+                     meta: Optional[dict] = None) -> str:
+        """Append a Beancount open directive for a new account.
+
+        meta: optional key/value pairs written as directive metadata
+              (e.g. {"name": ..., "tag": ...}).
+
+        # ponytail: appends only. Editing the metadata of an EXISTING
+        # account would require rewriting its open directive in place;
+        # that's a parser/rewriter upgrade if it's ever needed.
+        """
+        today = date or datetime.date.today()
+        err = validate_account(account)
+        if err:
+            raise ValueError(err)
+        meta_str = ""
+        if meta:
+            lines = []
+            for k, v in meta.items():
+                if v is None:
+                    continue
+                lines.append(f'  {k}: "{_esc_beancount(str(v))}"')
+            if lines:
+                meta_str = "\n" + "\n".join(lines)
+
+        entry = f"{today.isoformat()} open {account:45s} {currency}{meta_str}\n"
+
+        open_path = self._open_file()
+        _append_locked(open_path, entry)
+        _invalidate_cache(open_path)
+        _invalidate_cache(self.cfg.ledger_path)
+
+        self._entries = None
+        self._balances = None
+        return entry

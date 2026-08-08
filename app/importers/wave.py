@@ -54,7 +54,7 @@ def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False,
     negative = expense, relative to the business checking account).
     """
     txns = parse_wave_csv(path)
-    result = {"total": len(txns), "imported": 0, "skipped": 0, "errors": 0}
+    result = {"total": len(txns), "imported": 0, "skipped": 0, "errors": 0, "warnings": []}
 
     if not txns:
         return result
@@ -66,14 +66,27 @@ def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False,
         )
         batch_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
+    # Canonical beancount account for fingerprinting — same transaction
+    # imported via OFX/CSV/Wave must produce the SAME fingerprint, so the
+    # account component has to be the real ledger account, not a label.
+    fp_account = cfg.checking_account if (cfg is not None and cfg.checking_account) else "wave"
+
     for txn in txns:
-        fp = make_fingerprint("wave", "wave", txn["date"], txn["amount_cents"], txn["description"])
+        # abs cents in the identity: OFX/CSV importers use copy_abs too, so
+        # the same expense signed differently by two sources still dedups.
+        amount_cents = abs(txn["amount_cents"])
+        fp = make_fingerprint("wave", fp_account, txn["date"], amount_cents, txn["description"])
 
         if not dry_run:
-            existing = db.execute(
-                "SELECT id FROM imported_transactions WHERE fingerprint = ?", (fp,)
-            ).fetchone()
-            if existing:
+            status = db.classify_fingerprint(
+                fp, "wave", fp_account,
+                txn["date"], amount_cents, txn["description"],
+            )
+            if status != "new":
+                if status == "cross_source":
+                    result["warnings"].append(
+                        f"Cross-source duplicate (already imported from another source): {txn['description']}"
+                    )
                 result["skipped"] += 1
                 continue
 
@@ -81,7 +94,7 @@ def import_wave_csv(db: TenantDB, path: str | Path, dry_run: bool = False,
                 """INSERT INTO imported_transactions
                    (batch_id, source, account, date, amount_cents, description, fingerprint)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (batch_id, "wave", "wave", txn["date"], txn["amount_cents"], txn["description"][:200], fp),
+                (batch_id, "wave", fp_account, txn["date"], txn["amount_cents"], txn["description"][:200], fp),
             )
 
             # Post to the Beancount ledger so the transaction actually appears

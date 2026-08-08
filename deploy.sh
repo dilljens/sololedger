@@ -61,8 +61,10 @@ source .venv/bin/activate 2>/dev/null || source "${INSTALL_DIR}/.venv/bin/activa
 pip install -q -r requirements.txt 2>/dev/null || pip install -r requirements.txt
 
 # ── 3.5 Build the Vue SPA ──────────────────────────────────────────
-# The Vue app ships as source; the built bundle (web/dist/) is produced
-# here and copied over web/index.html by the postbuild hook.
+# The Vue app ships as source; `npm run build` produces web/dist/. The API
+# serves the built web/dist/index.html at /app/ when it exists (falling
+# back to the source web/index.html shell for dev) — web/index.html is
+# never overwritten, so rebuilds don't clobber the committed source.
 if ! command -v node &>/dev/null; then
     echo "  Installing Node.js 20..."
     if [ "$UBUNTU" -gt 0 ]; then

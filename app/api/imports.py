@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import HTTPException, APIRouter, Depends, File, Form, UploadFile
+from fastapi import HTTPException, APIRouter, Depends, File, Form, Query, UploadFile
 
 from ..db import get_db, get_tenant_db_path
 from ..ledger import Ledger
@@ -178,6 +178,46 @@ async def run_wave_import(
         os.unlink(tmp_path)
 
 
+# ── Import history & cross-source duplicates ─────────────────────────────
+
+
+@router.get("/history", dependencies=[Depends(check_auth)])
+async def import_history(limit: int = Query(50), offset: int = Query(0)):
+    """List import batches (OFX, Citi, Wave, Amazon, statements) newest first."""
+    try:
+        cfg = get_config()
+        tenant_dir = get_tenant_db_path(cfg)
+        if not tenant_dir:
+            return _ok({"batches": [], "count": 0})
+        db = get_db(tenant_dir)
+        limit = max(0, min(limit, 200))
+        offset = max(0, offset)
+        batches = db.list_import_batches(limit=limit, offset=offset)
+        return _ok({"batches": batches, "count": len(batches)})
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@router.get("/duplicates", dependencies=[Depends(check_auth)])
+async def import_duplicates(limit: int = Query(100)):
+    """List cross-source duplicates — fingerprints seen from >1 source."""
+    try:
+        cfg = get_config()
+        tenant_dir = get_tenant_db_path(cfg)
+        if not tenant_dir:
+            return _ok({"duplicates": [], "count": 0})
+        db = get_db(tenant_dir)
+        limit = max(0, min(limit, 500))
+        duplicates = db.find_duplicates(limit=limit)
+        return _ok({"duplicates": duplicates, "count": len(duplicates)})
+    except HTTPException:
+        raise
+    except Exception as e:
+        return _err(str(e), 500)
+
+
 # ── Statement filing ─────────────────────────────────────────────────────
 
 
@@ -202,7 +242,7 @@ async def file_statement(
 
         from ..statements import file_statement as fs
         result = fs(db, tmp_path, institution=institution, account_mask=account_mask,
-                    period=period, base_dir=cfg.project_root)
+                    period=period, base_dir=cfg.project_root, filename=file.filename)
         return _ok(result)
     except HTTPException:
         raise

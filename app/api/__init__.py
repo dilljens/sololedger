@@ -60,7 +60,8 @@ async def serve_js(rest_of_path: str):
     return resp
 
 # Mount web UI — serves web/ directory for both Vue and classic apps.
-# Vue app at /app/ (index.html), classic app at /app/index-classic.html.
+# Vue app at /app/ (built bundle from web/dist/, source fallback for dev),
+# classic app at /app/index-classic.html.
 if _web_dir.exists():
     from fastapi.staticfiles import StaticFiles
 
@@ -74,6 +75,18 @@ if _web_dir.exists():
             return FileResponse(_landing, headers={"Cache-Control": "no-cache"})
         return FileResponse(_web_dir / "index.html")
 
+    # The Vue entry: serve the BUILT bundle (web/dist/index.html) when a
+    # production build exists, falling back to the committed source shell
+    # (dev). Registered before the /app mount so it wins for the exact
+    # entry paths; the mount serves everything else (assets at /app/dist/,
+    # the classic app, manifest, favicon).
+    @app.get("/app", include_in_schema=False)
+    @app.get("/app/", include_in_schema=False)
+    async def vue_entry():
+        built = _web_dir / "dist" / "index.html"
+        entry = built if built.exists() else _web_dir / "index.html"
+        return FileResponse(entry, headers={"Cache-Control": "no-cache"})
+
     app.mount("/app", StaticFiles(directory=str(_web_dir), html=True), name="web")
 
 # Register tenant middleware
@@ -86,6 +99,7 @@ from . import retainers, notifications, receipts, reports, expenses
 from . import mileage, accounts, reconciliation, attention, onboarding
 from . import subscriptions, settings, payroll
 from . import amazon, coa, rules, imports as import_routes
+from . import statements
 from . import admin
 
 app.include_router(health.router)
@@ -109,6 +123,7 @@ app.include_router(settings.router)
 app.include_router(payroll.router)
 app.include_router(amazon.router)
 app.include_router(import_routes.router)
+app.include_router(statements.router)
 app.include_router(coa.router)
 app.include_router(rules.router)
 app.include_router(admin.router)

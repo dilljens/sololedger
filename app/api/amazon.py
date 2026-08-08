@@ -86,8 +86,29 @@ async def list_orders(limit: int = 50, offset: int = 0):
             "SELECT count(*) as cnt FROM vendor_receipts WHERE vendor = 'amazon'"
         ).fetchone()["cnt"]
 
+        # Attach line items in one pass so the frontend can reconcile per-line
+        order_ids = [o["id"] for o in orders]
+        items_by_receipt: dict[int, list[dict]] = {}
+        if order_ids:
+            qmarks = ",".join("?" * len(order_ids))
+            items = db.execute(
+                f"SELECT id, receipt_id, description, quantity, unit_price_cents,"
+                f" total_cents, coa_account, is_personal, is_reimbursable, sort_order"
+                f" FROM vendor_receipt_items WHERE receipt_id IN ({qmarks})"
+                f" ORDER BY receipt_id, sort_order, id",
+                order_ids,
+            ).fetchall()
+            for it in items:
+                items_by_receipt.setdefault(it["receipt_id"], []).append(dict(it))
+
+        orders_out = []
+        for o in orders:
+            d = dict(o)
+            d["items"] = items_by_receipt.get(o["id"], [])
+            orders_out.append(d)
+
         return _ok({
-            "orders": [dict(o) for o in orders],
+            "orders": orders_out,
             "total": total,
             "limit": limit,
             "offset": offset,

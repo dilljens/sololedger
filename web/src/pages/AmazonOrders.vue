@@ -103,15 +103,51 @@
       <p>⚠ {{ error }}</p>
       <button class="btn btn-outline btn-sm mt-2" @click="error = ''">Dismiss</button>
     </div>
+
+    <!-- Categorize imported orders -->
+    <div class="card mt-4">
+      <div class="orders-head">
+        <h2>🏷️ Categorize Imported Orders</h2>
+        <button class="btn btn-ghost btn-sm" @click="loadOrders" :disabled="ordersLoading">
+          {{ ordersLoading ? '⏳' : '🔄 Refresh' }}
+        </button>
+      </div>
+      <p class="text-muted text-sm">Assign a chart-of-accounts category to each line item, then commit to the ledger as a split transaction.</p>
+
+      <div v-if="!orders.length" class="empty-state">No imported orders yet — run an import above.</div>
+
+      <div v-for="order in orders" :key="order.id" class="order-block">
+        <div class="order-head" @click="toggleOrder(order.id)">
+          <span class="order-title">{{ order.merchant || 'Amazon order' }} — {{ formatCents(order.total_cents) }}</span>
+          <span class="text-muted text-sm">{{ order.receipt_date || '' }}</span>
+          <span class="order-status">
+            <StatusBadge :status="order.status" :labels="{ committed: 'In ledger', pending: 'Uncommitted', categorized: 'Categorized' }" />
+            <span class="chevron">{{ expanded === order.id ? '▾' : '▸' }}</span>
+          </span>
+        </div>
+        <div v-if="expanded === order.id" class="order-body">
+          <LineItemReconciler
+            :items="order.items"
+            :accounts="accountNames"
+            :total-cents="order.total_cents"
+            :committing="committingId === order.id"
+            @update-item="onUpdateItem(order, $event)"
+            @commit="onCommit(order)"
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { apiUpload, apiPost } from '../api.js'
+import { ref, onMounted } from 'vue'
+import { apiGet, apiPost, apiPut, apiUpload } from '../api.js'
 import FileUpload from '../components/FileUpload.vue'
 import FormField from '../components/FormField.vue'
 import DataTable from '../components/DataTable.vue'
+import StatusBadge from '../components/StatusBadge.vue'
+import LineItemReconciler from '../components/LineItemReconciler.vue'
 
 const step = ref('upload')
 const fileSelected = ref(null)
@@ -123,6 +159,61 @@ const importing = ref(false)
 const dryRun = ref(false)
 const result = ref(null)
 const error = ref('')
+
+const orders = ref([])
+const expanded = ref(null)
+const ordersLoading = ref(false)
+const committingId = ref(null)
+const accountNames = ref([])
+
+async function loadOrders() {
+  ordersLoading.value = true
+  try {
+    const d = await apiGet('/import/amazon/orders?limit=50')
+    orders.value = d.orders || []
+  } catch (e) {
+    error.value = e.message || 'Failed to load orders'
+  } finally {
+    ordersLoading.value = false
+  }
+}
+
+async function loadAccounts() {
+  try {
+    const d = await apiGet('/coa')
+    accountNames.value = (d.accounts || []).map(a => a.account)
+  } catch (e) {
+    accountNames.value = []
+  }
+}
+
+function toggleOrder(id) {
+  expanded.value = expanded.value === id ? null : id
+}
+
+async function onUpdateItem(order, { itemId, patch }) {
+  try {
+    await apiPut(`/receipts/${order.id}/items/${itemId}`, patch)
+    // update local copy so the badge reflects any status change
+    const it = order.items.find(i => i.id === itemId)
+    if (it) Object.assign(it, patch)
+  } catch (e) {
+    error.value = e.message || 'Failed to save line item'
+  }
+}
+
+async function onCommit(order) {
+  committingId.value = order.id
+  error.value = ''
+  try {
+    await apiPost(`/receipts/${order.id}/commit`, {})
+    order.status = 'committed'
+  } catch (e) {
+    error.value = e.message || 'Commit failed'
+  } finally {
+    committingId.value = null
+  }
+}
 
 function formatCents(cents) {
   if (cents == null) return '$0.00'
@@ -189,6 +280,11 @@ function reset() {
   selectedCardFilter.value = ''
   dryRun.value = false
 }
+
+onMounted(() => {
+  loadOrders()
+  loadAccounts()
+})
 </script>
 
 <style scoped>
@@ -213,4 +309,13 @@ function reset() {
 .card-filter-section { margin-top: 12px; max-width: 300px; }
 
 .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; }
+
+.orders-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.order-block { border: 1px solid var(--gray-200); border-radius: 8px; margin-top: 10px; overflow: hidden; }
+.order-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; }
+.order-head:hover { background: var(--gray-50); }
+.order-title { font-weight: 600; flex: 1; }
+.order-status { display: inline-flex; align-items: center; gap: 8px; }
+.chevron { color: var(--gray-400); }
+.order-body { padding: 12px 14px; border-top: 1px solid var(--gray-100); background: var(--gray-50); }
 </style>

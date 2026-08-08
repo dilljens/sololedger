@@ -218,6 +218,12 @@ body { display: flex; min-height: 100vh; }
 }
 
 /* ── Stat cards ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
 .stat-card {
   flex: 1;
   min-width: 160px;

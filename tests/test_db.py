@@ -44,15 +44,15 @@ class TestTenantDB:
         """Migration versions should be recorded in schema_migrations."""
         rows = db.execute("SELECT version, name FROM schema_migrations ORDER BY version").fetchall()
         versions = [r["version"] for r in rows]
-        # 001 (base schema) + 002 (usage counters)
-        assert versions == [1, 2], versions
+        # 001 (base schema) + 002 (usage counters) + 003 (duplicate warnings)
+        assert versions == [1, 2, 3], versions
         assert any("001" in r["name"] for r in rows)
 
     def test_migration_idempotent(self, db):
         """Running migrate() again should not fail or duplicate versions."""
         db.migrate()  # second run
         rows = db.execute("SELECT count(*) as cnt FROM schema_migrations").fetchall()
-        assert rows[0]["cnt"] == 2, "Migration recorded incorrectly after re-run!"
+        assert rows[0]["cnt"] == 3, "Migration recorded incorrectly after re-run!"
 
     def test_reset_drops_and_remigrates(self, db):
         """reset() should drop all tables and re-apply migrations."""
@@ -69,7 +69,7 @@ class TestTenantDB:
 
         # Migrations should be re-recorded
         versions = db.execute("SELECT count(*) as cnt FROM schema_migrations").fetchall()
-        assert versions[0]["cnt"] == 2
+        assert versions[0]["cnt"] == 3
 
     def test_insert_and_query(self, db):
         """Basic CRUD operations work."""

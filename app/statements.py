@@ -3,6 +3,7 @@
 Uses pdfplumber (already installed) for PDF text extraction.
 Stores metadata in SQLite import_batches table.
 """
+import json
 import re
 import shutil
 from datetime import datetime
@@ -76,6 +77,7 @@ def file_statement(
     account_mask: Optional[str] = None,
     period: Optional[str] = None,
     base_dir: Optional[Path] = None,
+    filename: Optional[str] = None,
 ) -> dict:
     """File a PDF statement to the canonical location and record metadata.
 
@@ -88,6 +90,8 @@ def file_statement(
         base_dir: Tenant base dir for the documents/ tree. MUST be provided
             for multi-tenant deployments — falling back to the process CWD
             would share one documents/ tree across every tenant.
+        filename: Original upload filename to file under (defaults to the
+            temp file's name, which is ugly for uploads)
 
     Returns:
         dict with success, filed_path, institution, metadata
@@ -128,15 +132,28 @@ def file_statement(
     if not (docs_dir == docs_root or docs_dir.is_relative_to(docs_root)):
         return {"success": False, "error": "Invalid statement destination"}
 
-    # Copy file with date prefix
-    dest = docs_dir / src.name
+    # Copy file with date prefix (use the original filename when supplied)
+    file_name = _safe_component(filename, "") or src.name
+    dest = docs_dir / file_name
     shutil.copy2(str(src), str(dest))
+
+    # Record in SQLite — keep the relative path so the API can list/get
+    # without re-deriving the canonical layout.
+    rel_path = str(dest.relative_to(docs_root))
+    stats = json.dumps({
+        "path": rel_path,
+        "period": period_str,
+        "page_count": page_count,
+        "start_date": start_date,
+        "end_date": end_date,
+    })
 
     # Record in SQLite
     try:
         db.execute(
-            "INSERT INTO import_batches (source, account, filename, status) VALUES (?, ?, ?, ?)",
-            ("statement", detected_institution, src.name, "filed"),
+            "INSERT INTO import_batches (source, account, filename, status, stats)"
+            " VALUES (?, ?, ?, ?, ?)",
+            ("statement", detected_institution, file_name, "filed", stats),
         )
         db.commit()
     except Exception:
@@ -158,3 +175,88 @@ def file_statement(
         "period": period_str,
         "page_count": page_count,
     }
+
+
+def list_filed_statements(db: TenantDB, base_dir: Optional[Path] = None) -> list[dict]:
+    """List filed statements (metadata rows, newest first)."""
+    rows = db.execute(
+        "SELECT id, account, filename, status, stats, created_at"
+        " FROM import_batches WHERE source = 'statement'"
+        " ORDER BY id DESC"
+    ).fetchall()
+
+    docs_root = _docs_root(base_dir)
+    result = []
+    for r in rows:
+        stats = {}
+        try:
+            stats = json.loads(r["stats"]) if r["stats"] else {}
+        except (TypeError, ValueError):
+            stats = {}
+        rel_path = stats.get("path", "")
+        entry = {
+            "id": r["id"],
+            "institution": r["account"],
+            "filename": r["filename"],
+            "status": r["status"],
+            "period": stats.get("period"),
+            "start_date": stats.get("start_date"),
+            "end_date": stats.get("end_date"),
+            "page_count": stats.get("page_count"),
+            "path": rel_path,
+            "filed_at": r["created_at"],
+        }
+        if rel_path:
+            full = (docs_root / rel_path).resolve()
+            entry["exists"] = full.is_file()
+            entry["size"] = full.stat().st_size if entry["exists"] else None
+        else:
+            entry["exists"] = False
+            entry["size"] = None
+        result.append(entry)
+    return result
+
+
+def get_filed_statement(db: TenantDB, statement_id: int, base_dir: Optional[Path] = None) -> Optional[dict]:
+    """Get one filed statement by id, with its on-disk path."""
+    r = db.execute(
+        "SELECT id, account, filename, status, stats, created_at"
+        " FROM import_batches WHERE source = 'statement' AND id = ?",
+        (statement_id,),
+    ).fetchone()
+    if not r:
+        return None
+
+    stats = {}
+    try:
+        stats = json.loads(r["stats"]) if r["stats"] else {}
+    except (TypeError, ValueError):
+        stats = {}
+
+    rel_path = stats.get("path", "")
+    entry = {
+        "id": r["id"],
+        "institution": r["account"],
+        "filename": r["filename"],
+        "status": r["status"],
+        "period": stats.get("period"),
+        "start_date": stats.get("start_date"),
+        "end_date": stats.get("end_date"),
+        "page_count": stats.get("page_count"),
+        "path": rel_path,
+        "filed_at": r["created_at"],
+        "absolute_path": None,
+        "exists": False,
+    }
+    if rel_path:
+        full = (_docs_root(base_dir) / rel_path).resolve()
+        entry["exists"] = full.is_file()
+        entry["absolute_path"] = str(full) if entry["exists"] else None
+    return entry
+
+
+def _docs_root(base_dir: Optional[Path] = None) -> Path:
+    """Canonical documents/statements root for a tenant base dir."""
+    if base_dir is None:
+        base_dir = Path.cwd()
+    return (Path(base_dir) / "documents" / "statements").resolve()

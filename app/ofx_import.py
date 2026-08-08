@@ -195,9 +195,15 @@ class OfxImporter:
                     source, account, txn["date"].isoformat(),
                     int((amt.copy_abs() * 100).quantize(Decimal("1"))), payee,
                 )
-                if db.execute(
-                    "SELECT 1 FROM imported_transactions WHERE fingerprint = ?", (fp,)
-                ).fetchone():
+                fp_status = db.classify_fingerprint(
+                    fp, source, account, txn["date"].isoformat(),
+                    int((amt.copy_abs() * 100).quantize(Decimal("1"))), payee,
+                )
+                if fp_status != "new":
+                    if fp_status == "cross_source":
+                        result["warnings"].append(
+                            f"Cross-source duplicate (already imported from another source): {payee}"
+                        )
                     result["skipped_duplicates"] += 1
                     continue
 

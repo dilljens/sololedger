@@ -167,18 +167,28 @@ def import_citi_csv(
         batch_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
     for txn in txns:
+        # Fingerprint against the beancount account the charge posts from
+        # (source_account), so the same card transaction imported via OFX
+        # or Citi CSV dedups across sources. `account_label` stays the
+        # human-facing label in the stored row. abs cents (OFX/CSV importers
+        # use copy_abs too) so charge vs refund signs can't split a match.
+        amount_cents = abs(txn["amount_cents"])
         fp = make_fingerprint(
-            "citi_csv", account_label,
-            txn["date"], txn["amount_cents"], txn["merchant_raw"],
+            "citi_csv", source_account,
+            txn["date"], amount_cents, txn["merchant_raw"],
         )
 
         if not dry_run:
-            # Check existing fingerprint
-            existing = db.execute(
-                "SELECT id FROM imported_transactions WHERE fingerprint = ?", (fp,)
-            ).fetchone()
-
-            if existing:
+            # Check existing fingerprint — flag cross-source duplicates
+            status = db.classify_fingerprint(
+                fp, "citi_csv", source_account,
+                txn["date"], amount_cents, txn["merchant_raw"],
+            )
+            if status != "new":
+                if status == "cross_source":
+                    result["warnings"].append(
+                        f"Cross-source duplicate (already imported from another source): {txn['merchant_raw']}"
+                    )
                 result["skipped_duplicates"] += 1
                 continue
 

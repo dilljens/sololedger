@@ -103,10 +103,13 @@ class ExpenseImporter:
                     source, self.cfg.checking_account,
                     str(date), _cents(amount), desc,
                 )
-                already = db.execute(
-                    "SELECT 1 FROM imported_transactions WHERE fingerprint = ?", (fp,)
-                ).fetchone()
-                if already:
+                fp_status = db.classify_fingerprint(
+                    fp, source, self.cfg.checking_account,
+                    str(date), _cents(amount), desc,
+                )
+                if fp_status != "new":
+                    if fp_status == "cross_source":
+                        print(f"⚠  Cross-source duplicate (already imported from another source): {desc}")
                     skipped += 1
                     continue
                 tx["fingerprint"] = fp

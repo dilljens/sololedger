@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from ..db import get_db, get_tenant_db_path
 from ..ledger import Ledger
 from .deps import _err, _ok, _PROJECT_ROOT, check_auth, get_config, require_plan
 
@@ -19,6 +20,18 @@ class SetupRequest(BaseModel):
     state: str
     ein: str = ""
     email: str = ""
+
+
+class LockRequest(BaseModel):
+    account: str
+    statement_date: str
+    balance_cents: int = 0
+    notes: str = ""
+
+
+class UnlockRequest(BaseModel):
+    account: str
+    statement_date: str
 
 
 @router.get("/reconciliation", dependencies=[Depends(check_auth), Depends(require_plan("business"))])
@@ -37,14 +50,79 @@ async def get_reconciliation():
 
     total_uncleared = sum(t["amount"] for t in uncleared)
 
+    # Difference: statement balance (if a lock exists for this account) vs the
+    # current cleared balance. With no lock yet, statement balance == ledger
+    # balance and the difference is just the uncleared total.
+    tenant_dir = get_tenant_db_path(cfg)
+    db = get_db(tenant_dir) if tenant_dir else None
+    marks = db.reconciliation_marks(account=cfg.checking_account) if db else []
+    latest_mark = marks[0] if marks else None
+
     return _ok({
         "ledger_balance": checking_bal,
         "uncleared_count": len(uncleared),
         "uncleared_total": round(total_uncleared, 2),
         "cleared_balance": round(checking_bal - total_uncleared, 2),
+        "statement_balance": (latest_mark["balance_cents"] / 100) if latest_mark and latest_mark.get("balance_cents") is not None else None,
+        "statement_date": latest_mark["statement_date"] if latest_mark else None,
+        "reconciled_through": latest_mark["statement_date"] if latest_mark else None,
+        "difference": None,  # computed client-side as statement - cleared when both present
         "uncleared": uncleared[:50],
         "balance_date": datetime.date.today().isoformat(),
     })
+
+
+@router.post("/reconciliation/lock", dependencies=[Depends(check_auth), Depends(require_plan("business"))])
+async def lock_reconciliation(req: LockRequest):
+    """Soft-lock a reconciled period — transactions dated <= statement_date
+    for this account can no longer be modified via the API."""
+    try:
+        # statement_date must be a real ISO date: is_period_locked compares
+        # lexicographically, so any other format would mis-enforce.
+        datetime.date.fromisoformat(req.statement_date)
+    except ValueError:
+        return _err("statement_date must be YYYY-MM-DD", 400)
+    try:
+        cfg = get_config()
+        tenant_dir = get_tenant_db_path(cfg)
+        if not tenant_dir:
+            return _err("No tenant directory configured", 500)
+        db = get_db(tenant_dir)
+        result = db.lock_period(req.account, req.statement_date,
+                                balance_cents=req.balance_cents, notes=req.notes)
+        return _ok(result)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@router.post("/reconciliation/unlock", dependencies=[Depends(check_auth), Depends(require_plan("business"))])
+async def unlock_reconciliation(req: UnlockRequest):
+    """Remove a reconciliation lock for a period."""
+    try:
+        cfg = get_config()
+        tenant_dir = get_tenant_db_path(cfg)
+        if not tenant_dir:
+            return _err("No tenant directory configured", 500)
+        db = get_db(tenant_dir)
+        result = db.unlock_period(req.account, req.statement_date)
+        return _ok(result)
+    except Exception as e:
+        return _err(str(e), 500)
+
+
+@router.get("/reconciliation/marks", dependencies=[Depends(check_auth), Depends(require_plan("business"))])
+async def reconciliation_marks_list(account: Optional[str] = None):
+    """List reconciliation locks, optionally filtered by account."""
+    try:
+        cfg = get_config()
+        tenant_dir = get_tenant_db_path(cfg)
+        if not tenant_dir:
+            return _ok({"marks": [], "count": 0})
+        db = get_db(tenant_dir)
+        marks = db.reconciliation_marks(account=account)
+        return _ok({"marks": marks, "count": len(marks)})
+    except Exception as e:
+        return _err(str(e), 500)
 
 
 @router.get("/check", dependencies=[Depends(check_auth)])

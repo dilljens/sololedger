@@ -109,6 +109,31 @@ export async function apiUpload(path, file, extraFields = {}) {
   return apiPost(path, formData)
 }
 
+/** Download a file (e.g. invoice PDF) with the auth token attached. */
+export async function apiDownload(path, filename = 'download') {
+  const headers = {}
+  const token = getAuthToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const response = await fetch(`${API_BASE}${path}`, { headers })
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`
+    try {
+      const data = await response.json()
+      message = data.error || data.detail || message
+    } catch { /* non-JSON error body */ }
+    throw new ApiError(message, response.status, null)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // ── Auth helpers ────────────────────────────────────────────────────
 // The classic UI (web/js) stores the session under `sololedger_session`;
 // this UI used `auth_token`. Read/write BOTH keys so switching UIs keeps

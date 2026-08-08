@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 kind: plan
 area: architecture, frontend, features
 author: AI
@@ -14,18 +14,18 @@ created: 2026-07-25
 
 ## Requirements
 
-- [ ] R1: SQLite added alongside Beancount for feature metadata (imports, receipts, categorization rules, vendor orders, reconciliation state)
-- [ ] R2: Vue.js 3 SPA replaces vanilla JS pages incrementally (interleaved approach)
-- [ ] R3: Amazon Order History import (zip/CSV) with card-based filtering and line-item categorization
-- [ ] R4: PDF statement intake — extract text, classify, file to canonical layout
-- [ ] R5: Cross-source duplicate detection — warn when import matches existing transaction from a different source
-- [ ] R6: Reconciliation locking — soft-lock reconciled transactions to prevent accidental modification
-- [ ] R7: Chart of Accounts management UI — seed, list, add, update from web
-- [ ] R8: Line-item receipt reconciliation — per-line CoA assignment with personal/reimbursable flags
-- [ ] R9: Enhanced importers — Citi CSV, Wave historical CSV, improved OFX
-- [ ] R10: Categorization rules engine — regex/substring/eq/range matchers with UI
-- [ ] R11: All existing 175 tests continue to pass; new features have ≥80% test coverage
-- [ ] R12: Beancount remains the source of truth for accounting data
+- [x] R1: SQLite added alongside Beancount for feature metadata (imports, receipts, categorization rules, vendor orders, reconciliation state)
+- [x] R2: Vue.js 3 SPA replaces vanilla JS pages incrementally (interleaved approach)
+- [x] R3: Amazon Order History import (zip/CSV) with card-based filtering and line-item categorization
+- [x] R4: PDF statement intake — extract text, classify, file to canonical layout
+- [x] R5: Cross-source duplicate detection — warn when import matches existing transaction from a different source
+- [x] R6: Reconciliation locking — soft-lock reconciled transactions to prevent accidental modification
+- [x] R7: Chart of Accounts management UI — seed, list, add, update from web
+- [x] R8: Line-item receipt reconciliation — per-line CoA assignment with personal/reimbursable flags
+- [x] R9: Enhanced importers — Citi CSV, Wave historical CSV, improved OFX
+- [x] R10: Categorization rules engine — regex/substring/eq/range matchers with UI
+- [x] R11: All existing 175 tests continue to pass; new features have ≥80% test coverage
+- [x] R12: Beancount remains the source of truth for accounting data
 
 ---
 
@@ -72,21 +72,21 @@ created: 2026-07-25
 - [x] Create base components: AuthModal, Sidebar (in App.vue), Toast (GenericPage)
 - [x] Port existing `index.html` shell to Vue (sidebar HTML, auth modal HTML, theme toggle)
 - [x] Port existing CSS to scoped component styles + global tokens (`web/src/assets/main.css`)
-- [ ] Verify the new Vue shell renders identically to the old HTML
+- [x] Verify the new Vue shell renders identically to the old HTML
 - 📏 Scope: ~15-20 files, ~500-700 lines
 - ✅ Checkpoint: Vue dev server runs; app shell matches current sidebar + auth modal appearance
 - ⚙ Fallback: Skip hot-reload; build to `web/dist/` and serve via FastAPI
 
-### Phase A3: Component library — shared patterns `[ ]`
+### Phase A3: Component library — shared patterns `[x]`
 - 🏷 Priority: high
 - 🔁 Max turns: 6
 - [x] Create DataTable component (sortable, searchable, paginated)
 - [x] Create FormField / FormInput components (consistent styling, validation)
 - [x] Create FileUpload component (drag-and-drop, preview)
 - [x] Create AuthModal component
-- [ ] Create StatusBadge / Tag / Alert components
-- [ ] Create ConfirmDialog component
-- [ ] Create Skeleton / LoadingState components
+- [x] Create StatusBadge / Tag / Alert components
+- [x] Create ConfirmDialog component
+- [x] Create Skeleton / LoadingState components
 - 📏 Scope: ~10 files, ~400-500 lines
 - ✅ Checkpoint: Storybook-style component preview renders all components
 - ⚙ Fallback: Build components only as needed during page migration
@@ -180,15 +180,15 @@ created: 2026-07-25
   - On import, check SQLite `imported_transactions` for same fingerprint
   - Fingerprint = SHA256(source, account, date, amount_cents, description)
   - UNIQUE constraint prevents double-import from same source
-- [ ] Add dedup flagging across sources (different source, same transaction)
-- [ ] Add `GET /import/duplicates` endpoint to list potential dupes
+- [x] Add dedup flagging across sources (different source, same transaction)
+- [x] Add `GET /import/duplicates` endpoint to list potential dupes
 - 📏 Scope: ~3 files, ~200-300 lines
 - ✅ Checkpoint: Importing same transaction from two sources generates a warning
 - ⚙ Fallback: Simple duplicate check without source tracking; enhance later
 
 ---
 
-## Track D: Feature — PDF Statement Processing `[ ]`
+## Track D: Feature — PDF Statement Processing `[x]`
 
 **Description:** Port PDF statement intake from Accounting. Extract text from bank/CC PDF statements, classify by institution, file to canonical layout.
 
@@ -202,8 +202,8 @@ created: 2026-07-25
   - Institution classification (Wells Fargo, Citi, Chase, BoA, Cap One, Amex, US Bank)
   - Canonical filing to `documents/statements/YYYY/`
 - [x] Tables included in migration 001: `reconciliation_marks`, `import_batches`
-- [ ] Create API: `POST /statements/upload`, `GET /statements`, `GET /statements/:id`
-- [ ] Write tests for classification, filing, listing
+- [x] Create API: `POST /statements/upload`, `GET /statements`, `GET /statements/:id`
+- [x] Write tests for classification, filing, listing
 - 📏 Scope: ~3 files, ~250-350 lines
 - ✅ Checkpoint: Upload a PDF statement → classified, filed, listed
 - ⚙ Fallback: No classification; just file by date range and store metadata
@@ -220,7 +220,7 @@ created: 2026-07-25
 
 ---
 
-## Track E: Feature — Reconciliation & Locking `[ ]`
+## Track E: Feature — Reconciliation & Locking `[x]`
 
 **Description:** Add reconciliation locking (soft-lock reconciled transactions) and reconciliation workflow.
 
@@ -233,7 +233,7 @@ created: 2026-07-25
 - [x] Implement soft-lock via `app/reconciliation.py` (start, list, assert workflows)
 - [x] API: `GET /api/v1/reconciliation`, `POST /api/v1/reconciliation/check`, `/lock`, `/unlock`
 - [x] Add ledger balance verification endpoint via check endpoint
-- [ ] Write dedicated tests for lock enforcement
+- [x] Write dedicated tests for lock enforcement
 - 📏 Scope: ~3 files, ~200-300 lines
 - ✅ Checkpoint: Locked transactions cannot be modified via API
 - ⚙ Fallback: Lock check in API routes only (not yet in CLI)
@@ -245,7 +245,7 @@ created: 2026-07-25
 - [x] Period selection (balance date display)
 - [x] Statement balance entry
 - [x] Transaction list with uncleared items
-- [ ] Difference calculation
+- [x] Difference calculation
 - 📏 Scope: ~2 files, ~200-250 lines
 - ✅ Checkpoint: Full reconciliation cycle works: enter balance → review → lock
 - ⚙ Fallback: Simple lock/unlock list without period balance entry
@@ -317,7 +317,7 @@ created: 2026-07-25
 
 ---
 
-## Track H: Feature — Line-Item Receipt Reconciliation `[ ]`
+## Track H: Feature — Line-Item Receipt Reconciliation `[x]`
 
 **Description:** Per-line CoA assignment for vendor receipts (Amazon orders, uploaded receipts). Support personal/reimbursable flags.
 
@@ -330,15 +330,15 @@ created: 2026-07-25
 - [x] API: PUT /receipts/:id/items/:item_id (update line-item assignment)
 - [x] API: POST /receipts/:id/commit (convert assigned items to Beancount entries)
 - [x] Beancount integration: generate split transactions per line-item category
-- [ ] Write dedicated tests for assignment and commit
+- [x] Write dedicated tests for assignment and commit
 - 📏 Scope: ~2 files, ~200-300 lines
 - ✅ Checkpoint: Receipt line items can be individually categorized; commit generates split transactions
 - ⚙ Fallback: Assign all items to a single account (current behavior); per-line as enhancement
 
-### Phase H2: Line-item reconciliation Vue component `[ ]`
+### Phase H2: Line-item reconciliation Vue component `[x]`
 - 🏷 Priority: low
 - 🔁 Max turns: 4
-- [ ] Create LineItemReconciler.vue component (reusable in ReceiptCapture.vue and AmazonOrders.vue)
+- [x] Create LineItemReconciler.vue component (reusable in ReceiptCapture.vue and AmazonOrders.vue)
   - Per-line category dropdown with search
   - Personal/reimbursable toggles
   - Total-allocated vs receipt-total balance indicator
@@ -349,7 +349,7 @@ created: 2026-07-25
 
 ---
 
-## Track I: UI Migration — Remaining Pages `[ ]`
+## Track I: UI Migration — Remaining Pages `[x]`
 
 **Description:** Migrate the remaining vanilla JS pages to Vue progressively, page by page.
 
@@ -358,9 +358,9 @@ created: 2026-07-25
 ### Phase I1: Receipts page migration `[x]`
 - 🏷 Priority: high (receipt page has the most interactive logic)
 - 🔁 Max turns: 5
-- [ ] Create ReceiptCapture.vue — file upload, scan preview, category edit
-- [ ] Create ReceiptList.vue — list table with date/account/path
-- [ ] Wire into vue-router
+- [x] Create ReceiptCapture.vue — file upload, scan preview, category edit
+- [x] Create ReceiptList.vue — list table with date/account/path
+- [x] Wire into vue-router
 - 📏 Scope: ~2 files, ~200-300 lines
 - ✅ Checkpoint: Receipt features work in Vue; old receipts.js still loads but routes redirect
 - ⚙ Fallback: Keep old page; redirect to it via iframe bridge
@@ -371,18 +371,18 @@ created: 2026-07-25
 - [x] Create ImportCenter.vue — tabbed interface (OFX, CSV, QBO, Citi, Wave)
 - [x] File upload with drag-and-drop
 - [x] Preview table before confirm
-- [ ] Import history toggle
+- [x] Import history toggle
 - 📏 Scope: ~2 files, ~250-300 lines
 - ✅ Checkpoint: All import flows work in Vue
 - ⚙ Fallback: Tabbed simple version; advanced per-source options later
 
-### Phase I3: Dashboard + remaining pages `[ ]`
+### Phase I3: Dashboard + remaining pages `[x]`
 - 🏷 Priority: medium
 - 🔁 Max turns: 8
 - [x] Dashboard.vue — stat cards, attention items, sparkline charts
 - [x] Tax.vue — estimate, deadlines, schedule-C, mark-paid
-- [ ] Accounts.vue — balance cards, transfer/split/reimburse forms
-- [ ] Remaining pages: Invoices, Transactions, Mileage, Settings, Health, Payroll
+- [x] Accounts.vue — balance cards, transfer/split/reimburse forms
+- [x] Remaining pages: Invoices, Transactions, Mileage, Settings, Health, Payroll
 - 📏 Scope: ~10 files, ~350-500 lines
 - ✅ Checkpoint: All pages navigable via Vue; old page modules unused
 - ⚙ Fallback: Migrate high-priority pages first (Dashboard, Tax, Accounts); leave Settings/Health as-is
@@ -395,26 +395,26 @@ created: 2026-07-25
 |-------|--------|-------|
 | A1: SQLite metadata layer | `[x]` | db.py + 001_init.sql + test_db.py |
 | A2: Vue.js scaffold | `[x]` | App.vue, router, vite, api.js all in place |
-| A3: Component library | `[ ]` | DataTable, FormField, FileUpload, AuthModal exist; missing StatusBadge, Tag, Alert, ConfirmDialog, Skeleton |
+| A3: Component library | `[x]` | DataTable, FormField, FileUpload, AuthModal + StatusBadge, Tag, Alert, ConfirmDialog, Skeleton (2026-08-05) |
 | B1: Amazon import backend | `[x]` | importers/amazon.py + api/amazon.py + test_amazon.py |
 | B2: Amazon import Vue page | `[x]` | AmazonOrders.vue; Amazon importer posts to ledger now (verified v0.4) |
 | C1: OFX improvements | `[x]` | ofx_import.py with fingerprint |
 | C2: Citi CSV import | `[x]` | importers/citi.py + test_citi.py |
 | C3: Wave CSV import | `[x]` | importers/wave.py + test_wave.py; Wave importer posts to ledger now (verified v0.4) |
-| C4: Cross-source dedup | `[x]` | Fingerprint system in db.py; cross-source flagging still TODO |
-| D1: PDF statement backend | `[x]` | statements.py with classify + filing |
+| C4: Cross-source dedup | `[x]` | Fingerprint system + duplicate_warnings table (003) + flagging in all 4 importers + GET /import/duplicates + /import/history (2026-08-05) |
+| D1: PDF statement backend | `[x]` | statements.py + api/statements.py (upload/list/get) + test_statements_api.py (2026-08-05) |
 | D2: PDF statement Vue page | `[x]` | Statements.vue with upload + router entry |
-| E1: Reconciliation locking | `[x]` | reconciliation.py + api/reconciliation.py; lock is a mark with no enforcement yet (partial — see audit notes) |
-| E2: Reconciliation Vue page | `[x]` | Reconciliation.vue with uncleared list + nav entry; difference calculation not implemented (partial — see audit notes) |
-| F1: COA backend | `[x]` | api/coa.py + test_coa.py; read-only — GET only, no update endpoint (partial — see audit notes) |
-| F2: COA Vue page | `[x]` | ChartOfAccounts.vue |
+| E1: Reconciliation locking | `[x]` | /reconciliation/lock + /unlock + /marks; enforcement wired into transfer/reimburse/split; test_reconciliation_lock.py (2026-08-05) |
+| E2: Reconciliation Vue page | `[x]` | Reconciliation.vue with statement balance + difference cards (2026-08-05) |
+| F1: COA backend | `[x]` | api/coa.py + test_coa.py; GET /{account} + PUT /coa/:account (open account) + Ledger.open_account() (2026-08-05) |
+| F2: COA Vue page | `[x]` | ChartOfAccounts.vue + add-account form |
 | G1: Rules engine | `[x]` | rules.py + api/rules.py + test_rules.py; integrated into Categorizer (verified v0.4) |
 | G2: Rules Vue page | `[x]` | RulesPage.vue |
-| H1: Line-item reconciler backend | `[x]` | Schema + API endpoints exist; no dedicated tests (partial — see audit notes) |
-| H2: Line-item Vue component | `[ ]` | NOT STARTED |
+| H1: Line-item reconciler backend | `[x]` | PUT /receipts/:id/items/:item_id + POST /receipts/:id/commit + GET /receipts/:id; test_receipt_line_items.py (2026-08-05) |
+| H2: Line-item Vue component | `[x]` | LineItemReconciler.vue (searchable category, personal/reimburse toggles, balance indicator, batch assign) wired into AmazonOrders.vue (2026-08-05) |
 | I1: Receipt page Vue migration | `[x]` | ReceiptCapture.vue + ReceiptList.vue + router update |
-| I2: Import page Vue migration | `[x]` | ImportCenter.vue; import history toggle not implemented (partial — see audit notes) |
-| I3: Dashboard + remaining pages | `[ ]` | Dashboard.vue + TaxPage.vue exist; 8 pages still use GenericPage |
+| I2: Import page Vue migration | `[x]` | ImportCenter.vue + History tab with cross-source-duplicates toggle (2026-08-05) |
+| I3: Dashboard + remaining pages | `[x]` | Dashboard.vue + TaxPage.vue + Accounts, Invoices, Transactions, Mileage, Health, Payroll, Settings pages (2026-08-05) |
 
 ---
 
@@ -432,3 +432,29 @@ The phase checkboxes above were audited against the shipped v0.4 code. Most were
 | E2: Reconciliation Vue page | ⚠️ partial | Statement-balance entry + uncleared list exist in `Reconciliation.vue`; the planned difference calculation is not implemented. |
 | H1: Line-item reconciler backend | ⚠️ partial | Schema columns + item-assignment endpoints exist, but no dedicated tests were written for assignment/commit. |
 | I2: Import page Vue migration | ⚠️ partial | `ImportCenter.vue` tabbed import UI exists; the planned import history toggle is not implemented. |
+
+---
+
+## Completion Follow-up (2026-08-05)
+
+All items flagged partial or not started above were implemented and verified:
+
+- **F1** — `Ledger.open_account()` (appends a valid Beancount open directive to the file main.beancount actually includes), `GET /coa/{account}`, `PUT /coa/{account}` with account-name validation; list/tree now include opened-but-empty accounts. `test_coa.py` extended.
+- **E1** — `POST /reconciliation/lock`, `/unlock`, `GET /reconciliation/marks`; enforcement via `TenantDB.is_period_locked()` wired into transfer/reimburse/split (409 when the write would touch a reconciled period). `test_reconciliation_lock.py`.
+- **E2** — Reconciliation page now shows statement balance + difference (statement − cleared) cards.
+- **H1** — `PUT /receipts/{id}/items/{item_id}`, `POST /receipts/{id}/commit` (per-category split transactions, personal items excluded), `GET /receipts/{id}`; Amazon orders list now carries line items. `test_receipt_line_items.py`.
+- **H2** — `LineItemReconciler.vue` (searchable per-line category, personal/reimbursable toggles, allocated-vs-total balance indicator, batch-assign) integrated into `AmazonOrders.vue`.
+- **I2** — Import Center gained a History tab (import batches) with a "show cross-source duplicates" toggle.
+- **I3** — Accounts, Invoices, Transactions, Mileage, Health, Payroll, and Settings pages migrated from vanilla JS to Vue.
+- **A3** — StatusBadge, Tag, Alert, ConfirmDialog, Skeleton components added (thin wrappers over the existing design system); global `.stat-grid` added (was only scoped in Dashboard).
+- **C4** — `duplicate_warnings` table (migration 003); all four importers flag cross-source fingerprint collisions; `GET /import/duplicates` + `GET /import/history`.
+- **D1** — statements API (`POST /statements/upload`, `GET /statements`, `GET /statements/{id}`); `test_statements_api.py` with a real (hand-built) PDF.
+
+Test suite: 304 passed, 4 skipped. Frontend builds clean (`npm run build`).
+
+### Security hardening discovered during verification (2026-08-05)
+
+- **Ledger injection closed.** Account names supplied to write endpoints (line-item `coa_account`, commit `source`, transfer/reimburse/split accounts) are now validated against Beancount's account regex at the single choke point — `Ledger.append()` raises on malformed accounts — plus clean 400s at the API boundary (`validate_account` in `app/ledger.py`; receipts/coa/accounts reuse it). A payload with embedded directive text is rejected; regression test `test_injection_account_rejected`.
+- **Cross-source dedup actually fires now.** The fingerprint identity was inconsistent across importers: OFX/expenses used the canonical beancount account + absolute cents, but Wave used the literal label `"wave"` and signed cents, and Citi used its label — so the same transaction imported from two sources got two fingerprints and was posted twice. Wave and Citi now fingerprint against the real beancount account (checking / card source account) with absolute cents. End-to-end regression test: `test_wave_import_dedups_against_ofx_fingerprint`.
+- **Reconciliation lock integrity.** `statement_date` is validated as `YYYY-MM-DD` (lexicographic comparison would otherwise mis-enforce); a zero balance lock now surfaces as `statement_balance: 0.0` instead of `null`; receipt commits use an atomic `pending→committing→committed` claim so concurrent commits can't double-post.
+- Lock/unlock/marks endpoints now match `GET /reconciliation` with `require_plan("business")`; import history/duplicates clamp their offset/limit.
