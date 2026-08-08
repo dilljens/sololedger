@@ -20,6 +20,7 @@ Usage:
 """
 
 import datetime
+import os
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -27,6 +28,7 @@ from typing import Optional
 
 import click
 
+from . import remote as remotecmd
 from .config import Config
 from .ledger import Ledger
 from .invoice import Invoicer, RetainerConfig
@@ -38,12 +40,45 @@ from .expenses import ExpenseImporter
 _pass_config = click.make_pass_decorator(dict, ensure=True)
 
 
+class _LocalOnlyConfig:
+    """Sentinel for remote (--api) mode.
+
+    Commands with a remote counterpart branch on ctx["remote"] before ever
+    touching cfg/ledger. Any other command that tries to read local config
+    hits this sentinel and gets a clean "local-only" error instead of a
+    traceback (tenants running the CLI against the API have no local config).
+    """
+
+    def __getattr__(self, _name):
+        raise click.ClickException(
+            "This command is local-only and not available in remote (--api) mode.")
+
+
 @click.group()
 @click.option("--config", "-c", default=None, help="Path to config.toml")
+@click.option("--api", "api_url", default=None,
+              help="Remote API base URL (e.g. https://sololedger.ferrumeng.com). "
+                   "Runs commands against YOUR web-app data via the API. "
+                   "Defaults to $SOLOLEDGER_API_URL.")
+@click.option("--token", default=None,
+              help="Session token for --api mode (from logging in on the web app). "
+                   "Defaults to $SOLOLEDGER_API_TOKEN.")
 @click.version_option(version="0.4.0")
 @_pass_config
-def cli(ctx, config):
+def cli(ctx, config, api_url, token):
     """SoloLedger — accounting, invoicing, and tax tools for your consulting LLC."""
+    api_url = api_url or os.environ.get("SOLOLEDGER_API_URL", "")
+    token = token or os.environ.get("SOLOLEDGER_API_TOKEN", "")
+    if api_url:
+        # Remote mode: the CLI is a thin client over the API. The API resolves
+        # the token to exactly one tenant, so no local config/ledger is loaded.
+        if not token:
+            click.echo("ERROR: --api requires --token (your web-app session token).", err=True)
+            sys.exit(1)
+        ctx["remote"] = remotecmd.RemoteClient(api_url, token)
+        ctx["cfg"] = _LocalOnlyConfig()
+        ctx["ledger"] = _LocalOnlyConfig()
+        return
     try:
         cfg = Config(config)
         ctx["cfg"] = cfg
@@ -60,6 +95,10 @@ def cli(ctx, config):
 @_pass_config
 def status(ctx):
     """Show a financial dashboard: cash, P&L, upcoming deadlines."""
+    if ctx.get("remote"):
+        remotecmd.remote_status(ctx["remote"])
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
 
@@ -147,6 +186,10 @@ def status(ctx):
 @_pass_config
 def check(ctx):
     """Run Beancount validation on the ledger."""
+    if ctx.get("remote"):
+        remotecmd.remote_check(ctx["remote"])
+        return
+
     ledger = ctx["ledger"]
     errors = ledger.check()
     if errors:
@@ -190,6 +233,13 @@ def invoice_create(ctx, client, description, amount, date, no_pdf, payment_link,
         # Recurring retainer (subscription payment link)
         llc invoice create -c "Acme Corp" -d "Monthly retainer" -a 5000 --payment-link --recurring month
     """
+    if ctx.get("remote"):
+        remotecmd.remote_invoice_create(
+            ctx["remote"], client, description, amount, date,
+            generate_pdf=not no_pdf, payment_link=payment_link,
+            client_email=client_email, recurring=recurring)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
@@ -228,6 +278,10 @@ def invoice_list(ctx, year, ar_only):
 
     Use --ar to show only unpaid invoices (Accounts Receivable).
     """
+    if ctx.get("remote"):
+        remotecmd.remote_invoice_list(ctx["remote"], year, ar_only)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
@@ -251,6 +305,10 @@ def invoice_list(ctx, year, ar_only):
 @_pass_config
 def invoice_ar(ctx):
     """Check Accounts Receivable — what's owed and overdue."""
+    if ctx.get("remote"):
+        remotecmd.remote_invoice_ar(ctx["remote"])
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
@@ -286,6 +344,11 @@ def retainer():
 @_pass_config
 def retainer_add(ctx, client, description, amount, interval, day, stripe):
     """Add a recurring retainer invoice configuration."""
+    if ctx.get("remote"):
+        remotecmd.remote_retainer_add(ctx["remote"], client, description, amount,
+                                      interval, day, stripe)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
@@ -313,6 +376,10 @@ def retainer_add(ctx, client, description, amount, interval, day, stripe):
 @_pass_config
 def retainer_list(ctx):
     """List all configured retainers."""
+    if ctx.get("remote"):
+        remotecmd.remote_retainer_list(ctx["remote"])
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
@@ -341,6 +408,10 @@ def retainer_process(ctx, no_preview):
     Designed to be run from cron:
         0 9 1 * * cd /path/to/sololedger && python -m app.main retainer process --no-preview
     """
+    if ctx.get("remote"):
+        remotecmd.remote_retainer_process(ctx["remote"], no_preview)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     invoicer = Invoicer(cfg, ledger)
@@ -378,6 +449,10 @@ def retainer_remove(ctx, retainer_id):
 @_pass_config
 def expense(ctx, csv_file, preview):
     """Import expenses from a bank CSV file."""
+    if ctx.get("remote"):
+        remotecmd.remote_expense_import(ctx["remote"], csv_file, preview)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     importer = ExpenseImporter(cfg, ledger)
@@ -429,6 +504,10 @@ def tax_estimate(ctx, projected_income, state_override):
         llc tax estimate --state CA              # California
         llc tax estimate --state TX --projected-income 120000
     """
+    if ctx.get("remote"):
+        remotecmd.remote_tax_estimate(ctx["remote"], projected_income, state_override)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     state_code = state_override or cfg.state_code
@@ -531,6 +610,10 @@ def tax_estimate(ctx, projected_income, state_override):
 @_pass_config
 def tax_schedule_c(ctx):
     """Generate Schedule C summary data for tax filing (SMLLC) or income data for S-Corp."""
+    if ctx.get("remote"):
+        remotecmd.remote_tax_schedule_c(ctx["remote"])
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
@@ -572,6 +655,10 @@ def tax_schedule_c(ctx):
 @_pass_config
 def tax_deadlines(ctx):
     """Show upcoming tax deadlines (federal + state if applicable)."""
+    if ctx.get("remote"):
+        remotecmd.remote_tax_deadlines(ctx["remote"])
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     taxer = TaxEstimator(cfg, ledger, state_code=cfg.state_code)
@@ -609,6 +696,10 @@ def tax_form_1120s(ctx, as_json, projected_income):
         llc tax form-1120s --json
         llc tax form-1120s --projected-income 120000
     """
+    if ctx.get("remote"):
+        remotecmd.remote_tax_form_1120s(ctx["remote"], as_json, projected_income)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
 
@@ -1735,6 +1826,12 @@ def report():
 @_pass_config
 def report_expenses(ctx, year, output_format):
     """Show expense summary or export as CSV."""
+    if ctx.get("remote"):
+        if output_format == "csv":
+            click.echo("note: CSV export is local-only in remote mode — showing the summary.")
+        remotecmd.remote_report_expenses(ctx["remote"], year)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     from .reports import ReportGenerator
@@ -1767,6 +1864,10 @@ def report_expenses(ctx, year, output_format):
 @_pass_config
 def report_pl(ctx, year):
     """Show profit and loss summary."""
+    if ctx.get("remote"):
+        remotecmd.remote_report_pl(ctx["remote"], year)
+        return
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
     from .reports import ReportGenerator
@@ -2047,6 +2148,10 @@ def marketing_social(ctx, days):
 @_pass_config
 def import_ofx(ctx, filepath, account, preview):
     """Import transactions from an OFX/QFX bank statement."""
+    if ctx.get("remote"):
+        remotecmd.remote_import_ofx(ctx["remote"], filepath, account, preview)
+        return
+
     from .ofx_import import OfxImporter
 
     cfg = ctx["cfg"]
@@ -2088,6 +2193,12 @@ def mileage():
 @_pass_config
 def mileage_add(ctx, date, miles, purpose, client, start_odo, end_odo, route, notes, no_post):
     """Log a business trip and calculate the IRS mileage deduction."""
+    if ctx.get("remote"):
+        remotecmd.remote_mileage_add(
+            ctx["remote"], date, miles, purpose, client, start_odo, end_odo,
+            route, notes, post_to_ledger=not no_post)
+        return
+
     from .mileage import MileageTracker
 
     cfg = ctx["cfg"]
@@ -2112,6 +2223,10 @@ def mileage_add(ctx, date, miles, purpose, client, start_odo, end_odo, route, no
 @_pass_config
 def mileage_list(ctx, year, limit):
     """List logged trips."""
+    if ctx.get("remote"):
+        remotecmd.remote_mileage_list(ctx["remote"], year, limit)
+        return
+
     from .mileage import MileageTracker
 
     cfg = ctx["cfg"]
@@ -2140,6 +2255,10 @@ def mileage_list(ctx, year, limit):
 @_pass_config
 def mileage_report(ctx, year):
     """Show yearly mileage summary for tax purposes."""
+    if ctx.get("remote"):
+        remotecmd.remote_mileage_report(ctx["remote"], year)
+        return
+
     from .mileage import MileageTracker, get_irs_rate
 
     if year is None:
