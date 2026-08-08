@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import get_db, get_tenant_db_path
@@ -39,6 +39,8 @@ async def get_reconciliation():
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 
@@ -91,6 +93,8 @@ async def lock_reconciliation(req: LockRequest):
         result = db.lock_period(req.account, req.statement_date,
                                 balance_cents=req.balance_cents, notes=req.notes)
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -106,6 +110,8 @@ async def unlock_reconciliation(req: UnlockRequest):
         db = get_db(tenant_dir)
         result = db.unlock_period(req.account, req.statement_date)
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -121,6 +127,8 @@ async def reconciliation_marks_list(account: Optional[str] = None):
         db = get_db(tenant_dir)
         marks = db.reconciliation_marks(account=account)
         return _ok({"marks": marks, "count": len(marks)})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -129,6 +137,8 @@ async def reconciliation_marks_list(account: Optional[str] = None):
 async def api_check():
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)
@@ -153,6 +163,8 @@ async def api_check():
 async def api_backup():
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 

@@ -2,7 +2,7 @@
 import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..ledger import Ledger, validate_account
@@ -40,6 +40,8 @@ async def list_accounts():
             "accounts": accounts,
             "count": len(accounts),
         })
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -68,6 +70,8 @@ async def account_tree():
             "tree": [{"root": k, "accounts": v} for k, v in roots.items() if v],
             "count": sum(len(v) for v in roots.values()),
         })
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -82,6 +86,8 @@ async def get_account(account: str):
         if account not in opened and account not in ledger.all_balances():
             return _err(f"Account not found: {account}", 404)
         return _ok({"account": account, "balance": ledger.balance(account) or 0.0})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -102,6 +108,8 @@ async def update_account(account: str, req: AccountUpdate):
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 

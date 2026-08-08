@@ -36,6 +36,8 @@ async def import_ofx(
         cfg = get_config()
         tenant_dir = get_tenant_db_path(cfg)
         db = get_db(tenant_dir) if tenant_dir else None
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -104,6 +106,8 @@ async def run_citi_import(
         if not tenant_dir:
             return _err("No tenant directory configured", 500)
         db = get_db(tenant_dir)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -196,6 +200,8 @@ async def import_history(limit: int = Query(50), offset: int = Query(0)):
         return _ok({"batches": batches, "count": len(batches)})
     except HTTPException:
         raise
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -212,6 +218,8 @@ async def import_duplicates(limit: int = Query(100)):
         limit = max(0, min(limit, 500))
         duplicates = db.find_duplicates(limit=limit)
         return _ok({"duplicates": duplicates, "count": len(duplicates)})
+    except HTTPException:
+        raise
     except HTTPException:
         raise
     except Exception as e:
@@ -276,6 +284,8 @@ async def lock_reconciliation(
         )
         db.commit()
         return _ok({"account": account, "statement_date": statement_date, "locked": True})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -294,5 +304,7 @@ async def reconciliation_status():
             "SELECT * FROM reconciliation_marks ORDER BY statement_date DESC"
         ).fetchall()
         return _ok({"marks": [dict(m) for m in marks]})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)

@@ -66,6 +66,8 @@ def _reject_if_locked(date_iso: str, *accounts: str):
 async def api_accounts():
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)
@@ -79,6 +81,8 @@ async def api_accounts():
 async def api_transfer(req: TransferRequest):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)
@@ -108,6 +112,8 @@ async def api_transfer(req: TransferRequest):
 async def api_reimburse(req: ReimbursementRequest):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)
@@ -137,6 +143,8 @@ async def api_reimburse(req: ReimbursementRequest):
 async def api_split(req: SplitRequest):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
     ledger = Ledger(cfg)

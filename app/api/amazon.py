@@ -113,5 +113,7 @@ async def list_orders(limit: int = 50, offset: int = 0):
             "limit": limit,
             "offset": offset,
         })
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)

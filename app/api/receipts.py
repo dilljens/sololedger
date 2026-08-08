@@ -6,7 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, HTTPException
 from pydantic import BaseModel
 
 from ..ledger import Ledger, validate_account
@@ -49,6 +49,8 @@ async def scan_receipt(
     """
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -100,6 +102,8 @@ async def category_suggest(merchant: str = Query("")):
         cat = Categorizer(cfg)
         result = cat.suggest_with_confidence(merchant.upper())
         return _ok(result)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -118,6 +122,8 @@ async def category_learn(req: CategoryLearnRequest):
         else:
             cat.learn(merchant.upper(), account)
         return _ok({"merchant": merchant.upper(), "account": account, "learned": True})
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(str(e), 500)
 
@@ -127,6 +133,8 @@ async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
     try:
         cfg = get_config()
         ledger = Ledger(cfg)
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Ledger error: {e}", 500)
 
@@ -158,6 +166,8 @@ async def receipt_match(amount: float = Query(0), merchant: str = Query("")):
 async def api_receipt_list(year: Optional[str] = Query(None)):
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -179,6 +189,8 @@ async def get_receipt(receipt_id: int):
     """Get one vendor receipt with its line items (for line-item reconciling)."""
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -212,6 +224,8 @@ async def update_receipt_item(receipt_id: int, item_id: int, req: LineItemUpdate
     """Assign a CoA account / personal / reimbursable flag to one line item."""
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
@@ -269,6 +283,8 @@ async def commit_receipt(receipt_id: int, req: ReceiptCommitRequest):
     """
     try:
         cfg = get_config()
+    except HTTPException:
+        raise
     except Exception as e:
         return _err(f"Config error: {e}", 500)
 
