@@ -337,6 +337,93 @@ def delete_tenant(email: str):
             conn.execute("DELETE FROM tenants WHERE email = ?", (email.lower(),))
 
 
+# ── Per-tenant API keys (long-lived credentials for the remote CLI) ──────
+# Scoped to one tenant (email), revocable, hash-at-rest. The plaintext key
+# is returned exactly once, at creation, and never stored.
+
+def create_api_key(email: str, name: str = "", expires_in_days: int = 0) -> dict:
+    """Create a per-tenant API key. Returns {id, key (plaintext, once), ...}."""
+    import hashlib
+    import secrets
+
+    raw = "solo_" + secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    conn = get_conn()
+    email = email.lower()
+    expires_at = _add_iso(expires_in_days) if expires_in_days else ""
+    with _write_lock:
+        with conn:
+            cur = conn.execute(
+                "INSERT INTO api_keys (key_hash, prefix, email, name, created, expires_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (key_hash, raw[:12], email, name, _now(), expires_at),
+            )
+            key_id = cur.lastrowid
+    return {"id": key_id, "key": raw, "prefix": raw[:12], "name": name,
+            "email": email, "created": _now(), "expires_at": expires_at}
+
+
+def get_api_key_by_hash(key_hash: str) -> dict | None:
+    row = get_conn().execute(
+        "SELECT * FROM api_keys WHERE key_hash = ?", (key_hash,)
+    ).fetchone()
+    return _row_to_dict(row)
+
+
+def list_api_keys(email: str) -> list[dict]:
+    """All keys for a tenant, newest first — secrets never included."""
+    rows = get_conn().execute(
+        "SELECT id, prefix, name, created, last_used, expires_at, active"
+        " FROM api_keys WHERE email = ? ORDER BY created DESC",
+        (email.lower(),),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def revoke_api_key(key_id: int, email: str) -> bool:
+    conn = get_conn()
+    with _write_lock:
+        with conn:
+            cur = conn.execute(
+                "UPDATE api_keys SET active = 0 WHERE id = ? AND email = ?",
+                (key_id, email.lower()),
+            )
+            return cur.rowcount > 0
+
+
+def touch_api_key(key_hash: str):
+    """Best-effort last_used stamp, throttled to once an hour."""
+    try:
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT last_used FROM api_keys WHERE key_hash = ?", (key_hash,)
+        ).fetchone()
+        last = (row["last_used"] or "") if row else ""
+        if last:
+            try:
+                if datetime.datetime.fromisoformat(last) > (
+                    datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+                ):
+                    return
+            except (ValueError, TypeError):
+                pass
+        with _write_lock:
+            with conn:
+                conn.execute(
+                    "UPDATE api_keys SET last_used = ? WHERE key_hash = ?",
+                    (_now(), key_hash),
+                )
+    except Exception:
+        pass
+
+
+def delete_api_keys_for_user(email: str):
+    conn = get_conn()
+    with _write_lock:
+        with conn:
+            conn.execute("DELETE FROM api_keys WHERE email = ?", (email.lower(),))
+
+
 # ── Webhook idempotency ───────────────────────────────────────────────────
 
 def mark_event_processed(event_id: str, event_type: str) -> bool:

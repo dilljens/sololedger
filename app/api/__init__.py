@@ -100,6 +100,7 @@ from . import mileage, accounts, reconciliation, attention, onboarding
 from . import subscriptions, settings, payroll
 from . import amazon, coa, rules, imports as import_routes
 from . import statements
+from . import api_keys
 from . import admin
 
 app.include_router(health.router)
@@ -124,6 +125,7 @@ app.include_router(payroll.router)
 app.include_router(amazon.router)
 app.include_router(import_routes.router)
 app.include_router(statements.router)
+app.include_router(api_keys.router)
 app.include_router(coa.router)
 app.include_router(rules.router)
 app.include_router(admin.router)

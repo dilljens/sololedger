@@ -100,6 +100,22 @@ export async function apiDelete(path) {
   return res.data
 }
 
+// ── Per-tenant API keys (long-lived credentials for the remote CLI) ──────
+
+export async function apiKeyCreate(name = '', expiresInDays = null) {
+  const body = { name }
+  if (expiresInDays) body.expires_in_days = expiresInDays
+  return apiPost('/api-keys', body)
+}
+
+export async function apiKeyList() {
+  return apiGet('/api-keys')
+}
+
+export async function apiKeyRevoke(id) {
+  return apiDelete(`/api-keys/${id}`)
+}
+
 export async function apiUpload(path, file, extraFields = {}) {
   const formData = new FormData()
   formData.append('file', file)

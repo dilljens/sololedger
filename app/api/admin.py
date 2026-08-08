@@ -124,6 +124,7 @@ async def deprovision_tenant(email: str):
         shutil.rmtree(ledger_dir, ignore_errors=True)
 
     appdb.delete_tenant(email.lower())
+    appdb.delete_api_keys_for_user(email.lower())
     from ..appdb import get_conn
     with get_conn():
         get_conn().execute("DELETE FROM users WHERE email = ?", (email.lower(),))  # cascades sessions

@@ -200,6 +200,53 @@ def check(ctx):
         click.echo("✓ Ledger is valid. No errors.")
 
 
+# ── api keys (per-tenant, for remote CLI access) ─────────────────────────
+
+
+@cli.group("api-key")
+def api_key():
+    """Manage long-lived API keys for remote (--api) CLI access.
+
+    A key is scoped to your account only. Create one, then use it as the
+    CLI token:  llc --api URL --token <key> status
+    """
+
+
+def _require_remote(ctx) -> None:
+    if not ctx.get("remote"):
+        raise click.ClickException(
+            "api-key commands require --api mode, e.g.\n"
+            "  llc --api https://sololedger.ferrumeng.com --token <your-web-token> api-key create")
+
+
+@api_key.command("create")
+@click.option("--name", default="", help="Label for this key (e.g. 'work laptop')")
+@click.option("--expires-in-days", type=int, default=None,
+              help="Optional expiry in days (default: never expires)")
+@_pass_config
+def api_key_create(ctx, name, expires_in_days):
+    """Create a long-lived API key. Printed once — use it as --token."""
+    _require_remote(ctx)
+    remotecmd.remote_api_key_create(ctx["remote"], name, expires_in_days)
+
+
+@api_key.command("list")
+@_pass_config
+def api_key_list(ctx):
+    """List your API keys (prefixes only — never the secrets)."""
+    _require_remote(ctx)
+    remotecmd.remote_api_key_list(ctx["remote"])
+
+
+@api_key.command("revoke")
+@click.argument("key_id", type=int)
+@_pass_config
+def api_key_revoke(ctx, key_id):
+    """Revoke an API key by id (see 'llc api-key list')."""
+    _require_remote(ctx)
+    remotecmd.remote_api_key_revoke(ctx["remote"], key_id)
+
+
 # ── invoice ───────────────────────────────────────────────────────────────
 
 

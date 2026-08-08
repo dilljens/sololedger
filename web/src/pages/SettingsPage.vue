@@ -18,6 +18,47 @@
       </div>
     </div>
 
+    <!-- API keys (remote CLI) -->
+    <div v-if="isAuthenticated()" class="card">
+      <h2>🔑 API Keys</h2>
+      <p class="text-muted text-sm">
+        Long-lived keys for the command-line client:
+        <code>llc --api &lt;url&gt; --token &lt;key&gt; status</code>.
+        Each key is scoped to your account only. The key is shown once —
+        store it somewhere safe.
+      </p>
+      <div class="action-row">
+        <input v-model="apiKeyName" type="text" placeholder="Label (e.g. work laptop)" class="form-input" style="max-width: 240px;" />
+        <button class="btn btn-primary btn-sm" @click="createApiKey" :disabled="creatingKey">
+          {{ creatingKey ? '⏳ Creating...' : 'Create key' }}
+        </button>
+      </div>
+      <p v-if="newApiKey" class="api-key-new">
+        <strong>Copy your new key now — it is shown only once:</strong><br />
+        <code>{{ newApiKey }}</code>
+      </p>
+      <div v-if="apiKeysLoading" class="loading"><div class="spinner"></div>Loading keys...</div>
+      <table v-else-if="apiKeys.length" class="data-table api-keys-table">
+        <thead>
+          <tr><th>ID</th><th>Label</th><th>Key</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="k in apiKeys" :key="k.id">
+            <td>{{ k.id }}</td>
+            <td>{{ k.name || '—' }}</td>
+            <td><code>{{ k.prefix }}…</code></td>
+            <td>{{ (k.created || '').slice(0, 10) }}</td>
+            <td>{{ k.last_used ? k.last_used.slice(0, 10) : 'never' }}</td>
+            <td>{{ k.active ? 'active' : 'revoked' }}</td>
+            <td>
+              <button v-if="k.active" class="btn btn-outline btn-sm" @click="revokeApiKey(k.id)">Revoke</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else-if="!apiKeysLoading" class="text-muted text-sm">No API keys yet.</p>
+    </div>
+
     <!-- Plan & Billing -->
     <div v-if="isAuthenticated()" class="card">
       <h2>⭐ Plan &amp; Billing</h2>
@@ -116,7 +157,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { apiGet, apiPost, isAuthenticated, clearAuth } from '../api.js'
+import { apiGet, apiPost, apiKeyCreate, apiKeyList, apiKeyRevoke, isAuthenticated, clearAuth } from '../api.js'
 import StatusBadge from '../components/StatusBadge.vue'
 
 const userEmail = ref(localStorage.getItem('user_email') || '')
@@ -133,6 +174,12 @@ const llmKeyInput = ref('')
 
 const backingUp = ref(false)
 const backupMsg = ref({ text: '', ok: false })
+
+const apiKeys = ref([])
+const apiKeysLoading = ref(false)
+const creatingKey = ref(false)
+const newApiKey = ref('')
+const apiKeyName = ref('')
 
 const planNames = { free: 'Free', professional: 'Professional', business: 'Business' }
 const planEmojis = { free: '🆓', professional: '⭐', business: '💼' }
@@ -228,9 +275,50 @@ async function doBackup() {
   }
 }
 
+async function loadApiKeys() {
+  apiKeysLoading.value = true
+  try {
+    const data = await apiKeyList()
+    apiKeys.value = data.keys || []
+  } catch {
+    /* section hides itself on failure */
+  } finally {
+    apiKeysLoading.value = false
+  }
+}
+
+async function createApiKey() {
+  creatingKey.value = true
+  newApiKey.value = ''
+  try {
+    const data = await apiKeyCreate(apiKeyName.value.trim(), null)
+    newApiKey.value = data.key
+    apiKeyName.value = ''
+    await loadApiKeys()
+  } catch (e) {
+    alert('Failed to create API key: ' + (e.message || 'error'))
+  } finally {
+    creatingKey.value = false
+  }
+}
+
+async function revokeApiKey(id) {
+  if (!confirm('Revoke this API key? It will stop working immediately.')) return
+  try {
+    await apiKeyRevoke(id)
+    await loadApiKeys()
+  } catch (e) {
+    alert('Failed to revoke API key: ' + (e.message || 'error'))
+  }
+}
+
 onMounted(() => {
-  if (isAuthenticated()) loadBilling()
-  else billingLoading.value = false
+  if (isAuthenticated()) {
+    loadBilling()
+    loadApiKeys()
+  } else {
+    billingLoading.value = false
+  }
 })
 </script>
 
@@ -252,4 +340,8 @@ onMounted(() => {
 .llm-row .form-select { width: 140px; }
 .llm-row .form-input { flex: 1; min-width: 160px; font-family: var(--font-mono); }
 .action-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.api-key-new { margin-top: 10px; padding: 10px; background: var(--gray-100); border-radius: 8px; font-size: 0.85rem; overflow-wrap: anywhere; }
+.api-key-new code { font-family: var(--font-mono); }
+.api-keys-table { width: 100%; font-size: 0.85rem; }
+.api-keys-table code { font-family: var(--font-mono); }
 </style>

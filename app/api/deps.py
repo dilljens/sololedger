@@ -63,6 +63,32 @@ def _session_valid(token: str) -> bool:
     return datetime.datetime.now(datetime.timezone.utc) - created_dt <= _SESSION_MAX_AGE
 
 
+# ── Per-tenant API keys (long-lived remote-CLI credentials) ────────────
+
+def _api_key_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _lookup_api_key(token: str) -> Optional[dict]:
+    """Return the active, non-expired per-tenant API key row for a token.
+
+    Keys are hashed at rest; the lookup is by SHA-256 of the presented
+    token. Returns None for unknown, revoked, or expired keys.
+    """
+    row = appdb.get_api_key_by_hash(_api_key_hash(token))
+    if not row or not row.get("active"):
+        return None
+    expires = row.get("expires_at", "")
+    if expires:
+        try:
+            if datetime.datetime.fromisoformat(expires) < datetime.datetime.now(datetime.timezone.utc):
+                return None
+        except (ValueError, TypeError):
+            return None
+    appdb.touch_api_key(row["key_hash"])  # best-effort last_used stamp
+    return row
+
+
 # ── Rate limiting (in-memory sliding window) ────────────────────
 
 _RATE_WINDOW_SECONDS = 15 * 60  # 15 minutes
@@ -252,10 +278,13 @@ def create_tenant(email: str, name: str = "") -> dict:
 
 
 def resolve_email_from_token(token: str) -> Optional[str]:
-    """Extract user email from any token (session, API key)."""
+    """Extract user email from any token (session, per-tenant API key, global key)."""
     session = appdb.get_session(token)
     if session:
         return session.get("email", "")
+    key = _lookup_api_key(token)
+    if key:
+        return key.get("email", "")
     if _valid_api_keys and token in _valid_api_keys:
         return "api-key-user"
     return None
@@ -269,7 +298,8 @@ async def tenant_middleware(request: Request, call_next):
 
     Sets _current_tenant and _current_email for use by get_config(),
     require_plan(), and the email-based tenant guards. Reads the session
-    from app.db so sessions work across uvicorn workers.
+    from app.db so sessions work across uvicorn workers. Accepts session
+    tokens and per-tenant API keys (both scoped to exactly one tenant).
     """
     from app.api.deps import _current_tenant, _current_email, _valid_api_keys
 
@@ -282,8 +312,13 @@ async def tenant_middleware(request: Request, call_next):
         if session:
             email = session.get("email", "")
             tenant = appdb.get_tenant(email)
-        elif _valid_api_keys and token in _valid_api_keys:
-            pass  # Global API key — no specific tenant
+        else:
+            key = _lookup_api_key(token)
+            if key:
+                email = key.get("email", "")
+                tenant = appdb.get_tenant(email)
+            elif _valid_api_keys and token in _valid_api_keys:
+                pass  # Global API key — no specific tenant
     _current_tenant.set(tenant)
     _current_email.set(email)
     response = await call_next(request)
@@ -501,6 +536,9 @@ def check_auth(
         return
 
     if _session_valid(token):
+        return
+
+    if _lookup_api_key(token):
         return
 
     raise HTTPException(status_code=403, detail="Invalid or expired token")

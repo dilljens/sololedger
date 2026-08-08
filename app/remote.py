@@ -72,6 +72,9 @@ class RemoteClient:
              files: Optional[dict] = None) -> dict:
         return self._request("POST", path, json=json, data=data, files=files)
 
+    def delete(self, path: str, params: Optional[dict] = None) -> dict:
+        return self._request("DELETE", path, params=params or {})
+
 
 def _pp(obj: Any) -> str:
     return json.dumps(obj, indent=2, default=str)
@@ -343,3 +346,46 @@ def remote_import_ofx(r: RemoteClient, filepath: str, account: Optional[str],
                    data=data,
                    files={"file": (Path(filepath).name, fh)})
     click.echo(_pp(d))
+
+
+# ── per-tenant API keys ──────────────────────────────────────────────────
+
+
+def remote_api_key_create(r: RemoteClient, name: str,
+                          expires_in_days: Optional[int]) -> None:
+    payload = {"name": name}
+    if expires_in_days:
+        payload["expires_in_days"] = expires_in_days
+    d = r.post("/api/v1/api-keys", json=payload)
+    click.echo("✓ API key created — copy it now, it is shown only once:")
+    click.echo()
+    click.echo(f"  {d.get('key', '')}")
+    click.echo()
+    click.echo("  Use it as the CLI token (env also works: SOLOLEDGER_API_TOKEN):")
+    click.echo(f"    llc --api {r.base_url} --token {d.get('key', '')} status")
+    if d.get("expires_at"):
+        click.echo(f"  Expires: {d['expires_at']}")
+
+
+def remote_api_key_list(r: RemoteClient) -> None:
+    d = r.get("/api/v1/api-keys")
+    keys = d.get("keys", [])
+    if not keys:
+        click.echo("No API keys. Create one with 'llc api-key create'.")
+        return
+    click.echo(f"{'ID':<5} {'Prefix':<14} {'Name':<24} {'Created':<12} {'Last used':<12} Status")
+    click.echo("-" * 80)
+    for k in keys:
+        status = "active" if k.get("active") else "revoked"
+        click.echo(f"{k.get('id', ''):<5} {k.get('prefix', ''):<14} "
+                   f"{str(k.get('name', ''))[:24]:<24} "
+                   f"{str(k.get('created', ''))[:10]:<12} "
+                   f"{str(k.get('last_used') or '')[:10]:<12} {status}")
+
+
+def remote_api_key_revoke(r: RemoteClient, key_id: int) -> None:
+    d = r.delete(f"/api/v1/api-keys/{key_id}")
+    if d.get("revoked"):
+        click.echo(f"✓ API key {key_id} revoked — it no longer works.")
+    else:
+        click.echo(f"API key {key_id} not found.")

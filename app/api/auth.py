@@ -28,6 +28,7 @@ from .deps import (
     _session_valid,
     _rate_limited,
     _client_ip,
+    _lookup_api_key,
     create_tenant,
 )
 
@@ -332,6 +333,15 @@ async def auth_me(request: Request):
             "name": session.get("name", ""),
             "picture": session.get("picture", ""),
             "method": session.get("method", "local"),
+        })
+
+    key = _lookup_api_key(token)
+    if key:
+        return _ok({
+            "email": key.get("email", ""),
+            "name": key.get("name") or "API Key",
+            "picture": "",
+            "method": "api_key",
         })
 
     if _valid_api_keys and token in _valid_api_keys:

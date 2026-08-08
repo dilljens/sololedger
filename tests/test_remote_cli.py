@@ -181,3 +181,89 @@ def test_local_only_command_rejected_in_remote_mode(remote_cli):
     assert result.exit_code == 1
     assert "local-only" in result.output.lower()
     assert "Traceback" not in result.output
+
+
+# ── per-tenant API keys (long-lived remote-CLI credentials) ──────────────
+
+
+def _create_api_key(remote_cli, session_token, name="test key"):
+    """Run `api-key create` and extract the printed key."""
+    result = _invoke(remote_cli, session_token, ["api-key", "create", "--name", name])
+    assert result.exit_code == 0, result.output
+    for line in result.output.splitlines():
+        line = line.strip()
+        if line.startswith("solo_"):
+            return line
+    raise AssertionError(f"no key in output: {result.output}")
+
+
+def test_api_key_create_and_use(remote_cli):
+    session = _make_tenant("keys@example.com", "Key User")
+    key = _create_api_key(remote_cli, session)
+
+    # The key works as the CLI token against the tenant's own data.
+    result = _invoke(remote_cli, key, ["status"])
+    assert result.exit_code == 0, result.output
+    assert "SoloLedger Dashboard" in result.output
+
+
+def test_api_key_list_never_shows_secret(remote_cli):
+    session = _make_tenant("keys@example.com", "Key User")
+    key = _create_api_key(remote_cli, session, name="laptop")
+
+    listed = _invoke(remote_cli, session, ["api-key", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert "laptop" in listed.output
+    assert key not in listed.output  # prefix only, never the secret
+    assert key[:12] in listed.output  # ...but the prefix is shown
+
+
+def test_api_key_outlives_session(remote_cli):
+    """A key keeps working after its creating session is deleted (long-lived);
+    the deleted session token itself stops working."""
+    session = _make_tenant("keys@example.com", "Key User")  # the session token
+    key = _create_api_key(remote_cli, session)
+
+    appdb.delete_session(session)
+
+    with_key = _invoke(remote_cli, key, ["status"])
+    assert with_key.exit_code == 0, with_key.output
+
+    with_session = _invoke(remote_cli, session, ["status"])
+    assert with_session.exit_code == 1
+    assert "Error:" in with_session.output
+
+
+def test_api_key_revoke(remote_cli):
+    session = _make_tenant("keys@example.com", "Key User")
+    key = _create_api_key(remote_cli, session)
+    assert _invoke(remote_cli, key, ["status"]).exit_code == 0
+
+    # Find the key id from the list, then revoke it.
+    listed = _invoke(remote_cli, session, ["api-key", "list"])
+    key_id = None
+    for line in listed.output.splitlines():
+        parts = line.split()
+        if parts and parts[0].isdigit():
+            key_id = int(parts[0])
+            break
+    assert key_id is not None, listed.output
+    revoked = _invoke(remote_cli, session, ["api-key", "revoke", str(key_id)])
+    assert revoked.exit_code == 0, revoked.output
+
+    after = _invoke(remote_cli, key, ["status"])
+    assert after.exit_code == 1
+    assert "Error:" in after.output
+
+
+def test_api_key_scoped_to_own_tenant(remote_cli):
+    """A key for tenant A can't reach tenant B's data."""
+    tok_a = _make_tenant("alice@example.com", "Alice")
+    _make_tenant("bob@example.com", "Bob")
+    _invoke(remote_cli, tok_a,
+            ["invoice", "create", "-c", "Alice Client", "-d", "A", "-a", "100", "--no-pdf"])
+    alice_key = _create_api_key(remote_cli, tok_a)
+
+    listed = _invoke(remote_cli, alice_key, ["invoice", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert "Alice Client" in listed.output
