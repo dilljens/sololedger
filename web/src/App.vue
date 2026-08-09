@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AuthModal from './components/AuthModal.vue'
 import { isAuthenticated, getAuthToken, clearAuth, apiGet } from './api.js'
