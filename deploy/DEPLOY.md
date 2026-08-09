@@ -6,7 +6,6 @@
 |----------|-----|------|
 | **VPS (Ubuntu)** | `curl -fsSL https://sololedger.ferrumeng.com/deploy.sh \| bash` | 5 min |
 | **Docker compose** | `docker compose up -d` | 2 min |
-| **Fly.io** | `fly launch --copy-config --no-deploy && fly deploy` | 5 min |
 | **Railway** | Fork repo → Connect → Deploy | 2 min |
 | **Local dev** | `pip install -r requirements.txt && uvicorn app.api:app` | 1 min |
 
@@ -58,23 +57,7 @@ docker compose -f docker-compose.yml up -d
 
 ---
 
-## 3. Fly.io
-
-```bash
-# Install flyctl first: https://fly.io/docs/hands-on/install-flyctl/
-fly launch --copy-config --no-deploy
-# Set any environment variables needed
-fly secrets set STRIPE_SECRET_KEY=sk_live_...
-fly secrets set GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
-# Deploy
-fly deploy
-```
-
-The included `fly.toml` handles the rest. Opens on `https://your-app.fly.dev/app/`.
-
----
-
-## 4. Railway
+## 3. Railway
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/sololedger)
 
@@ -88,7 +71,7 @@ The included `fly.toml` handles the rest. Opens on `https://your-app.fly.dev/app
 
 ---
 
-## 5. Environment Variables
+## 4. Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -104,7 +87,7 @@ The included `fly.toml` handles the rest. Opens on `https://your-app.fly.dev/app
 
 ---
 
-## 6. Configuration
+## 5. Configuration
 
 Edit `config.toml` to set your business details:
 
@@ -123,7 +106,7 @@ path = "ledger/main.beancount"
 
 ---
 
-## 7. First Run
+## 6. First Run
 
 On first load, the web app shows a setup wizard. Fill in your business details and click "Complete Setup."
 
@@ -136,7 +119,7 @@ Or just start adding transactions through the web UI.
 
 ---
 
-## 8. Updating
+## 7. Updating
 
 ```bash
 # Docker
@@ -144,9 +127,6 @@ git pull && docker compose up -d --build
 
 # VPS
 ./deploy/deploy.sh  # or systemctl restart sololedger
-
-# Fly.io
-fly deploy
 
 # Railway
 git push  # auto-deploys
