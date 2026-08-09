@@ -9,4 +9,11 @@ python-multipart>=0.0.9
 pydantic>=2
 requests>=2
 httpx
+# Receipt scanning tests generate images + parse PDFs with the real
+# pipeline (tests/test_receipt_scanner.py, test_receipt_api.py,
+# test_statements_api.py). pytesseract also needs the tesseract-ocr
+# system binary — installed in .github/workflows/test.yml.
+pdfplumber>=0.11
+Pillow>=10
+pytesseract>=0.3
 pytest

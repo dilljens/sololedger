@@ -24,7 +24,7 @@ jobs:
       - name: Install system build deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq build-essential python3-dev 2>/dev/null || true
+          sudo apt-get install -y -qq build-essential python3-dev tesseract-ocr 2>/dev/null || true
 
       - name: Install dependencies
         run: |
