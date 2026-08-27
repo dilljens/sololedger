@@ -111,7 +111,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { apiGet, apiPost, setAuthToken, isAuthenticated, apiSignInWithGoogle } from '../api.js'
 
 const isOpen = ref(false)
@@ -146,7 +146,6 @@ onMounted(() => {
   listener = () => {
     isOpen.value = true
     error.value = ''
-    nextTick(renderGoogleButton)
   }
   document.addEventListener('show-auth-modal', listener)
   checkGoogleConfig()
@@ -154,6 +153,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (listener) document.removeEventListener('show-auth-modal', listener)
+})
+
+watch([googleEnabled, isOpen], async ([enabled, open]) => {
+  if (!enabled || !open) return
+  await nextTick()
+  renderGoogleButton()
 })
 
 // ── Google sign-in (GSI) ────────────────────────────────────────────

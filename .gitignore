@@ -13,6 +13,8 @@ htmlcov/
 
 # Secrets
 .env
+.env.*
+!.env.example
 llm_settings.json
 users.json
 tenants.json
@@ -26,6 +28,7 @@ imports/*
 ledgers/
 *.db
 .codebase-memory/
+.codegraph/
 
 # Personal dotfiles (env-specific, not project code)
 .bash_profile
@@ -55,7 +58,11 @@ tests/e2e/server.log
 *.db-wal
 *.db-journal
 
+# OS files
+.DS_Store
+Thumbs.db
+
 # Node / Vue
-web/node_modules/
+node_modules/
 web/package-lock.json
 web/dist/
