@@ -50,7 +50,7 @@ retainers.json
 .mileage_log.json
 ledger/feature.db
 ledger/transactions.beancount
-data/
+/data/
 tests/e2e/server.log
 *.tmp
 # SQLite WAL/journal sidecars (app.db itself is covered by *.db)
