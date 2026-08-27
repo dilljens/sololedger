@@ -66,3 +66,8 @@ Thumbs.db
 node_modules/
 web/package-lock.json
 web/dist/
+
+# Local-only indexes, secrets, and caches
+*.py[cod]
+.venv*/
+.coverage.*
