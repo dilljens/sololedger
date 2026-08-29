@@ -45,11 +45,11 @@ ledgers/
 .vscode
 
 # Runtime data (generated, not committed)
+# Note: ledger/feature.db and ledger/transactions.beancount are COMMITTED
+# example ledgers (keep tracked). Per-tenant runtime lives in ledgers/ and /data/.
 sessions.json
 retainers.json
 .mileage_log.json
-ledger/feature.db
-ledger/transactions.beancount
 /data/
 tests/e2e/server.log
 *.tmp
