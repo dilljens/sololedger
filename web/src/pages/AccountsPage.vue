@@ -1,33 +1,44 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1>🏦 Accounts</h1>
+      <h1>Accounts</h1>
       <p>All your accounts and balances</p>
     </div>
 
     <div v-if="loading" class="loading"><div class="spinner"></div>Loading...</div>
 
+    <div v-else-if="error" class="card error-block" role="alert">
+      <p>⚠ {{ error }}</p>
+      <button class="btn btn-outline btn-sm" style="margin-top: 8px;" @click="load">Retry</button>
+    </div>
+
     <template v-else>
-      <div class="stat-grid">
-        <div class="stat-card">
+      <div v-if="!checking && cards.length === 0" class="empty-state">
+        <div class="icon" aria-hidden="true">🏦</div>
+        <h3>No accounts yet</h3>
+        <p>Your checking and cards will appear here once bank data is synced.</p>
+        <button class="btn btn-outline btn-sm" @click="load">Refresh</button>
+      </div>
+      <div v-else class="stat-grid">
+        <div class="stat-card" style="--i:0">
           <div class="stat-label">Business Checking</div>
-          <div class="stat-value">{{ money(balances[checking] || 0) }}</div>
+          <div class="stat-value" style="font-family:var(--font-mono)">{{ money(balances[checking] || 0) }}</div>
         </div>
-        <div v-for="c in cards" :key="c.account" class="stat-card">
+        <div v-for="(c, idx) in cards" :key="c.account" class="stat-card" :style="`--i:${idx+1}`">
           <div class="stat-label">{{ c.name }} <span class="text-muted">{{ c.type }}</span></div>
-          <div class="stat-value" :class="c.balance > 0 ? 'text-danger' : 'text-success'">{{ money(c.balance) }}</div>
+          <div class="stat-value" style="font-family:var(--font-mono)" :class="c.balance > 0 ? 'text-danger' : 'text-success'">{{ money(c.balance) }}</div>
           <div v-if="c.last_four" class="stat-sub">•••• {{ c.last_four }}</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" :style="`--i:${cards.length+1}`">
           <div class="stat-label">Reimbursements Owed</div>
-          <div class="stat-value text-success">{{ money(-(balances['Liabilities:Reimbursement'] || 0)) }}</div>
+          <div class="stat-value text-success" style="font-family:var(--font-mono)">{{ money(-(balances['Liabilities:Reimbursement'] || 0)) }}</div>
           <div class="stat-sub">Business owes you</div>
         </div>
       </div>
 
       <!-- Transfer -->
       <div class="card">
-        <h2>💸 Transfer Between Accounts</h2>
+        <h2>Transfer Between Accounts</h2>
         <p class="text-muted text-sm">Move money — e.g., owner draw from business to personal.</p>
         <div class="form-row">
           <FormField v-model="transfer.from_account" type="select" label="From" :options="accountOptions" />
@@ -40,7 +51,7 @@
 
       <!-- Reimburse -->
       <div class="card">
-        <h2>🔄 Reimbursement (Business Expense Paid Personally)</h2>
+        <h2>Reimbursement (Business Expense Paid Personally)</h2>
         <p class="text-muted text-sm">Bought something for the business on your personal card? Record it here.</p>
         <div class="form-row">
           <FormField v-model="reimburse.merchant" type="text" label="Merchant" placeholder="Office Depot" />
@@ -53,7 +64,7 @@
 
       <!-- Split -->
       <div class="card">
-        <h2>✂️ Split a Transaction</h2>
+        <h2>Split a Transaction</h2>
         <p class="text-muted text-sm">One charge had both business and personal items? Split them.</p>
         <div class="form-row">
           <FormField v-model="split.merchant" type="text" label="Merchant" placeholder="Amazon" />
@@ -74,6 +85,7 @@ import { apiGet, apiPost } from '../api.js'
 import FormField from '../components/FormField.vue'
 
 const loading = ref(true)
+const error = ref('')
 const acting = ref(false)
 const checking = ref('')
 const balances = ref({})
@@ -148,13 +160,14 @@ async function doSplit() {
 
 async function load() {
   loading.value = true
+  error.value = ''
   try {
     const d = await apiGet('/accounts')
     checking.value = d.checking || ''
     balances.value = d.balances || {}
     cards.value = d.cards || []
   } catch (e) {
-    /* keep last data */
+    error.value = e.message || 'Failed to load accounts'
   } finally {
     loading.value = false
   }

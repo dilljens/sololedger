@@ -1,18 +1,18 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1>📥 Import Center</h1>
+      <h1>Import Center</h1>
       <p>Import transactions from your bank, CSV files, and more</p>
     </div>
     <div class="import-tabs">
-      <button v-for="tab in tabs" :key="tab.id" class="tab-btn" :class="{ active: activeTab === tab.id }" @click="onTabChange(tab.id); activeTab = tab.id">
-        {{ tab.icon }} {{ tab.label }}
+      <button v-for="tab in tabs" :key="tab.id" class="tab-btn" :class="{ active: activeTab === tab.id }" @click="onTabChange(tab.id); activeTab = tab.id" :aria-current="activeTab === tab.id ? 'page' : undefined">
+        {{ tab.label }}
       </button>
     </div>
 
     <!-- OFX Upload -->
     <div v-if="activeTab === 'ofx'" class="card">
-      <h2>📄 OFX/QFX Bank Statement</h2>
+      <h2>OFX/QFX Bank Statement</h2>
       <p class="text-muted text-sm mb-3">Upload an OFX or QFX file from your bank.</p>
       <FileUpload accept=".ofx,.qfx" label="Choose OFX/QFX File" icon="📄" @select="onOfxSelect" @clear="clearOfx" />
       <div v-if="ofxFile" class="mt-2">
@@ -40,7 +40,7 @@
 
     <!-- Citi CSV -->
     <div v-if="activeTab === 'citi'" class="card">
-      <h2>💳 Citi Credit Card CSV</h2>
+      <h2>Citi Credit Card CSV</h2>
       <p class="text-muted text-sm mb-3">Upload a Citi credit-card statement CSV.</p>
       <FileUpload accept=".csv" label="Upload Citi CSV" icon="💳" @select="onCitiSelect" @clear="clearCiti" />
       <div v-if="citiFile" class="mt-2">
@@ -65,7 +65,7 @@
 
     <!-- Amazon -->
     <div v-if="activeTab === 'amazon'" class="card">
-      <h2>📦 Amazon Orders</h2>
+      <h2>Amazon Orders</h2>
       <p class="text-muted text-sm mb-3">Import Amazon business orders.</p>
       <router-link to="/amazon" class="btn btn-primary">Open Amazon Import →</router-link>
     </div>
@@ -73,16 +73,19 @@
     <!-- Import history -->
     <div v-if="activeTab === 'history'" class="card">
       <div class="history-head">
-        <h2>🕘 Import History</h2>
+        <h2>Import History</h2>
         <div class="history-actions">
           <label class="dup-toggle">
             <input type="checkbox" v-model="showDuplicates" @change="loadHistory" />
             <span>Show cross-source duplicates</span>
           </label>
           <button class="btn btn-ghost btn-sm" @click="loadHistory" :disabled="historyLoading">
-            {{ historyLoading ? '⏳' : '🔄 Refresh' }}
+            {{ historyLoading ? 'Loading...' : 'Refresh' }}
           </button>
         </div>
+      </div>
+      <div v-if="historyError" class="card error" role="alert" style="margin-bottom:12px;">
+        {{ historyError }} <button class="btn btn-ghost btn-sm" style="margin-left:8px;" @click="loadHistory">Retry</button>
       </div>
 
       <template v-if="showDuplicates">
@@ -129,10 +132,10 @@ import DataTable from '../components/DataTable.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 
 const tabs = [
-  { id: 'ofx', label: 'OFX/QFX', icon: '📄' },
-  { id: 'citi', label: 'Citi CSV', icon: '💳' },
-  { id: 'amazon', label: 'Amazon', icon: '📦' },
-  { id: 'history', label: 'History', icon: '🕘' },
+  { id: 'ofx', label: 'OFX/QFX' },
+  { id: 'citi', label: 'Citi CSV' },
+  { id: 'amazon', label: 'Amazon' },
+  { id: 'history', label: 'History' },
 ]
 const activeTab = ref('ofx')
 const ofxFile = ref(null)
@@ -152,6 +155,7 @@ const batches = ref([])
 const duplicates = ref([])
 const showDuplicates = ref(false)
 const historyLoading = ref(false)
+const historyError = ref('')
 
 // Load history the first time the History tab is opened
 let historyLoaded = false
@@ -164,6 +168,7 @@ async function onTabChange(tab) {
 
 async function loadHistory() {
   historyLoading.value = true
+  historyError.value = ''
   try {
     if (showDuplicates.value) {
       const d = await apiGet('/import/duplicates')
@@ -173,8 +178,7 @@ async function loadHistory() {
       batches.value = h.batches || []
     }
   } catch (e) {
-    // surface quietly: keep the last data, just don't crash the page
-    console.error('Failed to load import history:', e.message)
+    historyError.value = e.message || 'Failed to load import history'
   } finally {
     historyLoading.value = false
   }

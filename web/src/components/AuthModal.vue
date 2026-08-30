@@ -1,9 +1,18 @@
 <template>
-  <div class="modal-overlay" :class="{ visible: isOpen }" @click="close">
-    <div class="modal auth-modal" @click.stop>
+  <div v-if="isOpen" class="modal-overlay visible" @click="close" @keydown.esc="close">
+    <div
+      ref="modalRef"
+      class="modal auth-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-modal-title"
+      @click.stop
+      @keydown.tab="trapFocus"
+      @keydown.esc="close"
+    >
       <div class="modal-header">
         <h3 id="auth-modal-title">{{ modalTitle }}</h3>
-        <button class="icon-btn" @click="close">✕</button>
+        <button class="icon-btn" @click="close" aria-label="Close">✕</button>
       </div>
 
       <!-- Verification pending (after signup with verify_required) -->
@@ -88,7 +97,7 @@
               <a href="#" @click.prevent="toggleForgot">Forgot password?</a>
             </p>
           </div>
-          <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
+          <div v-if="error" class="alert alert-error" role="alert" aria-live="assertive">{{ error }}</div>
           <div v-if="canResend" class="resend-row">
             <button class="btn btn-outline btn-sm" :disabled="resending" @click.prevent="resend">
               {{ resending ? '⏳' : (resendSent ? 'Sent ✓' : 'Resend verification email') }}
@@ -97,7 +106,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn btn-primary" :disabled="submitting">
+          <button type="submit" class="btn btn-primary" :disabled="submitting" autofocus>
             {{ submitting ? '⏳' : (isSignUp ? 'Create Account' : 'Sign In') }}
           </button>
           <p class="text-sm text-muted" style="margin-top: 8px;">
@@ -141,11 +150,18 @@ const modalTitle = computed(() => {
 })
 
 let listener = null
+const modalRef = ref(null)
+let previousFocus = null
 
 onMounted(() => {
   listener = () => {
+    previousFocus = document.activeElement
     isOpen.value = true
     error.value = ''
+    nextTick(() => {
+      const el = modalRef.value?.querySelector('input, button')
+      if (el) el.focus()
+    })
   }
   document.addEventListener('show-auth-modal', listener)
   checkGoogleConfig()
@@ -160,6 +176,30 @@ watch([googleEnabled, isOpen], async ([enabled, open]) => {
   await nextTick()
   renderGoogleButton()
 })
+
+watch(isOpen, (open) => {
+  if (open) {
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = ''
+    if (previousFocus) previousFocus.focus()
+  }
+})
+
+function trapFocus(e) {
+  if (!isOpen.value || !modalRef.value) return
+  const focusables = modalRef.value.querySelectorAll('a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')
+  if (focusables.length === 0) return
+  const first = focusables[0]
+  const last = focusables[focusables.length - 1]
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
 
 // ── Google sign-in (GSI) ────────────────────────────────────────────
 

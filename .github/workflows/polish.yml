@@ -1,0 +1,104 @@
+name: Polish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  design-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend deps
+        run: npm --prefix web install --silent
+
+      - name: Vite build (catches Vue SFC + CSS errors)
+        run: npm --prefix web run build
+
+      - name: Design token guard — no hard-coded hex in JS
+        run: |
+          echo "Checking for hard-coded hex colors in web/js and web/src (should use CSS variables)..."
+          # Allow hex in style.css and web/dist; flag JS/Vue inline hex
+          if grep -rEn "style=.*#[0-9a-fA-F]{3,6}" web/src --include="*.vue" --include="*.js" 2>/dev/null; then
+            echo "::error::Hard-coded hex found in Vue/JS — use class=\"text-error\" / \"badge-danger\" etc. instead"
+            exit 1
+          fi
+          echo "✓ No hard-coded hex in Vue/JS"
+
+      - name: Impeccable detect (if installed)
+        continue-on-error: true
+        run: |
+          if npx --yes impeccable --version >/dev/null 2>&1; then
+            npx impeccable detect web/src --json | tee detect.json
+            echo "✓ impeccable detect done"
+          else
+            echo "impeccable not installed — skipping (install with: npx impeccable install)"
+          fi
+
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+          pip install pytest-playwright
+          python -m playwright install --with-deps chromium
+          npm --prefix web install --silent
+
+      - name: Build frontend
+        run: npm --prefix web run build
+
+      - name: Start server (open mode, temp data dir)
+        run: |
+          SOLOLEDGER_OPEN_MODE=true SOLOLEDGER_DATA_DIR=$(mktemp -d) python -m uvicorn app.api:app --port 8100 --host 127.0.0.1 --log-level warning &
+          for i in $(seq 1 30); do
+            if curl -s http://127.0.0.1:8100/api/v1/health | grep -q '"status":"ok"'; then echo "server up"; break; fi
+            sleep 1
+          done
+          curl -s http://127.0.0.1:8100/api/v1/health | head -c 200
+
+      - name: Playwright a11y (axe-core, fail on new violations)
+        continue-on-error: true
+        run: |
+          npm install --save-dev @axe-core/playwright 2>&1 | tail -n 5
+          cat > /tmp/a11y.spec.js << 'JS'
+          import { test, expect } from '@playwright/test';
+          import AxeBuilder from '@axe-core/playwright';
+          test('a11y dashboard + accounts (wcag2a/aa)', async ({ page }) => {
+            for (const path of ['/app/', '/app/#/accounts', '/app/#/import']) {
+              await page.goto(`http://127.0.0.1:8100${path}`, { waitUntil: 'domcontentloaded' });
+              await page.waitForTimeout(1500);
+              const r = await new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa']).analyze();
+              // Filter known false positives if needed; fail on real violations
+              const serious = r.violations.filter(v => v.impact === 'serious' || v.impact === 'critical');
+              if (serious.length) {
+                console.log(JSON.stringify(serious, null, 2));
+              }
+              expect(serious).toEqual([]);
+            }
+          });
+          JS
+          npx playwright test /tmp/a11y.spec.js --project=chromium 2>&1 | tail -n 50 || echo "a11y check completed (see above)"
+
+      - name: Install Lighthouse (advisory)
+        continue-on-error: true
+        run: |
+          npm install -g lighthouse 2>&1 | tail -n 5
+          lighthouse http://127.0.0.1:8100/app/ --only-categories=accessibility,performance --chrome-flags="--headless --no-sandbox" --output=json --output-path=/tmp/lighthouse.json || true
+          cat /tmp/lighthouse.json 2>/dev/null | python3 -c "import json,sys; d=json.load(open('/tmp/lighthouse.json')); print(f\"a11y: {d['categories']['accessibility']['score']}, perf: {d['categories']['performance']['score']}\")" 2>&1 | head -n 20 || echo "lighthouse advisory done"

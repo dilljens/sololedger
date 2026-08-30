@@ -14,6 +14,7 @@
           class="sidebar-link"
           :class="{ active: isActive(item.path) }"
           :aria-label="item.label"
+          :aria-current="isActive(item.path) ? 'page' : undefined"
         >
           <span aria-hidden="true">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
@@ -50,6 +51,7 @@
         :to="item.path"
         class="mobile-nav-link"
         :class="{ active: isActive(item.path) }"
+        :aria-current="isActive(item.path) ? 'page' : undefined"
       >
         <span aria-hidden="true">{{ item.icon }}</span>
         <span class="mobile-nav-label">{{ item.shortLabel }}</span>
@@ -62,11 +64,11 @@
 
     <!-- Mobile drawer -->
     <teleport to="body">
-      <div class="mobile-drawer-overlay" :class="{ visible: mobileDrawerOpen }" @click="closeMobileDrawer">
+      <div class="mobile-drawer-overlay" :class="{ visible: mobileDrawerOpen }" @click="closeMobileDrawer" role="dialog" aria-modal="true" aria-label="Navigation menu">
         <div class="mobile-drawer" @click.stop>
           <div class="mobile-drawer-header">
             <span style="font-weight:600;">All Pages</span>
-            <button class="icon-btn" @click="closeMobileDrawer">✕</button>
+            <button class="icon-btn" @click="closeMobileDrawer" aria-label="Close menu">✕</button>
           </div>
           <div class="mobile-drawer-items">
             <router-link
@@ -75,6 +77,7 @@
               :to="item.path"
               class="mobile-drawer-item"
               @click="closeMobileDrawer"
+              :aria-current="isActive(item.path) ? 'page' : undefined"
             >
               <span aria-hidden="true">{{ item.icon }}</span>
               {{ item.label }}
