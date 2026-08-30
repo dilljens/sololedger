@@ -94,11 +94,14 @@ body {
 
 /* ── Layout ── */
 body { display: flex; min-height: 100vh; }
-.main {
+.main,
+.main-content {
   flex: 1;
   margin-left: 240px;
   padding: var(--space-8) var(--space-10);
   max-width: 1200px;
+  width: calc(100% - 240px);
+  box-sizing: border-box;
 }
 
 .container { max-width: 1200px; }
@@ -665,14 +668,16 @@ code, .code {
   .sidebar nav a { padding: var(--space-3) 0; justify-content: center; font-size: 0; gap: 0; }
   .sidebar nav a::after { content: attr(data-label); font-size: 0; }
   .sidebar-footer { display: none; }
-  .main { margin-left: 60px; padding: var(--space-5) var(--space-5); }
+  .main,
+  .main-content { margin-left: 60px; padding: var(--space-5) var(--space-5); width: calc(100% - 60px); }
   .stat-card { min-width: 140px; }
 }
 
 /* ── Responsive: mobile ── */
 @media (max-width: 768px) {
   .sidebar { display: none; }
-  .main { margin-left: 0; padding: var(--space-4) var(--space-3) 70px; }
+  .main,
+  .main-content { margin-left: 0; padding: var(--space-4) var(--space-3) 70px; width: 100%; max-width: 100%; }
   .page-header { padding: 0 0 var(--space-3); }
   .page-header h1 { font-size: 1.125rem; }
   .page-header p { font-size: 0.8rem; }
@@ -1138,7 +1143,8 @@ html { scrollbar-gutter: stable; }
   .btn, .btn-primary, .btn-outline, .btn-danger, .btn-success,
   .btn-ghost, button, .theme-toggle, .sidebar-signin, .sidebar-user,
   [onclick] { display: none !important; }
-  .main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+  .main,
+  .main-content { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; width: 100% !important; }
   .card { break-inside: avoid; box-shadow: none !important; border: 1px solid #ddd !important; }
   table { break-inside: auto; }
   tr { break-inside: avoid; }
