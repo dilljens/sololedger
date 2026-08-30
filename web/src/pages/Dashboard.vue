@@ -15,37 +15,40 @@
     </template>
 
     <template v-else>
-      <!-- Attention items -->
+      <!-- Attention items — semantic tokens, no emoji-as-icon reliance -->
       <div v-if="attentionItems.length" class="attention-list">
         <div
           v-for="item in attentionItems"
           :key="item.id"
           class="attention-item"
           :class="item.severity === 'critical' ? 'attention-critical' : 'attention-warning'"
+          role="alert"
         >
-          <span v-if="item.severity === 'critical'">🔴</span>
-          <span v-else>🟡</span>
+          <span class="attention-dot" :class="item.severity === 'critical' ? 'dot-red' : 'dot-yellow'" aria-hidden="true"></span>
           <span>{{ item.message }}</span>
         </div>
       </div>
+      <div v-else-if="!loading && !error" class="empty-state" style="padding: var(--space-4) 0 var(--space-5);">
+        <p class="text-sm text-muted">All clear — no urgent items.</p>
+      </div>
 
-      <!-- Stats cards -->
+      <!-- Stats cards — staggered entrance (fraunces h1 + mono values) -->
       <div class="stat-grid">
-        <div class="stat-card">
+        <div class="stat-card" style="--i:0">
           <div class="stat-label">Cash</div>
           <div class="stat-value" :class="{ 'text-success': cash > 0 }">
             {{ fmt(cash) }}
           </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" style="--i:1">
           <div class="stat-label">Revenue YTD</div>
           <div class="stat-value">{{ fmt(revenue) }}</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" style="--i:2">
           <div class="stat-label">Expenses</div>
           <div class="stat-value text-danger">{{ fmt(expenses) }}</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" style="--i:3">
           <div class="stat-label">Net Profit</div>
           <div class="stat-value" :class="netProfit >= 0 ? 'text-success' : 'text-danger'">
             {{ fmt(netProfit) }}
@@ -144,6 +147,9 @@ onMounted(fetchData)
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+}
+.attention-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
 }
 
 .tax-summary {
