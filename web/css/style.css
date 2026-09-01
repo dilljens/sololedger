@@ -868,6 +868,48 @@ code, .code {
 .btn-ghost:hover { background: var(--gray-100); }
 
 /* ── Mobile drawer ──────────────────────────────────────────── */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  backdrop-filter: blur(2px);
+}
+.mobile-drawer-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.mobile-drawer {
+  width: 280px;
+  max-width: 82vw;
+  height: 100vh;
+  height: 100dvh;
+  background: #fff;
+  box-shadow: var(--shadow-xl);
+  padding: 16px;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.mobile-drawer-overlay.visible .mobile-drawer {
+  transform: translateX(0);
+}
+.mobile-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.mobile-drawer-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .mobile-drawer-item {
   display: flex;
   align-items: center;
@@ -975,8 +1017,10 @@ code, .code {
 [data-theme="dark"] .user-name { color: #e2e8f0; }
 [data-theme="dark"] .btn-ghost { color: #94a3b8; }
 [data-theme="dark"] .btn-ghost:hover { background: #1e293b; color: #e2e8f0; }
+[data-theme="dark"] .mobile-drawer { background: #1e293b; }
 [data-theme="dark"] .mobile-drawer-item { color: #e2e8f0; }
-[data-theme="dark"] .mobile-drawer-item:hover { background: #1e293b; }
+[data-theme="dark"] .mobile-drawer-item:hover { background: #334155; }
+[data-theme="dark"] .mobile-drawer-header { color: #f1f5f9; }
 [data-theme="dark"] .stat-card .delta.up { background: #14532d; color: #4ade80; }
 [data-theme="dark"] .stat-card .delta.down { background: #450a0a; color: #f87171; }
 [data-theme="dark"] .badge-success { background: #14532d; color: #4ade80; }
@@ -1071,6 +1115,27 @@ code, .code {
   gap: var(--space-2);
   justify-content: flex-end;
 }
+
+/* ── Icon button (theme toggle + drawer close) ── */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.icon-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+.icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+[data-theme="dark"] .icon-btn { color: #94a3b8; }
+[data-theme="dark"] .icon-btn:hover { background: #334155; color: #e2e8f0; }
 
 /* ── Dark mode toggle ── */
 .theme-toggle {
