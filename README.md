@@ -39,6 +39,9 @@ git clone https://github.com/dilljens/sololedger
 cd sololedger
 pip install -r requirements.txt
 
+# First run: set your business identity, pick empty vs demo ledger
+python -m app.main init
+
 # CLI
 python -m app.main status
 

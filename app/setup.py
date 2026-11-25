@@ -98,6 +98,14 @@ def run_init():
                   payroll_frequency=payroll_frequency)
     click.echo(f"  ✓  Wrote {config_path.name}")
 
+    if ein == "XX-XXXXXXX":
+        click.echo("  ⚠️  EIN left as placeholder — set it in config.toml before filing.")
+    if biz_name in ("Your LLC", "Your LLC Name Here"):
+        click.echo("  ⚠️  Business name is a placeholder — update it in config.toml.")
+
+    # ── 4.5 Ledger: demo / fresh / keep ─────────────────────────────
+    _ledger_step(config_path)
+
     # ── 5. Verify ledger ──────────────────────────────────────────
     click.echo()
     click.echo("Checking ledger...")
@@ -129,6 +137,45 @@ def run_init():
     click.echo("    TOGGL_API_TOKEN     → time tracking")
     click.echo("    NOTIFY_SMTP_PASSWORD → email alerts")
     click.echo()
+
+
+def _ledger_step(config_path: Path) -> None:
+    """Offer demo-data load/remove so a new user picks empty vs sample ledger.
+
+    Never deletes real transactions: removal targets only the bounded demo
+    block (see app.demo). Defaults are always the safe option (keep).
+    """
+    from .demo import has_demo, load_demo, remove_demo
+
+    try:
+        cfg = Config(str(config_path))
+        tx_path = cfg.ledger_dir / "transactions.beancount"
+        if not tx_path.exists():
+            click.echo("  ⚠️  No transactions file found — skipping ledger setup.")
+            return
+        content = tx_path.read_text()
+    except Exception as e:
+        click.echo(f"  ⚠️  Could not read ledger ({e}) — skipping ledger setup.")
+        return
+
+    click.echo()
+    if has_demo(content):
+        click.echo("  Your ledger contains sample demo data (11 example transactions).")
+        if click.confirm("  Remove demo data and start with an empty ledger?", default=False):
+            n = remove_demo(tx_path)
+            click.echo(f"  ✓  Removed {n} demo transactions — clean slate (real entries kept).")
+        else:
+            click.echo("  Keeping demo data. Remove it anytime with: llc demo --remove")
+    else:
+        if click.confirm("  Load sample demo data to explore features first?", default=False):
+            n = load_demo(tx_path)
+            if n == -1:
+                click.echo("  Demo data already present.")
+            else:
+                click.echo(f"  ✓  Loaded {n} sample transactions.")
+                click.echo("    Remove them anytime with: llc demo --remove")
+        else:
+            click.echo("  Starting with your ledger as-is. Add demo data anytime with: llc demo")
 
 
 def _prompt(label: str, default: str = "", secret: bool = False) -> str:

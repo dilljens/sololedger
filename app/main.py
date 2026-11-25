@@ -108,6 +108,8 @@ def status(ctx):
     ent_label = "S-Corp (1120-S)" if ent_type == "scorp" else "SMLLC (Schedule C)"
     click.echo("═══ SoloLedger Dashboard ═══")
     click.echo(f"  Entity type:         {ent_label}")
+    if cfg.business_name in ("Your LLC", "Your LLC Name Here") or cfg.ein == "XX-XXXXXXX":
+        click.echo("  ⚠️  Business identity not set — run `llc init` to personalize.")
     click.echo()
 
     # Cash
@@ -1647,162 +1649,54 @@ def init():
 
 
 @cli.command()
-@click.option("--fresh", is_flag=True, help="Remove existing data and reload")
+@click.option("--fresh", is_flag=True, help="Remove demo data and reload it (real transactions are kept)")
+@click.option("--remove", "remove", is_flag=True, help="Remove demo data and start with an empty ledger")
 @_pass_config
-def demo(ctx, fresh):
+def demo(ctx, fresh, remove):
     """Load sample data so you can explore SoloLedger right away.
 
     Adds sample invoices, expenses, and opening balance to the ledger.
+    Use --remove to delete the demo block (real transactions are kept).
     """
+    from .demo import has_demo, load_demo, remove_demo
+
     cfg = ctx["cfg"]
     ledger = ctx["ledger"]
-    from decimal import Decimal
 
     tx_path = cfg.ledger_dir / "transactions.beancount"
-    content = tx_path.read_text()
 
-    # If fresh, strip existing demo data
-    if fresh and "SoloLedger Demo" in content:
-        # Remove everything from the demo marker to end of file
-        marker = "=== SoloLedger Demo Data ==="
-        idx = content.find(marker)
-        if idx != -1:
-            content = content[:idx].rstrip() + "\n"
-            tx_path.write_text(content)
+    # Removal path: delete only the demo block, never real entries.
+    if remove or fresh:
+        if not has_demo(tx_path.read_text()):
+            click.echo("  No demo data found — nothing to remove.")
+            if remove:
+                return
+        else:
+            n = remove_demo(tx_path)
             ledger.reload()
-            click.echo("  ✓  Removed existing demo data.")
+            click.echo(f"  ✓  Removed {n} demo transactions (real entries kept).")
+            if remove:
+                errors = ledger.check()
+                if errors:
+                    click.echo(f"  ⚠️  Ledger has {len(errors)} issue(s) after removal.")
+                else:
+                    click.echo("  ✓  Ledger is valid — clean slate.")
+                return
+            # --fresh falls through to reload below
 
-    # Check if demo data already loaded (unless --fresh was used)
-    content = tx_path.read_text()
-    if "SoloLedger Demo" in content:
-        click.echo("⚠  Demo data already loaded. Use 'llc demo --fresh' to reload.")
+    # Check if demo data already loaded (unless --fresh stripped it above)
+    if has_demo(tx_path.read_text()):
+        click.echo("⚠  Demo data already loaded. Use 'llc demo --fresh' to reload or 'llc demo --remove' to delete it.")
         return
 
     click.echo("═══ Loading Demo Data ═══")
     click.echo()
 
-    demo_entries = [
-        # Opening balance
-        {
-            "date": "2026-01-02",
-            "payee": "Dillon",
-            "narration": "Initial contribution",
-            "postings": [
-                ("Assets:Bank:BusinessChecking", "10000.00 USD"),
-                ("Equity:OpeningBalance", "-10000.00 USD"),
-            ],
-        },
-        # Invoices
-        {
-            "date": "2026-01-15",
-            "payee": "Acme Corp",
-            "narration": "Q1 2026 Consulting Retainer",
-            "postings": [
-                ("Income:Consulting", "-8000.00 USD"),
-                ("Assets:AccountsReceivable", "8000.00 USD"),
-            ],
-        },
-        {
-            "date": "2026-02-01",
-            "payee": "Client payment — Acme Corp",
-            "narration": "Invoice paid via wire",
-            "postings": [
-                ("Assets:Bank:BusinessChecking", "8000.00 USD"),
-                ("Assets:AccountsReceivable", "-8000.00 USD"),
-            ],
-        },
-        {
-            "date": "2026-04-15",
-            "payee": "Beta Inc",
-            "narration": "Website consulting — Q2 2026",
-            "postings": [
-                ("Income:Consulting", "-5000.00 USD"),
-                ("Assets:AccountsReceivable", "5000.00 USD"),
-            ],
-        },
-        # Expenses
-        {
-            "date": "2026-01-05",
-            "payee": "GitHub",
-            "narration": "GitHub Team plan — Jan 2026",
-            "postings": [
-                ("Expenses:Software:SaaS", "20.00 USD"),
-                ("Assets:Bank:BusinessChecking", "-20.00 USD"),
-            ],
-        },
-        {
-            "date": "2026-01-10",
-            "payee": "AWS",
-            "narration": "AWS hosting — Jan 2026",
-            "postings": [
-                ("Expenses:Software:Hosting", "47.23 USD"),
-                ("Assets:Bank:BusinessChecking", "-47.23 USD"),
-            ],
-        },
-        {
-            "date": "2026-01-15",
-            "payee": "Office Depot",
-            "narration": "Office supplies",
-            "postings": [
-                ("Expenses:Supplies", "35.00 USD"),
-                ("Assets:Bank:BusinessChecking", "-35.00 USD"),
-            ],
-        },
-        {
-            "date": "2026-02-01",
-            "payee": "Cloudflare",
-            "narration": "Cloudflare Pro plan",
-            "postings": [
-                ("Expenses:Software:Hosting", "20.00 USD"),
-                ("Assets:Bank:BusinessChecking", "-20.00 USD"),
-            ],
-        },
-        {
-            "date": "2026-02-10",
-            "payee": "Stripe",
-            "narration": "Payment processing fees",
-            "postings": [
-                ("Expenses:BankFees", "22.50 USD"),
-                ("Assets:Bank:BusinessChecking", "-22.50 USD"),
-            ],
-        },
-        {
-            "date": "2026-03-01",
-            "payee": "IRS",
-            "narration": "Q1 2026 estimated tax payment",
-            "postings": [
-                ("Expenses:Taxes:Federal", "1500.00 USD"),
-                ("Assets:Bank:BusinessChecking", "-1500.00 USD"),
-            ],
-        },
-        # Owner draw
-        {
-            "date": "2026-03-15",
-            "payee": "Dillon",
-            "narration": "Owner draw — Mar 2026",
-            "postings": [
-                ("Equity:OwnerDraws", "3000.00 USD"),
-                ("Assets:Bank:BusinessChecking", "-3000.00 USD"),
-            ],
-        },
-    ]
-
-    # Append demo data with a clear marker
-    with open(tx_path, "a") as f:
-        f.write("\n")
-        f.write(";; === SoloLedger Demo Data ==========================================\n")
-        f.write(";; Generated by `llc demo` — safe to delete when you start fresh\n")
-        f.write(";; ==================================================================\n")
-        f.write("\n")
-
-        for entry in demo_entries:
-            date = entry["date"]
-            payee = entry["payee"].replace('"', '\\"')
-            narration = entry["narration"].replace('"', '\\"')
-            f.write(f'{date} * "{payee}" "{narration}"\n')
-            for account, amount in entry["postings"]:
-                f.write(f"  {account:45s}  {amount}\n")
-            f.write("\n")
+    # Dataset lives in app.demo.DEMO_ENTRIES — bounded block with end marker.
+    n_loaded = load_demo(tx_path)
+    if n_loaded == -1:  # raced or already present; guarded above
+        click.echo("⚠  Demo data already loaded.")
+        return
 
     # Reload ledger
     ledger.reload()
@@ -1810,7 +1704,7 @@ def demo(ctx, fresh):
     cash = ledger.cash_balance()
     ar = ledger.account_balance(cfg.ar_account)
 
-    click.echo(f"  ✓  Loaded {len(demo_entries)} sample transactions")
+    click.echo(f"  ✓  Loaded {n_loaded} sample transactions")
     click.echo()
     click.echo(f"  Cash:            ${cash:>8,.2f}")
     click.echo(f"  Revenue:         ${ledger.gross_revenue():>8,.2f}")
