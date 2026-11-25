@@ -109,8 +109,9 @@ class Notifier:
         for d in info["deadlines"]:
             days = d["days_until"]
 
-            if days < 0:
-                # Overdue!
+            if d["status"] == "overdue":
+                # Recently missed — still actionable. Stale quarters
+                # (status "past") don't re-alert on every run.
                 msg = f"⚠  {d['label']} tax deadline is OVERDUE ({d['due']})!"
                 self.desktop("Tax Deadline Overdue!", msg, urgency="critical")
                 self.email("Tax Deadline Overdue!", msg)

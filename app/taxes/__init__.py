@@ -445,11 +445,19 @@ class TaxEstimator:
         upcoming = []
         for d in deadlines:
             days_until = (d["date"] - now).days
+            if days_until < -30:
+                status = "past"  # settled history — not actionable, no alerts
+            elif days_until < 0:
+                status = "overdue"
+            elif days_until <= 30:
+                status = "upcoming"
+            else:
+                status = "ahead"
             upcoming.append({
                 "label": f"Q{d['quarter']}" if isinstance(d['quarter'], int) else d['quarter'],
                 "due": d["date"].isoformat(),
                 "days_until": days_until,
-                "status": "overdue" if days_until < 0 else "upcoming" if days_until <= 30 else "ahead",
+                "status": status,
             })
 
         return {"as_of": now.isoformat(), "deadlines": upcoming}

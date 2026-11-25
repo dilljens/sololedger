@@ -137,11 +137,16 @@ def status(ctx):
         click.echo("  No tax due (net profit ≤ 0)")
     click.echo()
 
-    # Deadlines
+    # Deadlines — stale quarters collapse to one line (no alarm fatigue)
     deadlines = taxer.deadline_info()
+    past = [d for d in deadlines["deadlines"] if d["status"] == "past"]
     for d in deadlines["deadlines"]:
+        if d["status"] == "past":
+            continue
         icon = "🔴" if d["status"] == "overdue" else "🟡" if d["status"] == "upcoming" else "🟢"
         click.echo(f"  {icon} {d['label']}: {d['due']} ({d['days_until']} days)")
+    if past:
+        click.echo(f"  □ {', '.join(d['label'] for d in past)}: due dates passed")
 
     # Ledger health
     click.echo()

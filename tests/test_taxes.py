@@ -146,7 +146,62 @@ class TestDeadlineInfo:
             assert "due" in deadline
             assert "days_until" in deadline
             assert "status" in deadline
-            assert deadline["status"] in ("overdue", "upcoming", "ahead")
+            assert deadline["status"] in ("past", "overdue", "upcoming", "ahead")
+
+
+class TestDeadlinePastStatus:
+    """Stale quarters are history ('past'), not repeating alarms."""
+
+    def test_status_rule_holds_any_day(self, sample_config, clean_ledger):
+        from app.taxes import TaxEstimator
+        te = TaxEstimator(sample_config, clean_ledger)
+        for d in te.deadline_info()["deadlines"]:
+            if d["days_until"] < -30:
+                assert d["status"] == "past", d
+            elif d["days_until"] < 0:
+                assert d["status"] == "overdue", d
+
+    def test_recently_missed_is_overdue(self, sample_config, clean_ledger, monkeypatch):
+        import datetime as dt
+        from app import taxes as taxes_mod
+        from app.taxes import TaxEstimator
+        real_date = dt.date
+
+        class FakeDate(real_date):
+            @classmethod
+            def today(cls):
+                return real_date(2026, 4, 20)  # 5 days after Q1 due
+
+        monkeypatch.setattr(taxes_mod.datetime, "date", FakeDate)
+        try:
+            te = TaxEstimator(sample_config, clean_ledger)
+            statuses = {d["label"]: d["status"] for d in te.deadline_info()["deadlines"]}
+        finally:
+            monkeypatch.undo()
+        assert statuses["Q1"] == "overdue"
+        assert statuses["Q2"] == "ahead"
+
+    def test_long_past_is_past(self, sample_config, clean_ledger, monkeypatch):
+        import datetime as dt
+        from app import taxes as taxes_mod
+        from app.taxes import TaxEstimator
+        real_date = dt.date
+
+        class FakeDate(real_date):
+            @classmethod
+            def today(cls):
+                return real_date(2026, 11, 25)
+
+        monkeypatch.setattr(taxes_mod.datetime, "date", FakeDate)
+        try:
+            te = TaxEstimator(sample_config, clean_ledger)
+            statuses = {d["label"]: d["status"] for d in te.deadline_info()["deadlines"]}
+        finally:
+            monkeypatch.undo()
+        assert statuses["Q1"] == "past"
+        assert statuses["Q2"] == "past"
+        assert statuses["Q3"] == "past"
+        assert statuses["Q4"] == "ahead"
 
 
 class TestScheduleCSummary:

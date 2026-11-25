@@ -208,7 +208,7 @@ class TestTaxDeadlines:
             assert "due" in d
             assert "days_until" in d
             assert "status" in d
-            assert d["status"] in ("overdue", "upcoming", "ahead")
+            assert d["status"] in ("past", "overdue", "upcoming", "ahead")
 
 
 class TestTaxScheduleC:
