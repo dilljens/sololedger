@@ -6,8 +6,8 @@
 |--------|-------|
 | **Version** | 0.4.0 |
 | **Ledger** | ✅ Clean — no errors |
-| **Demo Data** | ✅ Loaded (cash: $11,855.27, revenue: $13,000.00) |
-| **Tests** | ✅ 240 passing (4 Stripe tests skip without credentials; 20 e2e-marked in `tests/` excluded here) |
+| **Demo Data** | ✅ Loaded (cash: $11,617.27, revenue: $73,000.00 — live ledger) |
+| **Tests** | ✅ 322 passing, 4 skipped (20 e2e-marked excluded; run `.venv/bin/python -m pytest`) |
 | **Config** | ⚠️ Template values (name, EIN not set) |
 | **Working tree** | ✅ Clean |
 | **Architecture** | ⚠️ 0.5912 (post-refactor; modularity metric artifact from API split) |
