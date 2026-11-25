@@ -189,3 +189,7 @@
   Expenses:Travel                                29.75 USD
   Assets:Bank:BusinessChecking                   -29.75 USD
 
+2026-09-02 * "Payment — Invoice INV-2026-001" "Payment received for invoice INV-2026-001"
+  Assets:Bank:BusinessChecking                   5000.00 USD
+  Assets:AccountsReceivable                      -5000.00 USD
+
